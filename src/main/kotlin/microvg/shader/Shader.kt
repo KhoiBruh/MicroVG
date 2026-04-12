@@ -1,8 +1,12 @@
 package microvg.shader
 
+import microvg.MicroVG
+import microvg.States
+import org.joml.Matrix4f
 import org.lwjgl.opengl.GL32C.*
+import org.lwjgl.system.MemoryUtil.memAllocFloat
 
-internal class Shader(fragment: String, vertex: String) {
+class Shader(fragment: String, vertex: String) {
 
 	private val program = createShader(fragment, vertex)
 	private val uniforms = HashMap<String, Int>()
@@ -29,15 +33,8 @@ internal class Shader(fragment: String, vertex: String) {
 		glGetUniformLocation(program, uniform)
 	}
 
-	fun ortho(screenW: Int, screenH: Int) {
-		val m = FloatArray(16)
-		m[0] = 2F / screenW
-		m[5] = -2F / screenH
-		m[10] = -1F
-		m[12] = -1F
-		m[13] = 1F
-		m[15] = 1F
-		glUniformMatrix4fv(location("uProjection"), false, m)
+	fun ortho() {
+		glUniformMatrix4fv(location("uProjection"), false, States.matrixBuffer)
 	}
 
 	fun uniform(uniform: String, vararg value: Int) = when (value.size) {

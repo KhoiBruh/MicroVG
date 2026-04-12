@@ -1,6 +1,8 @@
 package microvg.effect
 
-import microvg.shape.Shape
+import microvg.shader.BLUR_FRAG
+import microvg.shader.BLUR_VERT
 
-object Blur : Effect() {
+object Blur : Effect(BLUR_FRAG, BLUR_VERT) {
+
 }

@@ -7,8 +7,8 @@ sealed class Effect(
 	fragment: String,
 	vertex: String
 ) {
-	var active = false
-		private set
+	open var active = false
+		protected set
 
 	private val shader = Shader(fragment, vertex)
 	private val vao = glGenVertexArrays()

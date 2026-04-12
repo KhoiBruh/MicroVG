@@ -1,6 +1,10 @@
 package microvg.shape
 
+import microvg.MicroVG
+import microvg.effect.Blur
 import microvg.shader.Shader
+import microvg.util.toFloats
+import microvg.util.toInt
 import org.lwjgl.opengl.ARBInstancedArrays.glVertexAttribDivisorARB
 import org.lwjgl.opengl.GL32C.*
 import org.lwjgl.system.MemoryUtil.memAllocFloat
@@ -12,12 +16,12 @@ sealed class Shape(
 	size: Int
 ) {
 	private val shader = Shader(fragment, vertex)
-	private val vao = glGenVertexArrays()
-	private val vbo = glGenBuffers()
-	private val ebo = glGenBuffers()
-	private val ibo = glGenBuffers()
-	private val instanced = memAllocFloat(maxShapes * size)
-	private val stride = size * Float.SIZE_BYTES
+	val vao = glGenVertexArrays()
+	val vbo = glGenBuffers()
+	val ebo = glGenBuffers()
+	val ibo = glGenBuffers()
+	val instanced = memAllocFloat(maxShapes * size)
+	val stride = size * Float.SIZE_BYTES
 
 	init {
 		glBindVertexArray(vao)
@@ -34,8 +38,6 @@ sealed class Shape(
 		glBindBuffer(GL_ARRAY_BUFFER, ibo)
 		glBufferData(GL_ARRAY_BUFFER, (maxShapes * stride).toLong(), GL_DYNAMIC_DRAW)
 
-		setupInstanced()
-
 		glBindVertexArray(0)
 	}
 
@@ -48,7 +50,7 @@ sealed class Shape(
 		preDraw: (Shader) -> Unit = {}
 	) {
 		glBindBuffer(GL_ARRAY_BUFFER, ibo)
-		glBufferSubData(GL_ARRAY_BUFFER, 0L, instanceBuf)
+		glBufferSubData(GL_ARRAY_BUFFER, 0L, instanced)
 
 		shader.bind()
 		shader.ortho()
@@ -56,9 +58,9 @@ sealed class Shape(
 		shader.uniform("uBloomRadius", bloomRadius)
 		shader.uniform("uBloomColor", *bloomColor.toFloats())
 
-		shader.uniform("uUseBlur", BlurRenderer.active.toInt())
+		shader.uniform("uUseBlur", Blur.active.toInt())
 		shader.uniform("uBlurTex", 1)
-		shader.uniform("uScreenSize", window.framebufferWidth, window.framebufferHeight)
+		shader.uniform("uScreenSize", MicroVG.width, MicroVG.height)
 
 		preDraw(shader)
 
