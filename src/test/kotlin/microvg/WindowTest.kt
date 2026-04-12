@@ -88,7 +88,7 @@ fun main() {
 			val y = 360f + 200f * sin(angle)
 			val hue = i / 5f
 			val color = hsb(hue, 0.8f, 0.9f)
-			Circle(30F).shadow(10, color = color).fill(color).draw(x, y)
+			Circle(30F).shadow(20, color = color).fill(color).draw(x, y)
 		}
 
 		MicroVG.endFrame()
