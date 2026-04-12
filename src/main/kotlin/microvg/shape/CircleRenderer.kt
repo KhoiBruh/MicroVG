@@ -9,14 +9,7 @@ import org.lwjgl.opengl.GL32C.*
 
 object CircleRenderer : ShapeRenderer(CIRCLE_FRAG, CIRCLE_VERT, 1000, 7) {
 
-	init {
-		setupInstanced()
-	}
-
 	override fun setupInstanced() {
-		glBindVertexArray(vao)
-		glBindBuffer(GL_ARRAY_BUFFER, ibo)
-
 		glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, 0L)
 		glEnableVertexAttribArray(1)
 		glVertexAttribDivisorARB(1, 1)
@@ -24,8 +17,6 @@ object CircleRenderer : ShapeRenderer(CIRCLE_FRAG, CIRCLE_VERT, 1000, 7) {
 		glVertexAttribPointer(2, 4, GL_FLOAT, false, stride, 3L * Float.SIZE_BYTES)
 		glEnableVertexAttribArray(2)
 		glVertexAttribDivisorARB(2, 1)
-
-		glBindVertexArray(0)
 	}
 
 	fun draw(

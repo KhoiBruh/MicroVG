@@ -16,7 +16,7 @@ import kotlin.math.sin
 private val rect = RoundRect(w = 200F, h = 300F, r = 20F)
 	.fill(rgba(255, 100, 50, 255))
 	.stroke(rgba(255, 255, 255, 255), 2f)
-	.shadow(radius = 10, color = rgba(0, 0, 0, 128))
+	.shadow(radius = 10, color = rgba(100, 100, 100, 128))
 	.blur(radius = 5)
 
 private val circle = Circle()
@@ -61,7 +61,7 @@ fun main() {
 		time += 0.016f
 
 		rect
-			.size(w = 100F + 20F * sin(time), h = 100F, r = 5F)
+			.size(w = 100F + 20F * sin(time), h = 50F, r = 25F)
 			.fill(rgba(255, (100 + 50 * sin(time)).toInt(), 50, 255))
 			.draw(x = 100F, y = 100F)
 
@@ -72,14 +72,13 @@ fun main() {
 			.radius(radius)
 			.draw(200F, 300F)
 
-		// Multiple circles
 		for (i in 0 until 5) {
 			val angle = time + i * (PI.toFloat() * 2f / 5f)
 			val x = 640f + 200f * cos(angle)
 			val y = 360f + 200f * sin(angle)
 			val hue = i / 5f
 			val color = hsb(hue, 0.8f, 0.9f)
-			Circle(30F).fill(color).draw(x, y)
+			Circle(30F).shadow(10, color = color).fill(color).draw(x, y)
 		}
 
 		MicroVG.endFrame()

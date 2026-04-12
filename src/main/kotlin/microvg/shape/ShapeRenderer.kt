@@ -38,6 +38,8 @@ sealed class ShapeRenderer(
 		glBindBuffer(GL_ARRAY_BUFFER, ibo)
 		glBufferData(GL_ARRAY_BUFFER, (maxShapes * stride).toLong(), GL_DYNAMIC_DRAW)
 
+		setupInstanced()
+
 		glBindVertexArray(0)
 	}
 

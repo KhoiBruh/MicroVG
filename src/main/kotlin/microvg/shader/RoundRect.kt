@@ -21,7 +21,7 @@ const val ROUND_RECT_FRAG = """
 	void main() {
 	    float r = min(vRadius, min(vHalfSize.x, vHalfSize.y));
 	    vec2 q = abs(vPos) - vHalfSize + r;
-	    float dist = min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+	    float dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
 	    float fw = fwidth(dist);
 	
 	    float shapeAlpha = 1.0 - smoothstep(-fw, fw, dist);

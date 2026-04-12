@@ -9,14 +9,7 @@ import org.lwjgl.opengl.GL32C.*
 
 object RoundRectRenderer : ShapeRenderer(ROUND_RECT_FRAG, ROUND_RECT_VERT, 1000, 9) {
 
-	init {
-		setupInstanced()
-	}
-
 	override fun setupInstanced() {
-		glBindVertexArray(vao)
-		glBindBuffer(GL_ARRAY_BUFFER, ibo)
-
 		glVertexAttribPointer(1, 4, GL_FLOAT, false, stride, 0L)
 		glEnableVertexAttribArray(1)
 		glVertexAttribDivisorARB(1, 1)
@@ -28,8 +21,6 @@ object RoundRectRenderer : ShapeRenderer(ROUND_RECT_FRAG, ROUND_RECT_VERT, 1000,
 		glVertexAttribPointer(3, 1, GL_FLOAT, false, stride, 8L * Float.SIZE_BYTES)
 		glEnableVertexAttribArray(3)
 		glVertexAttribDivisorARB(3, 1)
-
-		glBindVertexArray(0)
 	}
 
 	fun draw(
