@@ -1,0 +1,5 @@
+package microvg
+
+object MicroVG {
+	
+}
