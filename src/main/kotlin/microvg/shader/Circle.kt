@@ -26,7 +26,6 @@ const val CIRCLE_FRAG = """
 	    float glowAlpha = 0.0;
 	    if (uBloomColor.a > 0.0 && uBloomRadius > 0) {
 	        glowAlpha = smoothstep(uBloomRadius, -fw, dist) * uBloomColor.a;
-	        glowAlpha *= (1.0 - shapeAlpha);
 	    }
 
 	    vec3 baseColor = vColor.rgb;
@@ -73,9 +72,8 @@ const val CIRCLE_VERT = """
 	    int pad = uBloomRadius;
 
 	    float r = iCenterRadius.z;
-	    vec2 expandedCenter = iCenterRadius.xy - pad;
 	    float expandedRadius = r + pad;
-	    vec2 worldPos = expandedCenter + (aCorner - 0.5) * expandedRadius * 2.0;
+	    vec2 worldPos = iCenterRadius.xy + (aCorner - 0.5) * expandedRadius * 2.0;
 
 	    gl_Position = uProjection * vec4(worldPos, 0.0, 1.0);
 

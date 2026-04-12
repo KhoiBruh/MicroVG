@@ -16,7 +16,6 @@ import kotlin.math.sin
 private val rect = RoundRect(w = 200F, h = 300F, r = 20F)
 	.fill(rgba(255, 100, 50, 255))
 	.stroke(rgba(255, 255, 255, 255), 2f)
-	.shadow(radius = 10, color = rgba(100, 100, 100, 128))
 	.blur(radius = 5)
 
 private val circle = Circle()
@@ -52,23 +51,34 @@ fun main() {
 
 	var time = 0f
 
+	val winW = IntArray(1)
+	val winH = IntArray(1)
+	val fbW = IntArray(1)
+	val fbH = IntArray(1)
+
 	while (!glfwWindowShouldClose(window)) {
+		glfwGetWindowSize(window, winW, winH)
+		glfwGetFramebufferSize(window, fbW, fbH)
+
+		glViewport(0, 0, fbW[0], fbH[0])
+
 		glClearColor(0.1f, 0.1f, 0.12f, 1f)
 		glClear(GL_COLOR_BUFFER_BIT)
 
-		MicroVG.beginFrame(width, height)
+		MicroVG.beginFrame(winW[0] / 2, winH[0] / 2)
 
 		time += 0.016f
 
 		rect
 			.size(w = 100F + 20F * sin(time), h = 50F, r = 25F)
 			.fill(rgba(255, (100 + 50 * sin(time)).toInt(), 50, 255))
+			.shadow(20, color = rgba(255, (100 + 50 * sin(time)).toInt(), 50, 255))
 			.draw(x = 100F, y = 100F)
 
 		val radius = 50f + 20f * sin(time * 2f)
 		circle
 			.fill(rgba(255, 100, 100, 255))
-			.shadow(10, color = rgba(255, 50, 50, 128))
+			.shadow(20, color = rgba(255, 50, 50, 128))
 			.radius(radius)
 			.draw(200F, 300F)
 

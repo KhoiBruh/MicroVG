@@ -29,7 +29,6 @@ const val ROUND_RECT_FRAG = """
 	    float glowAlpha = 0.0;
 	    if (uBloomColor.a > 0.0 && uBloomRadius > 0) {
 	        glowAlpha = smoothstep(uBloomRadius, -fw, dist) * uBloomColor.a;
-	        glowAlpha *= (1.0 - shapeAlpha);
 	    }
 	
 	    vec3 baseColor = vColor.rgb;
