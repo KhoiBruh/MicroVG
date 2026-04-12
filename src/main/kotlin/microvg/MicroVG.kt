@@ -21,4 +21,14 @@ object MicroVG {
 	fun endFrame() {
 		States.restore()
 	}
+
+	fun push() = States.push()
+
+	fun pop() = States.pop()
+
+	fun translate(x: Float, y: Float) = States.translate(x, y)
+
+	fun scale(x: Float, y: Float) = States.scale(x, y)
+
+	fun scale(s: Float) = States.scale(s)
 }

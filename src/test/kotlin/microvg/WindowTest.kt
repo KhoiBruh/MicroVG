@@ -1,5 +1,7 @@
 package microvg
 
+import microvg.builder.Circle
+import microvg.builder.RoundRect
 import microvg.util.*
 import org.lwjgl.glfw.Callbacks.glfwFreeCallbacks
 import org.lwjgl.glfw.GLFW.*
@@ -10,6 +12,14 @@ import org.lwjgl.system.MemoryUtil.NULL
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+
+private val rect = RoundRect(w = 200F, h = 300F, r = 20F)
+	.fill(rgba(255, 100, 50, 255))
+	.stroke(rgba(255, 255, 255, 255), 2f)
+	.shadow(radius = 10, color = rgba(0, 0, 0, 128))
+	.blur(radius = 5)
+
+private val circle = Circle()
 
 fun main() {
 	GLFWErrorCallback.createPrint(System.err).set()
@@ -50,19 +60,17 @@ fun main() {
 
 		time += 0.016f
 
-		// Animated circle
-		push()
-		translate(640f, 360f)
-		val radius = 50f + 20f * sin(time * 2f)
-		circle(200f, 100f, radius, rgba(255, 100, 100, 255), rgba(255, 50, 50, 128), 10)
-		pop()
+		rect
+			.size(w = 100F + 20F * sin(time), h = 100F, r = 5F)
+			.fill(rgba(255, (100 + 50 * sin(time)).toInt(), 50, 255))
+			.draw(x = 100F, y = 100F)
 
-		// Rounded rect
-		push()
-		translate(600f, 300f)
-		scale(1f + 0.2f * sin(time))
-		rect(50f, 50f, 200f, 100f, 20f, rgba(100, 200, 255, 200))
-		pop()
+		val radius = 50f + 20f * sin(time * 2f)
+		circle
+			.fill(rgba(255, 100, 100, 255))
+			.shadow(10, color = rgba(255, 50, 50, 128))
+			.radius(radius)
+			.draw(200F, 300F)
 
 		// Multiple circles
 		for (i in 0 until 5) {
@@ -71,7 +79,7 @@ fun main() {
 			val y = 360f + 200f * sin(angle)
 			val hue = i / 5f
 			val color = hsb(hue, 0.8f, 0.9f)
-			circle(x, y, 30f, color)
+			Circle(30F).fill(color).draw(x, y)
 		}
 
 		MicroVG.endFrame()

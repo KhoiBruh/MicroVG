@@ -9,7 +9,7 @@ import org.lwjgl.opengl.ARBInstancedArrays.glVertexAttribDivisorARB
 import org.lwjgl.opengl.GL32C.*
 import org.lwjgl.system.MemoryUtil.memAllocFloat
 
-sealed class Shape(
+sealed class ShapeRenderer(
 	fragment: String,
 	vertex: String,
 	val maxShapes: Int,

@@ -3,7 +3,7 @@ package microvg.effect
 import org.lwjgl.opengl.GL32C.*
 import microvg.shader.Shader
 
-sealed class Effect(
+sealed class EffectRenderer(
 	fragment: String,
 	vertex: String
 ) {
