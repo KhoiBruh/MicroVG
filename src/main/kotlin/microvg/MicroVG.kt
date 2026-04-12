@@ -7,14 +7,11 @@ object MicroVG {
 	internal var width = 0
 	internal var height = 0
 
-	fun beginFrame(width: Int, height: Int, pixelRatio: Int = 1) {
-		States.matrix.identity().ortho2D(
-			0F,
-			width.toFloat(),
-			height.toFloat(),
-			0F
-		).get(States.matrixBuffer)
+	fun beginFrame(width: Int, height: Int) {
+		this.width = width
+		this.height = height
 
+		States.ortho(width.toFloat(), height.toFloat())
 		States.backup()
 	}
 

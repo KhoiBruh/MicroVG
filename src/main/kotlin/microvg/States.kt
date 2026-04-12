@@ -25,6 +25,10 @@ object States {
 		if (matrixStack.isNotEmpty()) matrix.set(matrixStack.removeLast())
 	}
 
+	fun ortho(width: Float, height: Float) {
+		matrix.identity().ortho2D(0F, width, height, 0F).get(matrixBuffer)
+	}
+
 	fun translate(x: Float, y: Float) {
 		matrix.translate(x, y, 0F)
 	}
