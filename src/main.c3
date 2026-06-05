@@ -74,6 +74,7 @@ fn void drawDebugScene(MicroVG* vg) {
 	drawWindingFill(vg);
 	drawConcaveFill(vg);
 	drawStrokeStyles(vg);
+	drawAntiAliasFixture(vg);
 }
 
 fn void drawTransformedTriangle(MicroVG* vg) {
@@ -246,6 +247,34 @@ fn void drawStrokeStyles(MicroVG* vg) {
 	miterPaint.join(LineJoin.MITER);
 	miterPaint.miter(6);
 	vg.drawPath(miterPath, miterPaint);
+}
+
+fn void drawAntiAliasFixture(MicroVG* vg) {
+	// Thin rotated stroke and a small rotated fill to make edge smoothing visible.
+	vg.save();
+	vg.translate(150, 470);
+	vg.rotate(0.35);
+
+	path::Path line = vg.makePath();
+	line.moveTo(-60, 0);
+	line.lineTo(60, 0);
+
+	Paint linePaint = vg.makePaint();
+	linePaint.stroke(color::rgba(250, 250, 250), 2);
+	linePaint.cap(LineCap.BUTT);
+	vg.drawPath(line, linePaint);
+
+	path::Path tri = vg.makePath();
+	tri.moveTo(-30, 20);
+	tri.lineTo(30, 20);
+	tri.lineTo(0, 70);
+	tri.close();
+
+	Paint triPaint = vg.makePaint();
+	triPaint.fill(color::rgba(255, 200, 90));
+	vg.drawPath(tri, triPaint);
+
+	vg.restore();
 }
 
 fn void updateDebugTitle(GlfwWindow* window, MicroVG* vg) {

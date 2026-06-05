@@ -32,8 +32,9 @@ fn void MicroVG.drawPath(&self, Path p, Paint paint) {
 
 	State* state = self.currentState();
 	float scale = state.maxScale();
+	float fringe = self.aa.fringe / (scale <= 0 ? 1.0f : scale);
 
-	if (paint.hasFill) self.fillPath(&points[0], &contours[0], contourCount, paint.fillRule, applyAlpha(paint.fillCol, state.alpha));
+	if (paint.hasFill) self.fillPath(&points[0], &contours[0], contourCount, paint.fillRule, applyAlpha(paint.fillCol, state.alpha), fringe);
 
 	for (int i = 0; i < contourCount; i++) {
 		Contour contour = contours[i];
@@ -48,7 +49,8 @@ fn void MicroVG.drawPath(&self, Path p, Paint paint) {
 				paint.lineCap,
 				paint.lineJoin,
 				paint.miterLimit,
-				applyAlpha(paint.strokeCol, state.alpha)
+				applyAlpha(paint.strokeCol, state.alpha),
+				fringe
 			);
 		}
 	}

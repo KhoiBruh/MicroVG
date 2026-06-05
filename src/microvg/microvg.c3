@@ -154,6 +154,10 @@ fn void MicroVG.pushVertex(&self, Vec2f pos, Vec2f tex = { 1, 0 }) {
 	self.vertices.push({ pos, tex });
 }
 
+fn void MicroVG.pushAA(&self, Vec2f pos, float coverage) {
+	self.vertices.push({ pos, { coverage, 0 } });
+}
+
 fn void MicroVG.pushCall(&self, int offset, int count, Color color)
 => self.calls.push({ .offset = offset, .count = count, .color = color });
 

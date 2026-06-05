@@ -27,7 +27,8 @@ fn void MicroVG.strokePath(
 	LineCap cap,
 	LineJoin join,
 	float miterLimit,
-	Color color
+	Color color,
+	float fringe
 ) {
 	if (count < 2 || width <= 0 || color.a <= 0) return;
 
@@ -49,7 +50,19 @@ fn void MicroVG.strokePath(
 		StrokeSegment s = segments[i];
 		StrokeOffsets start = strokeBodyOffsets(&segments[0], validSegments, i, true, closed, half, limit, join);
 		StrokeOffsets end = strokeBodyOffsets(&segments[0], validSegments, i, false, closed, half, limit, join);
-		self.pushStrokeQuad(s.a + start.left, s.a - start.right, s.b - end.right, s.b + end.left);
+
+		Vec2f leftA = s.a + start.left;
+		Vec2f rightA = s.a - start.right;
+		Vec2f rightB = s.b - end.right;
+		Vec2f leftB = s.b + end.left;
+		self.pushStrokeQuad(leftA, rightA, rightB, leftB);
+
+		if (fringe > 0) {
+			Vec2f off = s.normal * fringe;
+			// Left rim fades outward (+normal), right rim fades outward (-normal).
+			self.pushFringeBand(leftA, leftB, leftB + off, leftA + off);
+			self.pushFringeBand(rightA, rightB, rightB - off, rightA - off);
+		}
 	}
 
 	if (closed) {
@@ -158,6 +171,17 @@ fn void MicroVG.pushStrokeQuad(&self, Vec2f a, Vec2f b, Vec2f c, Vec2f d) {
 	self.pushVertex(a);
 	self.pushVertex(c);
 	self.pushVertex(d);
+}
+
+// Fringe rim: inner edge (innerA, innerB) at coverage 1, outer edge (outerB, outerA) at coverage 0.
+fn void MicroVG.pushFringeBand(&self, Vec2f innerA, Vec2f innerB, Vec2f outerB, Vec2f outerA) {
+	self.pushAA(innerA, 1.0f);
+	self.pushAA(innerB, 1.0f);
+	self.pushAA(outerB, 0.0f);
+
+	self.pushAA(innerA, 1.0f);
+	self.pushAA(outerB, 0.0f);
+	self.pushAA(outerA, 0.0f);
 }
 
 fn void MicroVG.pushStrokeJoin(&self, Vec2f p, StrokeSegment prev, StrokeSegment next, float half, LineJoin join, float miterLimit) {
