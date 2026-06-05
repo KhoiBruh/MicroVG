@@ -2,21 +2,21 @@
   "langrev": "1",
   "warnings": [ "no-unused" ],
   "dependency-search-paths": [ "lib" ],
-  "dependencies": [ "glfw34", "opengl" ],
-  "authors": [ "MicroVG Contributors" ],
+  "dependencies": [ "opengl", "glfw34" ],
+  "authors": [ "John Doe <john.doe@example.com>" ],
   "version": "0.1.0",
   "sources": [ "src/**" ],
   "test-sources": [ "test/**" ],
-  "c-sources": [ "lib/stb/stb_image.c", "lib/msdfgen/msdfgen.cpp" ],
-  "c-include-dirs": [ "lib/stb", "lib/msdfgen" ],
   "build-dir": "build",
   "output": "build",
   "targets": {
-    "c4": {
+    "MicroVG": {
       "type": "executable",
-      "link-libc": true
+      "linker-search-paths": [ "build/unpacked_c3l/glfw34.c3l/windows-x64" ],
+      "linked-libraries": [ "glfw", "gdi32", "user32", "shell32" ]
     }
   },
+
   "cpu": "generic",
   "opt": "O0"
 }
