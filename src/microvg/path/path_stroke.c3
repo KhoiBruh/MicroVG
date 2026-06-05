@@ -76,6 +76,8 @@ fn StrokeOffsets strokeBodyOffsets(StrokeSegment* segments, int count, int index
 		.right = current.normal * half
 	};
 
+	if (join != LineJoin.MITER) return offsets;
+
 	if (!closed && start && index == 0) return offsets;
 	if (!closed && !start && index == count - 1) return offsets;
 
@@ -99,28 +101,8 @@ fn StrokeOffsets strokeBodyOffsets(StrokeSegment* segments, int count, int index
 	if (math::abs(scale) > maxScale) scale = scale < 0 ? -maxScale : maxScale;
 	Vec2f miterOffset = miter * scale;
 
-	if (join == LineJoin.MITER) {
-		offsets.left = miterOffset;
-		offsets.right = miterOffset;
-		return offsets;
-	}
-
-	float turn = segments[prevIndex].dir.x * segments[nextIndex].dir.y - segments[prevIndex].dir.y * segments[nextIndex].dir.x;
-	if (math::abs(turn) <= STROKE_JOIN_EPSILON) {
-		offsets.left = miterOffset;
-		offsets.right = miterOffset;
-		return offsets;
-	}
-
-	if (isSmoothStrokeTurn(segments[prevIndex], segments[nextIndex], half, turn)) {
-		offsets.left = miterOffset;
-		offsets.right = miterOffset;
-	} else if (turn > 0) {
-		offsets.left = miterOffset;
-	} else {
-		offsets.right = miterOffset;
-	}
-
+	offsets.left = miterOffset;
+	offsets.right = miterOffset;
 	return offsets;
 }
 
@@ -185,7 +167,7 @@ fn void MicroVG.pushStrokeJoin(&self, Vec2f p, StrokeSegment prev, StrokeSegment
 	}
 
 	if (join == LineJoin.ROUND) {
-		self.pushRoundFan(p, a, b, half, turn > 0);
+		self.pushRoundFan(p, a, b, half, turn < 0);
 		return;
 	}
 
