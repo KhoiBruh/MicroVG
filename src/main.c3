@@ -92,6 +92,7 @@ fn void drawTransformedTriangle(MicroVG* vg) {
 	Paint paint = vg.makePaint();
 	paint.fill(color::rgba(60, 180, 255));
 	paint.stroke(color::rgba(160, 80, 255), 5);
+	paint.join(LineJoin.ROUND);
 	vg.drawPath(tri, paint);
 
 	vg.restore();
@@ -237,22 +238,19 @@ fn void drawStrokeStyles(MicroVG* vg) {
 	vg.drawPath(bevelPath, bevelPaint);
 
 	path::Path miterPath = vg.makePath();
-	miterPath.moveTo(500, 340);
-	miterPath.lineTo(610, 285);
-	miterPath.lineTo(720, 340);
+	miterPath.moveTo(500, 380);
+	miterPath.lineTo(610, 320);
+	miterPath.lineTo(720, 360);
 
 	Paint miterPaint = vg.makePaint();
 	miterPaint.stroke(color::rgba(225, 235, 110), 16);
-	miterPaint.cap(LineCap.BUTT);
-	miterPaint.join(LineJoin.MITER);
-	miterPaint.miter(6);
 	vg.drawPath(miterPath, miterPaint);
 }
 
 fn void drawAntiAliasFixture(MicroVG* vg) {
 	// Thin rotated stroke and a small rotated fill to make edge smoothing visible.
 	vg.save();
-	vg.translate(150, 470);
+	vg.translate(80, 320);
 	vg.rotate(0.35);
 
 	path::Path line = vg.makePath();

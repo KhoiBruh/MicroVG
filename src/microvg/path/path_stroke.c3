@@ -69,14 +69,14 @@ fn void MicroVG.strokePath(
 		for (int i = 0; i < validSegments; i++) {
 			int prev = i - 1;
 			if (prev < 0) prev = validSegments - 1;
-			self.pushStrokeJoin(segments[i].a, segments[prev], segments[i], half, join, limit);
+			self.pushStrokeJoin(segments[i].a, segments[prev], segments[i], half, join, limit, fringe);
 		}
 	} else {
-		self.pushStrokeCap(segments[0].a, segments[0].dir * -1.0f, segments[0].normal, half, cap);
+		self.pushStrokeCap(segments[0].a, segments[0].dir * -1.0f, segments[0].normal, half, cap, fringe);
 		for (int i = 1; i < validSegments; i++) {
-			self.pushStrokeJoin(segments[i].a, segments[i - 1], segments[i], half, join, limit);
+			self.pushStrokeJoin(segments[i].a, segments[i - 1], segments[i], half, join, limit, fringe);
 		}
-		self.pushStrokeCap(segments[validSegments - 1].b, segments[validSegments - 1].dir, segments[validSegments - 1].normal, half, cap);
+		self.pushStrokeCap(segments[validSegments - 1].b, segments[validSegments - 1].dir, segments[validSegments - 1].normal, half, cap, fringe);
 	}
 
 	self.pushCall(offset, self.vertices.count - offset, color);
@@ -184,7 +184,7 @@ fn void MicroVG.pushFringeBand(&self, Vec2f innerA, Vec2f innerB, Vec2f outerB, 
 	self.pushAA(outerA, 0.0f);
 }
 
-fn void MicroVG.pushStrokeJoin(&self, Vec2f p, StrokeSegment prev, StrokeSegment next, float half, LineJoin join, float miterLimit) {
+fn void MicroVG.pushStrokeJoin(&self, Vec2f p, StrokeSegment prev, StrokeSegment next, float half, LineJoin join, float miterLimit, float fringe) {
 	float turn = prev.dir.x * next.dir.y - prev.dir.y * next.dir.x;
 	if (isSmoothStrokeTurn(prev, next, half, turn)) return;
 
@@ -200,6 +200,7 @@ fn void MicroVG.pushStrokeJoin(&self, Vec2f p, StrokeSegment prev, StrokeSegment
 
 	if (join == LineJoin.ROUND) {
 		self.pushRoundFan(p, a, b, half, turn < 0);
+		if (fringe > 0) self.pushRoundFringe(p, a, b, half, fringe, turn < 0);
 		return;
 	}
 
@@ -214,6 +215,7 @@ fn void MicroVG.pushStrokeJoin(&self, Vec2f p, StrokeSegment prev, StrokeSegment
 				self.pushVertex(p);
 				self.pushVertex(miter);
 				self.pushVertex(b);
+				if (fringe > 0) self.pushCornerFringe(p, a, miter, b, fringe);
 				return;
 			}
 		}
@@ -222,9 +224,10 @@ fn void MicroVG.pushStrokeJoin(&self, Vec2f p, StrokeSegment prev, StrokeSegment
 	self.pushVertex(p);
 	self.pushVertex(a);
 	self.pushVertex(b);
+	if (fringe > 0) self.pushBevelFringe(p, a, b, fringe);
 }
 
-fn void MicroVG.pushStrokeCap(&self, Vec2f p, Vec2f dir, Vec2f normal, float half, LineCap cap) {
+fn void MicroVG.pushStrokeCap(&self, Vec2f p, Vec2f dir, Vec2f normal, float half, LineCap cap, float fringe) {
 	if (cap == LineCap.BUTT) return;
 
 	Vec2f left = p + normal * half;
@@ -233,10 +236,18 @@ fn void MicroVG.pushStrokeCap(&self, Vec2f p, Vec2f dir, Vec2f normal, float hal
 	if (cap == LineCap.SQUARE) {
 		Vec2f end = dir * half;
 		self.pushStrokeQuad(left, right, right + end, left + end);
+		if (fringe > 0) {
+			Vec2f capLeft = left + end;
+			Vec2f capRight = right + end;
+			self.pushFringeBand(left, capLeft, capLeft + normal * fringe, left + normal * fringe);
+			self.pushFringeBand(capRight, right, right - normal * fringe, capRight - normal * fringe);
+			self.pushFringeBand(capLeft, capRight, capRight + dir * fringe, capLeft + dir * fringe);
+		}
 		return;
 	}
 
 	self.pushRoundCap(p, dir, half);
+	if (fringe > 0) self.pushRoundCapFringe(p, dir, half, fringe);
 }
 
 fn void MicroVG.pushRoundCap(&self, Vec2f center, Vec2f dir, float radius) {
@@ -267,6 +278,41 @@ fn void MicroVG.pushRoundCap(&self, Vec2f center, Vec2f dir, float radius) {
 	}
 }
 
+fn void MicroVG.pushRoundCapFringe(&self, Vec2f center, Vec2f dir, float radius, float fringe) {
+	float mid = math::atan2(dir.y, dir.x);
+	float a0 = mid - PI * 0.5f;
+	float a1 = mid + PI * 0.5f;
+	int steps = (int) math::ceil(PI * radius / 4.0f);
+	if (steps < 4) steps = 4;
+	if (steps > ROUND_STROKE_MAX_STEPS) steps = ROUND_STROKE_MAX_STEPS;
+
+	Vec2f innerPrev = {
+		center.x + math::cos(a0) * radius,
+		center.y + math::sin(a0) * radius
+	};
+	Vec2f outerPrev = {
+		center.x + math::cos(a0) * (radius + fringe),
+		center.y + math::sin(a0) * (radius + fringe)
+	};
+
+	for (int i = 1; i <= steps; i++) {
+		float t = (float) i / (float) steps;
+		float a = a0 + (a1 - a0) * t;
+		Vec2f innerNext = {
+			center.x + math::cos(a) * radius,
+			center.y + math::sin(a) * radius
+		};
+		Vec2f outerNext = {
+			center.x + math::cos(a) * (radius + fringe),
+			center.y + math::sin(a) * (radius + fringe)
+		};
+
+		self.pushFringeBand(innerPrev, innerNext, outerNext, outerPrev);
+		innerPrev = innerNext;
+		outerPrev = outerNext;
+	}
+}
+
 fn void MicroVG.pushRoundFan(&self, Vec2f center, Vec2f from, Vec2f to, float radius, bool clockwise) {
 	float a0 = math::atan2(from.y - center.y, from.x - center.x);
 	float a1 = math::atan2(to.y - center.y, to.x - center.x);
@@ -293,6 +339,62 @@ fn void MicroVG.pushRoundFan(&self, Vec2f center, Vec2f from, Vec2f to, float ra
 		self.pushVertex(next);
 		prev = next;
 	}
+}
+
+fn void MicroVG.pushRoundFringe(&self, Vec2f center, Vec2f from, Vec2f to, float radius, float fringe, bool clockwise) {
+	float a0 = math::atan2(from.y - center.y, from.x - center.x);
+	float a1 = math::atan2(to.y - center.y, to.x - center.x);
+	float da = a1 - a0;
+
+	if (clockwise && da > 0) da -= PI * 2.0f;
+	if (!clockwise && da < 0) da += PI * 2.0f;
+
+	int steps = (int) math::ceil(math::abs(da) * radius / 4.0f);
+	if (steps < 2) steps = 2;
+	if (steps > ROUND_STROKE_MAX_STEPS) steps = ROUND_STROKE_MAX_STEPS;
+
+	Vec2f innerPrev = from;
+	Vec2f dirPrev = (from - center) / radius;
+	Vec2f outerPrev = from + dirPrev * fringe;
+	for (int i = 1; i <= steps; i++) {
+		float t = (float) i / (float) steps;
+		float a = a0 + da * t;
+		Vec2f dir = { math::cos(a), math::sin(a) };
+		Vec2f innerNext = center + dir * radius;
+		Vec2f outerNext = center + dir * (radius + fringe);
+
+		self.pushFringeBand(innerPrev, innerNext, outerNext, outerPrev);
+		innerPrev = innerNext;
+		outerPrev = outerNext;
+	}
+}
+
+fn void MicroVG.pushBevelFringe(&self, Vec2f center, Vec2f a, Vec2f b, float fringe) {
+	Vec2f da = a - center;
+	Vec2f db = b - center;
+	float la = da.length();
+	float lb = db.length();
+	if (la <= POINT_EPSILON || lb <= POINT_EPSILON) return;
+
+	Vec2f outerA = a + da / la * fringe;
+	Vec2f outerB = b + db / lb * fringe;
+	self.pushFringeBand(a, b, outerB, outerA);
+}
+
+fn void MicroVG.pushCornerFringe(&self, Vec2f center, Vec2f a, Vec2f corner, Vec2f b, float fringe) {
+	Vec2f da = a - center;
+	Vec2f dc = corner - center;
+	Vec2f db = b - center;
+	float la = da.length();
+	float lc = dc.length();
+	float lb = db.length();
+	if (la <= POINT_EPSILON || lc <= POINT_EPSILON || lb <= POINT_EPSILON) return;
+
+	Vec2f outerA = a + da / la * fringe;
+	Vec2f outerCorner = corner + dc / lc * fringe;
+	Vec2f outerB = b + db / lb * fringe;
+	self.pushFringeBand(a, corner, outerCorner, outerA);
+	self.pushFringeBand(corner, b, outerB, outerCorner);
 }
 
 fn bool lineIntersection(Vec2f p, Vec2f r, Vec2f q, Vec2f s, Vec2f* out) {
