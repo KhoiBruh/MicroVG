@@ -76,8 +76,6 @@ fn StrokeOffsets strokeBodyOffsets(StrokeSegment* segments, int count, int index
 		.right = current.normal * half
 	};
 
-	if (join != LineJoin.MITER) return offsets;
-
 	if (!closed && start && index == 0) return offsets;
 	if (!closed && !start && index == count - 1) return offsets;
 
@@ -100,6 +98,16 @@ fn StrokeOffsets strokeBodyOffsets(StrokeSegment* segments, int count, int index
 	float maxScale = half * miterLimit;
 	if (math::abs(scale) > maxScale) scale = scale < 0 ? -maxScale : maxScale;
 	Vec2f miterOffset = miter * scale;
+
+	if (join != LineJoin.MITER) {
+		float turn = segments[prevIndex].dir.x * segments[nextIndex].dir.y - segments[prevIndex].dir.y * segments[nextIndex].dir.x;
+		if (isSmoothStrokeTurn(segments[prevIndex], segments[nextIndex], half, turn)) {
+			offsets.left = miterOffset;
+			offsets.right = miterOffset;
+		}
+
+		return offsets;
+	}
 
 	offsets.left = miterOffset;
 	offsets.right = miterOffset;

@@ -90,7 +90,7 @@ fn void drawTransformedTriangle(MicroVG* vg) {
 
 	Paint paint = vg.makePaint();
 	paint.fill(color::rgba(60, 180, 255));
-	paint.stroke(color::rgba(160, 80, 255));
+	paint.stroke(color::rgba(160, 80, 255), 5);
 	vg.drawPath(tri, paint);
 
 	vg.restore();
@@ -144,7 +144,7 @@ fn void drawMultiSubpath(MicroVG* vg) {
 
 	Paint paint = vg.makePaint();
 	paint.fill(color::rgba(90, 210, 150));
-	paint.stroke(color::rgba(240, 240, 240), 3);
+	paint.stroke(color::rgba(240, 240, 240), 10);
 	vg.drawPath(path, paint);
 }
 
