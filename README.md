@@ -1,2 +1,2 @@
 # MicroVG
-Simply pixel-perfect vector graphics
+Simple vector graphics
