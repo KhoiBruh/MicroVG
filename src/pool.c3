@@ -31,3 +31,24 @@ fn void PathPool.destroy(&self) {
     mem::free(self.paths);
     *self = {};
 }
+
+fn void PathPool.pushDraw(&self, VertexBuffer* vertices) {
+	for (sz i = 0; i < self.used; i++) {
+		Path* path = &self.paths[i];
+		float[6] pen;
+
+		for (sz c = 0; c < path.count; c++) {
+			Cmd cmd = path.cmds[c];
+
+			switch (cmd.type) {
+				case CmdType.MOVE_TO:
+                    pen = cmd.points;
+                case CmdType.LINE_TO:
+                    vertices.push(pen);
+                    vertices.push(cmd.points);
+                    pen = cmd.points;
+                default:
+			}
+		}
+	}
+}

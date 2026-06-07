@@ -44,6 +44,7 @@ fn void MicroVG.beginFrame(&self, int width, int height, float dpr) {
 }
 
 fn void MicroVG.endFrame(&self) {
+	self.paths.pushDraw(&self.vertices);
 	self.backend.flush(self);
 }
 
