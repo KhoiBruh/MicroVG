@@ -20,6 +20,7 @@ fn void VertexBuffer.push(&self, float[6] data) {
     }
 
     for (sz i = 0; i < data.len; i++) self.data[self.count + i] = data[i];
+    self.count += data.len;
 }
 
 fn void VertexBuffer.destroy(&self) {

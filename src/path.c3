@@ -5,9 +5,7 @@ const sz CMD_INIT_CAP @private = 64;
 enum CmdType : char {
 	MOVE_TO,
 	LINE_TO,
-	QUAD_TO,
-	BEZIER_TO,
-	ARC_TO,
+
 	CLOSE
 }
 

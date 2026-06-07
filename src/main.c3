@@ -49,9 +49,11 @@ fn int main(String[] args) {
 		vg.beginFrame(window_w, window_h, 1);
 
 		microvg::Path* path = vg.makePath();
-		path.moveTo(80, 420);
-        path.lineTo(180, 420);
-        path.lineTo(130, 500);
+		path.moveTo(200, 300);
+        path.lineTo(300, 300);
+        path.lineTo(300, 400);
+        path.lineTo(200, 400);
+        path.lineTo(200, 300);
 
         vg.endFrame();
 
