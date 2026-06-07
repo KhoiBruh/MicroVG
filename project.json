@@ -1,7 +1,6 @@
 {
-  "langrev": "1",
   "warnings": [ " " ],
-  "dependency-search-paths": [ "lib" ],
+  "dependency-search-paths": [ "include" ],
   "dependencies": [ "opengl", "glfw34" ],
   "authors": [ "KhoiBruh <github.com/khoibruh>" ],
   "version": "0.1.0",
