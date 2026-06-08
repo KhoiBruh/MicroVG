@@ -23,7 +23,7 @@ struct Line {
 
 fn void Line.lineMode(&self, LineMode mode) {
 	self.mode = mode;
-	hasLine = true;
+	self.hasLine = true;
 }
 
 fn void Line.lineColor(&self, Vec4f color) {
