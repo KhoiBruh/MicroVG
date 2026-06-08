@@ -35,7 +35,7 @@ fn void? Backend.init(&self) {
 
 	gl::bindVertexArray(self.vao);
     gl::bindBuffer((GLenum) gl::GL_ARRAY_BUFFER, self.vbo);
-    gl::vertexAttribPointer(0, 2, (GLenum) gl::GL_FLOAT, 0, float::size * 6, null);
+    gl::vertexAttribPointer(0, 2, (GLenum) gl::GL_FLOAT, 0, float::size * 2, null);
     gl::enableVertexAttribArray(0);
     gl::bindVertexArray(0);
 
@@ -70,7 +70,7 @@ fn void Backend.flush(&self, MicroVG* vg) {
 	    );
     }
 
-    gl::drawArrays((GLenum) gl::GL_LINES, 0, (int) vg.vertices.count / 6);
+    gl::drawArrays((GLenum) gl::GL_LINES, 0, (int) vg.vertices.count / 2);
 
 	gl::bindVertexArray(0);
     self.shader.unbind();

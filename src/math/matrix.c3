@@ -12,16 +12,23 @@ const Mat2x3 IDENTITY_2X3 = {
 	{ 0, 0 }
 };
 
-fn void Mat2x3.translate(&self, Vec2f vec) {
-	self.trans.x += self.linear.x * vec.x + self.linear.z * vec.y;
-	self.trans.y += self.linear.y * vec.x + self.linear.w * vec.y;
+fn Vec2f Mat2x3.transform(self, Vec2f v) => self * v;
+
+fn Vec2f Mat2x3.apply(self, Vec2f v) @operator(*) => {
+    self.linear.x * v.x + self.linear.z * v.y + self.trans.x,
+    self.linear.y * v.x + self.linear.w * v.y + self.trans.y
+};
+
+fn void Mat2x3.translate(&self, float x, float y) {
+	self.trans.x += self.linear.x * x + self.linear.z * y;
+	self.trans.y += self.linear.y * x + self.linear.w * y;
 }
 
-fn void Mat2x3.scale(&self, Vec2f vec) {
-	self.linear.x *= vec.x;
-	self.linear.y *= vec.x;
-	self.linear.z *= vec.y;
-	self.linear.w *= vec.y;
+fn void Mat2x3.scale(&self, float x, float y) {
+	self.linear.x *= x;
+	self.linear.y *= x;
+	self.linear.z *= y;
+	self.linear.w *= y;
 }
 
 fn void Mat2x3.rotate(&self, float rad) {

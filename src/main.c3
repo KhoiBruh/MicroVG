@@ -54,6 +54,7 @@ fn int main(String[] args) {
         path.lineTo(300, 400);
         path.lineTo(200, 400);
         path.lineTo(200, 300);
+        path.close();
 
         vg.endFrame();
 

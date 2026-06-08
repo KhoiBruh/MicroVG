@@ -8,7 +8,7 @@ struct MicroVG {
 	Backend backend;
 
 	State[32] states;
-	char state;
+	ichar state;
 
 	PathPool paths;
 	VertexBuffer vertices;
@@ -16,6 +16,7 @@ struct MicroVG {
 
 fn MicroVG*? create() {
 	MicroVG* vg = mem::calloc(MicroVG::size);
+	vg.currentState().reset();
 
 	if (catch err = vg.backend.init()) {
     	vg.destroy();
@@ -48,8 +49,13 @@ fn void MicroVG.endFrame(&self) {
 	self.backend.flush(self);
 }
 
-fn State* MicroVG.currentState(&self) => &self.states[self.state];
+fn State MicroVG.currentState(&self) => self.states[self.state];
 
-fn Path* MicroVG.makePath(&self) => self.paths.acquire();
+fn Path* MicroVG.makePath(&self) {
+	Path* path = self.paths.acquire();
+	path.state = self.currentState();
+
+	return path;
+}
 
 

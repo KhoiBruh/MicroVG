@@ -11,10 +11,13 @@ enum CmdType : char {
 
 struct Cmd {
 	CmdType type;
-	float[6] points;
+	Vec2f p0;
+	Vec2f p1;
+	Vec2f p2;
 }
 
 struct Path {
+	State state;
 	Cmd* cmds;
 	sz count;
 	sz cap;
@@ -24,14 +27,14 @@ fn void Path.reset(&self) @inline {
 	self.count = 0;
 }
 
-fn void Path.push(&self, CmdType type, float[6] points = { }) {
+fn void Path.push(&self, Cmd cmd) {
 	if (self.count >= self.cap) {
 		sz newCap = self.cap == 0 ? CMD_INIT_CAP : self.cap * 2;
 		self.cmds = mem::realloc(self.cmds, Cmd::size * newCap);
 		self.cap = newCap;
 	}
 
-	self.cmds[self.count++] = { type, points };
+	self.cmds[self.count++] = cmd;
 }
 
 fn void Path.free(&self) {
@@ -40,13 +43,13 @@ fn void Path.free(&self) {
 }
 
 fn void Path.close(&self) => self.push(
-	CmdType.CLOSE
+	{ .type = CmdType.CLOSE }
 );
 
 fn void Path.moveTo(&self, float x, float y) => self.push(
-	CmdType.MOVE_TO, { x, y, 0, 0, 0, 0 }
+	{ .type = CmdType.MOVE_TO, .p0 = { x, y } }
 );
 
 fn void Path.lineTo(&self, float x, float y) => self.push(
-	CmdType.LINE_TO, { x, y, 0, 0, 0, 0 }
+	{ .type = CmdType.LINE_TO, .p0 = { x, y } }
 );
