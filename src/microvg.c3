@@ -16,11 +16,9 @@ struct MicroVG {
 
 fn MicroVG*? create() {
 	MicroVG* vg = mem::calloc(MicroVG::size);
-	vg.currentState().reset();
 
 	if (catch err = vg.backend.init()) {
     	vg.destroy();
-
     	return BACKEND_NOT_READY~;
     }
 
@@ -40,6 +38,7 @@ fn void MicroVG.beginFrame(&self, int width, int height, float dpr) {
 	self.height = height;
 	self.dpr = dpr;
 
+	self.reset();
 	self.paths.begin();
 	self.vertices.reset();
 }
@@ -50,6 +49,11 @@ fn void MicroVG.endFrame(&self) {
 }
 
 fn State MicroVG.currentState(&self) => self.states[self.state];
+
+fn void MicroVG.reset(&self) {
+	self.state = 0;
+	self.states[0].reset();
+}
 
 fn Path* MicroVG.makePath(&self) {
 	Path* path = self.paths.acquire();

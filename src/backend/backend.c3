@@ -70,7 +70,7 @@ fn void Backend.flush(&self, MicroVG* vg) {
 	    );
     }
 
-    gl::drawArrays((GLenum) gl::GL_LINES, 0, (int) vg.vertices.count / 2);
+    gl::drawArrays((GLenum) gl::GL_TRIANGLES, 0, (int) vg.vertices.count / 2);
 
 	gl::bindVertexArray(0);
     self.shader.unbind();
