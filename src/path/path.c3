@@ -16,7 +16,7 @@ struct Cmd {
 }
 
 struct Path {
-	State state;
+	MicroVG* vg;
 	Cmd* cmds;
 	sz count;
 	sz cap;

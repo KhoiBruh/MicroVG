@@ -89,7 +89,7 @@ fn void MicroVG.alpha(&self, float alpha) {
 
 fn Path* MicroVG.makePath(&self) {
 	Path* path = self.paths.acquire();
-	path.state = self.currentState();
+	path.vg = self;
 
 	return path;
 }
@@ -98,8 +98,9 @@ fn Paint MicroVG.makePaint(&self) => {};
 
 fn void MicroVG.pushPath(&self, Path* path, Paint paint) {
 	int first = (int) self.vertices.count / 2;
+	path.pushPath(paint);
+
 	int count = (int) self.vertices.count / 2 - first;
-	path.pushDraw(&self.vertices, paint);
 
 	if (count == 0) return;
 	self.calls.push({ first, count, paint });

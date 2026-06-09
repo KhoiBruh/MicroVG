@@ -34,78 +34,75 @@ fn void PathPool.destroy(&self) {
     *self = {};
 }
 
-fn void pushStrokeSegment(VertexBuffer* vertices, Vec2 a, Vec2 b, float strokeWidth) @private {
+fn void VertexBuffer.pushSegment(&self, Vec2 a, Vec2 b, float width) {
 	float dx = b.x - a.x;
 	float dy = b.y - a.y;
 	float len = math::sqrt(dx * dx + dy * dy);
 	if (len <= 0.0001) return;
 
-	float half = strokeWidth * 0.5;
+	float half = width * 0.5;
 	float nx = -dy / len * half;
-	float ny = dx / len * half;
+	float ny =  dx / len * half;
 
 	Vec2 a0 = { a.x + nx, a.y + ny };
 	Vec2 a1 = { a.x - nx, a.y - ny };
 	Vec2 b0 = { b.x + nx, b.y + ny };
 	Vec2 b1 = { b.x - nx, b.y - ny };
 
-	vertices.push(a0);
-	vertices.push(a1);
-	vertices.push(b1);
-
-	vertices.push(a0);
-	vertices.push(b1);
-	vertices.push(b0);
+	self.push(a0); self.push(a1); self.push(b1);
+	self.push(a0); self.push(b1); self.push(b0);
 }
 
-fn void pushStrokeJoin(VertexBuffer* vertices, Vec2 p, float strokeWidth) @private {
-	float half = strokeWidth * 0.5;
+fn void VertexBuffer.pushJoin(&self, Vec2 p, float width) {
+	float half = width * 0.5;
 
 	Vec2 p0 = { p.x - half, p.y - half };
 	Vec2 p1 = { p.x + half, p.y - half };
 	Vec2 p2 = { p.x + half, p.y + half };
 	Vec2 p3 = { p.x - half, p.y + half };
 
-	vertices.push(p0);
-	vertices.push(p1);
-	vertices.push(p2);
-
-	vertices.push(p0);
-	vertices.push(p2);
-	vertices.push(p3);
+	self.push(p0); self.push(p1); self.push(p2);
+	self.push(p0); self.push(p2); self.push(p3);
 }
 
-fn void Path.pushDraw(&self, VertexBuffer* vertices, Paint paint) {
-//	if (!paint.hasLine || paint.lineWidth <= 0) return;
+fn void VertexBuffer.pushPolyline(&self, Vec2* pts, sz count, float width, bool closed) {
+	if (count < 2) return;
 
-	Vec2 start;
-	Vec2 pen;
+	sz edgeCount = closed ? count : count - 1;
+	for (sz i = 0; i < edgeCount; i++) {
+		self.pushSegment(pts[i], pts[(i + 1) % count], width);
+		self.pushJoin(pts[i], width);
+	}
+
+	if (!closed) self.pushJoin(pts[count - 1], width);
+}
+
+fn void Path.pushPath(&self, Paint paint) {
+	if (!paint.hasLine || paint.lineWidth <= 0) return;
+
+	VertexBuffer* vertices = &self.vg.vertices;
+
+	Vec2* pts = mem::calloc(Vec2::size * self.count);
+	defer mem::free(pts);
+	sz count = 0;
 
 	for (sz c = 0; c < self.count; c++) {
 		Cmd cmd = self.cmds[c];
 
 		switch (cmd.type) {
-		case CmdType.CLOSE:
-			if (pen != start) {
-				Vec2 a = self.state.transform(pen);
-				Vec2 b = self.state.transform(start);
-				pushStrokeSegment(vertices, a, b, paint.lineWidth);
-				pushStrokeJoin(vertices, a, paint.lineWidth);
-				pushStrokeJoin(vertices, b, paint.lineWidth);
-			}
-			pen = start;
+			case CmdType.MOVE_TO:
+				vertices.pushPolyline(pts, count, paint.lineWidth, false);
+				count = 0;
+				pts[count++] = self.vg.transform(cmd.p0);
 
-		case CmdType.MOVE_TO:
-			pen = cmd.p0;
-			start = pen;
+			case CmdType.LINE_TO:
+				pts[count++] = self.vg.transform(cmd.p0);
 
-		case CmdType.LINE_TO:
-			Vec2 a = self.state.transform(pen);
-			Vec2 b = self.state.transform(cmd.p0);
-			pushStrokeSegment(vertices, a, b, paint.lineWidth);
-			pushStrokeJoin(vertices, a, paint.lineWidth);
-			pushStrokeJoin(vertices, b, paint.lineWidth);
-			pen = cmd.p0;
+			case CmdType.CLOSE:
+				vertices.pushPolyline(pts, count, paint.lineWidth, true);
+				count = 0;
 		}
 	}
+
+	vertices.pushPolyline(pts, count, paint.lineWidth, false);
 }
