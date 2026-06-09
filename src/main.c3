@@ -29,7 +29,7 @@ fn int main(String[] args) {
 	glfw34::makeContextCurrent(window);
 	glfw34::swapInterval(1);
 
-	if (catch err = opengl::init((gl::GLLoadFn) &glfw34::getProcAddress)) {
+	if (catch err = opengl::init((GLLoadFn) &glfw34::getProcAddress)) {
 		io::printn("failed to initialize opengl");
 		return 1;
 	}
@@ -44,7 +44,7 @@ fn int main(String[] args) {
 		glfw34::getWindowSize(window, &window_w, &window_h);
 
 		gl::clearColor(0.08, 0.09, 0.1, 1);
-		gl::clear((gl::GLbitfield) gl::GL_COLOR_BUFFER_BIT);
+		gl::clear((GLbitfield) GL_COLOR_BUFFER_BIT);
 
 		vg.beginFrame(window_w, window_h, 1);
 
@@ -54,6 +54,10 @@ fn int main(String[] args) {
         path.lineTo(300, 400);
         path.lineTo(200, 400);
         path.close();
+
+		microvg::Paint paint = vg.makePaint();
+		paint.line(microvg::rgba(255, 0, 0, 255), 5);
+		vg.pushPath(path, paint);
 
         vg.endFrame();
 

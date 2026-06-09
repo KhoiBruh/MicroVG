@@ -36,7 +36,7 @@ fn void Path.push(&self, Cmd cmd) {
 	self.cmds[self.count++] = cmd;
 }
 
-fn void Path.free(&self) {
+fn void Path.destroy(&self) {
 	mem::free(self.cmds);
 	*self = {};
 }

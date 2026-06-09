@@ -45,7 +45,7 @@ fn void? Backend.init(&self) {
 }
 
 fn void Backend.flush(&self, MicroVG* vg) {
-	if (vg.vertices.count == 0) return;
+	if (vg.vertices.count == 0 || vg.calls.count == 0) return;
 
 	Mat4 proj = vg.currentState().to4x4();
 	proj.ortho(0, vg.width, vg.height, 0);
@@ -70,7 +70,12 @@ fn void Backend.flush(&self, MicroVG* vg) {
 	    );
     }
 
-    gl::drawArrays((GLenum) gl::GL_TRIANGLES, 0, (int) vg.vertices.count / 2);
+	for (sz i = 0; i < vg.calls.count; i++) {
+		DrawCall call = vg.calls.data[i];
+		Vec4 color = call.paint.lineColor;
+		self.shader.color(color);
+		gl::drawArrays((GLenum) GL_TRIANGLES, call.first, call.count);
+	}
 
 	gl::bindVertexArray(0);
     self.shader.unbind();

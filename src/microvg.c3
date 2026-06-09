@@ -1,5 +1,9 @@
 module microvg;
 
+const char MAX_STATES @private = 32;
+const sz DRAW_CALL_INIT_CAP @private = 32;
+const sz VERTEX_INIT_CAP @private = 2048;
+
 struct MicroVG {
 	int width;
 	int height;
@@ -7,10 +11,11 @@ struct MicroVG {
 
 	Backend backend;
 
-	State[32] states;
+	State[MAX_STATES] states;
 	ichar state;
 
 	PathPool paths;
+	DrawCallBuffer calls;
 	VertexBuffer vertices;
 }
 
@@ -22,12 +27,16 @@ fn MicroVG*? create() {
     	return BACKEND_NOT_READY~;
     }
 
+	vg.calls.init(DRAW_CALL_INIT_CAP);
+	vg.vertices.init(VERTEX_INIT_CAP);
+
 	return vg;
 }
 
 fn void MicroVG.destroy(&self) {
 	if (!self) return;
 
+	self.calls.destroy();
 	self.paths.destroy();
 	self.vertices.destroy();
 	mem::free(self);
@@ -39,12 +48,12 @@ fn void MicroVG.beginFrame(&self, int width, int height, float dpr) {
 	self.dpr = dpr;
 
 	self.reset();
-	self.paths.begin();
+	self.paths.reset();
+	self.calls.reset();
 	self.vertices.reset();
 }
 
 fn void MicroVG.endFrame(&self) {
-	self.paths.pushDraw(&self.vertices);
 	self.backend.flush(self);
 }
 
@@ -56,8 +65,7 @@ fn void MicroVG.reset(&self) {
 }
 
 fn void MicroVG.save(&self) {
-	if (self.state >= 31) return;
-
+	if (self.state >= MAX_STATES - 1) return;
 	self.states[self.state++] = self.states[self.state];
 }
 
@@ -84,6 +92,17 @@ fn Path* MicroVG.makePath(&self) {
 	path.state = self.currentState();
 
 	return path;
+}
+
+fn Paint MicroVG.makePaint(&self) => {};
+
+fn void MicroVG.pushPath(&self, Path* path, Paint paint) {
+	int first = (int) self.vertices.count / 2;
+	int count = (int) self.vertices.count / 2 - first;
+	path.pushDraw(&self.vertices, paint);
+
+	if (count == 0) return;
+	self.calls.push({ first, count, paint });
 }
 
 
