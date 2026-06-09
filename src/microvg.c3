@@ -66,6 +66,8 @@ fn void MicroVG.restore(&self) {
 	self.state--;
 }
 
+fn Vec2 MicroVG.transform(&self, Vec2 v) => self.currentState().transform(v);
+
 fn void MicroVG.scale(&self, float x, float y) => self.currentState().scale(x, y);
 
 fn void MicroVG.translate(&self, float x, float y) => self.currentState().translate(x, y);

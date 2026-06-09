@@ -3,8 +3,8 @@ module microvg;
 import std::math;
 
 struct Mat2x3 {
-	Vec4f linear;
-	Vec2f trans;
+	Vec4 linear;
+	Vec2 trans;
 }
 
 const Mat2x3 IDENTITY_2X3 = {
@@ -12,9 +12,9 @@ const Mat2x3 IDENTITY_2X3 = {
 	{ 0, 0 }
 };
 
-fn Vec2f Mat2x3.transform(self, Vec2f v) => self * v;
+fn Vec2 Mat2x3.transform(self, Vec2 v) => self * v;
 
-fn Vec2f Mat2x3.apply(self, Vec2f v) @operator(*) => {
+fn Vec2 Mat2x3.apply(self, Vec2 v) @operator(*) => {
     self.linear.x * v.x + self.linear.z * v.y + self.trans.x,
     self.linear.y * v.x + self.linear.w * v.y + self.trans.y
 };
@@ -46,8 +46,8 @@ fn void Mat2x3.rotate(&self, float rad) {
     self.linear.w = ly * -s + lw * c;
 }
 
-fn Mat4f Mat2x3.to4x4(&self) {
-	Mat4f matrix = IDENTITY_4X4;
+fn Mat4 Mat2x3.to4x4(&self) {
+	Mat4 matrix = IDENTITY_4X4;
 
 	matrix.col0.x = self.linear.x;
 	matrix.col0.y = self.linear.y;
@@ -61,21 +61,21 @@ fn Mat4f Mat2x3.to4x4(&self) {
 	return matrix;
 }
 
-struct Mat4f {
-	Vec4f col0;
-	Vec4f col1;
-	Vec4f col2;
-	Vec4f col3;
+struct Mat4 {
+	Vec4 col0;
+	Vec4 col1;
+	Vec4 col2;
+	Vec4 col3;
 }
 
-const Mat4f IDENTITY_4X4 = {
+const Mat4 IDENTITY_4X4 = {
 	{ 1, 0, 0, 0 },
 	{ 0, 1, 0, 0 },
 	{ 0, 0, 1, 0 },
 	{ 0, 0, 0, 1 }
 };
 
-fn void Mat4f.ortho(&self, float left, float right, float bottom, float top) {
+fn void Mat4.ortho(&self, float left, float right, float bottom, float top) {
 	float inverseRL = 1 / (right - left);
 	float inverseTB = 1 / (top - bottom);
 
@@ -88,17 +88,17 @@ fn void Mat4f.ortho(&self, float left, float right, float bottom, float top) {
 	self.col3.w = 1;
 }
 
-fn void Mat4f.translate(&self, Vec2f vec) {
+fn void Mat4.translate(&self, Vec2 vec) {
 	self.col3.xy = vec;
 }
 
-fn void Mat4f.scale(&self, Vec2f vec) {
+fn void Mat4.scale(&self, Vec2 vec) {
 	self.col0.x = vec.x;
 	self.col1.y = vec.y;
 	self.col2.z = 1;
 }
 
-fn void Mat4f.rotate(&self, float rad) {
+fn void Mat4.rotate(&self, float rad) {
 	float cos = math::cos(rad);
 	float sin = math::sin(rad);
 

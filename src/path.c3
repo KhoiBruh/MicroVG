@@ -10,9 +10,9 @@ enum CmdType : char {
 
 struct Cmd {
 	CmdType type;
-	Vec2f p0;
-	Vec2f p1;
-	Vec2f p2;
+	Vec2 p0;
+	Vec2 p1;
+	Vec2 p2;
 }
 
 struct Path {

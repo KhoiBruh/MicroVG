@@ -77,7 +77,7 @@ fn void Shader.unbind(&self) {
 	if (gl::useProgram) gl::useProgram(0);
 }
 
-fn void Shader.uniform(&self, Mat4f proj) {
+fn void Shader.uniform(&self, Mat4 proj) {
 	gl::uniformMatrix4fv(self.uProj, 1, 0, &proj.col0.x);
     gl::uniform4f(self.uColor, 1, 1, 1, 1);
 }

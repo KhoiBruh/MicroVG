@@ -47,7 +47,7 @@ fn void? Backend.init(&self) {
 fn void Backend.flush(&self, MicroVG* vg) {
 	if (vg.vertices.count == 0) return;
 
-	Mat4f proj = vg.currentState().to4x4();
+	Mat4 proj = vg.currentState().to4x4();
 	proj.ortho(0, vg.width, vg.height, 0);
 
 	if (gl::enable) gl::enable((GLenum) gl::GL_BLEND);

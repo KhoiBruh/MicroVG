@@ -9,8 +9,8 @@ enum LineCap : char {
 }
 
 struct Paint {
-	Vec4f fillColor;
-	Vec4f lineColor;
+	Vec4 fillColor;
+	Vec4 lineColor;
 
     float lineWidth;
     LineCap lineCap;
@@ -20,12 +20,12 @@ struct Paint {
 	bool hasLine;
 }
 
-fn void Paint.fill(&self, Vec4f color) {
+fn void Paint.fill(&self, Vec4 color) {
 	self.fillColor = color;
 	self.hasFill = true;
 }
 
-fn void Paint.line(&self, Vec4f color, float width) {
+fn void Paint.line(&self, Vec4 color, float width) {
 	self.lineColor = color;
 	self.lineWidth = width;
 	self.hasLine = true;
@@ -39,7 +39,7 @@ fn void Paint.join(&self, LineJoin join) {
 	self.lineJoin = join;
 }
 
-fn Vec4f rgba(char r, char g, char b, char a) => {
+fn Vec4 rgba(char r, char g, char b, char a) => {
 	r / 255.0f,
 	g / 255.0f,
 	b / 255.0f,

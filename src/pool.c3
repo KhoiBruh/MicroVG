@@ -35,7 +35,7 @@ fn void PathPool.destroy(&self) {
     *self = {};
 }
 
-fn void pushStrokeSegment(VertexBuffer* vertices, Vec2f a, Vec2f b) @private {
+fn void pushStrokeSegment(VertexBuffer* vertices, Vec2 a, Vec2 b) @private {
 	float dx = b.x - a.x;
 	float dy = b.y - a.y;
 	float len = math::sqrt(dx * dx + dy * dy);
@@ -45,10 +45,10 @@ fn void pushStrokeSegment(VertexBuffer* vertices, Vec2f a, Vec2f b) @private {
 	float nx = -dy / len * half;
 	float ny = dx / len * half;
 
-	Vec2f a0 = { a.x + nx, a.y + ny };
-	Vec2f a1 = { a.x - nx, a.y - ny };
-	Vec2f b0 = { b.x + nx, b.y + ny };
-	Vec2f b1 = { b.x - nx, b.y - ny };
+	Vec2 a0 = { a.x + nx, a.y + ny };
+	Vec2 a1 = { a.x - nx, a.y - ny };
+	Vec2 b0 = { b.x + nx, b.y + ny };
+	Vec2 b1 = { b.x - nx, b.y - ny };
 
 	vertices.push(a0);
 	vertices.push(a1);
@@ -59,13 +59,13 @@ fn void pushStrokeSegment(VertexBuffer* vertices, Vec2f a, Vec2f b) @private {
 	vertices.push(b0);
 }
 
-fn void pushStrokeJoin(VertexBuffer* vertices, Vec2f p) @private {
+fn void pushStrokeJoin(VertexBuffer* vertices, Vec2 p) @private {
 	float half = STROKE_WIDTH * 0.5;
 
-	Vec2f p0 = { p.x - half, p.y - half };
-	Vec2f p1 = { p.x + half, p.y - half };
-	Vec2f p2 = { p.x + half, p.y + half };
-	Vec2f p3 = { p.x - half, p.y + half };
+	Vec2 p0 = { p.x - half, p.y - half };
+	Vec2 p1 = { p.x + half, p.y - half };
+	Vec2 p2 = { p.x + half, p.y + half };
+	Vec2 p3 = { p.x - half, p.y + half };
 
 	vertices.push(p0);
 	vertices.push(p1);
@@ -79,8 +79,8 @@ fn void pushStrokeJoin(VertexBuffer* vertices, Vec2f p) @private {
 fn void PathPool.pushDraw(&self, VertexBuffer* vertices) {
 	for (sz i = 0; i < self.used; i++) {
 		Path* path = &self.paths[i];
-		Vec2f start;
-		Vec2f pen;
+		Vec2 start;
+		Vec2 pen;
 
 		for (sz c = 0; c < path.count; c++) {
 			Cmd cmd = path.cmds[c];
@@ -88,8 +88,8 @@ fn void PathPool.pushDraw(&self, VertexBuffer* vertices) {
 				switch (cmd.type) {
 				case CmdType.CLOSE:
 					if (pen != start) {
-						Vec2f a = path.state.transform(pen);
-						Vec2f b = path.state.transform(start);
+						Vec2 a = path.state.transform(pen);
+						Vec2 b = path.state.transform(start);
 						pushStrokeSegment(
 							vertices,
 							a,
@@ -105,8 +105,8 @@ fn void PathPool.pushDraw(&self, VertexBuffer* vertices) {
                     start = pen;
 
                 case CmdType.LINE_TO:
-					Vec2f a = path.state.transform(pen);
-					Vec2f b = path.state.transform(cmd.p0);
+					Vec2 a = path.state.transform(pen);
+					Vec2 b = path.state.transform(cmd.p0);
 					pushStrokeSegment(
 						vertices,
 						a,
