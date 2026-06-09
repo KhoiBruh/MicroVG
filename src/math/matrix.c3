@@ -2,6 +2,7 @@ module microvg;
 
 import std::math;
 
+// matrices thingy, idk we need matrix 4x4 or not
 struct Mat2x3 {
 	Vec4 linear;
 	Vec2 trans;

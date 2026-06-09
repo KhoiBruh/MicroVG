@@ -2,20 +2,12 @@ module microvg;
 
 import opengl::gl;
 
-faultdef SHADER_NOT_READY;
-faultdef SHADER_CREATE_FAILED;
-faultdef SHADER_COMPILE_FAILED;
-faultdef SHADER_LINK_FAILED;
-
 struct Shader {
 	uint id;
-	int uProj;
-	int uColor;
 }
 
-fn uint? compile(uint type, String source) @private {
+fn uint compile(uint type, String source) {
 	uint id = gl::createShader((GLenum) type);
-	if (!id) return SHADER_CREATE_FAILED~;
 
 	char* sourcePtr = source.ptr;
     int sourceLen = source.len;
@@ -26,7 +18,6 @@ fn uint? compile(uint type, String source) @private {
 	gl::getShaderiv(id, (GLenum) GL_COMPILE_STATUS, &compiled);
 	if (compiled == GL_FALSE) {
 		gl::deleteShader(id);
-		return SHADER_COMPILE_FAILED~;
 	}
 
 	return id;
@@ -37,17 +28,16 @@ fn bool shaderReady()
 	gl::createProgram && gl::attachShader && gl::linkProgram && gl::getProgramiv &&
 	gl::deleteShader && gl::deleteProgram && gl::useProgram && gl::getUniformLocation;
 
-fn Shader? createShader(String vertexSrc, String fragmentSrc) {
-	if (!shaderReady()) return SHADER_NOT_READY~;
+fn Shader createShader(String vertexSrc, String fragmentSrc) {
+	if (!shaderReady()) return {};
 
-	uint vertex = compile(GL_VERTEX_SHADER, vertexSrc)!;
+	uint vertex = compile(GL_VERTEX_SHADER, vertexSrc);
 	defer if (vertex) gl::deleteShader(vertex);
 
-	uint fragment = compile(GL_FRAGMENT_SHADER, fragmentSrc)!;
+	uint fragment = compile(GL_FRAGMENT_SHADER, fragmentSrc);
 	defer if (fragment) gl::deleteShader(fragment);
 
 	uint id = gl::createProgram();
-	if (!id) return SHADER_CREATE_FAILED~;
 
 	gl::attachShader(id, vertex);
     gl::attachShader(id, fragment);
@@ -57,16 +47,12 @@ fn Shader? createShader(String vertexSrc, String fragmentSrc) {
     gl::getProgramiv(id, (GLenum) GL_LINK_STATUS, &linked);
     if (linked == GL_FALSE) {
     	gl::deleteProgram(id);
-    	return SHADER_LINK_FAILED~;
     }
 
     gl::detachShader(id, vertex);
     gl::detachShader(id, fragment);
 
-    int uProj = gl::getUniformLocation(id, "uProj");
-    int uColor = gl::getUniformLocation(id, "uColor");
-
-    return { id, uProj, uColor };
+    return { id };
 }
 
 fn void Shader.bind(&self) {
@@ -75,12 +61,4 @@ fn void Shader.bind(&self) {
 
 fn void Shader.unbind(&self) {
 	if (gl::useProgram) gl::useProgram(0);
-}
-
-fn void Shader.uniform(&self, Mat4 proj) {
-	gl::uniformMatrix4fv(self.uProj, 1, 0, &proj.col0.x);
-}
-
-fn void Shader.color(&self, Vec4 color) {
-    gl::uniform4f(self.uColor, color.x, color.y, color.z, color.w);
 }

@@ -1,5 +1,6 @@
 module microvg;
 
+// state api
 struct State {
 	inline Mat2x3 form;
 	float alpha;
