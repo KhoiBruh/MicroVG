@@ -1,6 +1,11 @@
 module microvg;
 
-struct Color { float r, g, b, a; }
+struct Color {
+	float r;
+	float g;
+	float b;
+	float a;
+}
 
 fn Color Color.alpha(self, float a) => {
 	self.r, self.g, self.b, self.a * a
@@ -14,11 +19,13 @@ enum LineCap : char { FLAT, SQUARE, ROUND }
 enum LineJoin : char { MITER, BEVEL, ROUND }
 
 struct Paint {
-    Color fillColor, lineColor;
+    Color fillColor;
+    Color lineColor;
     float lineWidth;
     LineCap lineCap;
     LineJoin lineJoin;
-    bool hasFill, hasLine;
+    bool hasFill;
+    bool hasLine;
 }
 
 fn void Paint.fill(&self, Color color) {
@@ -32,10 +39,8 @@ fn void Paint.line(&self, Color color, float width) {
     self.hasLine = true;
 }
 
-fn void Paint.cap(&self, LineCap cap) {
-	self.lineCap = cap;
-}
+fn void Paint.cap(&self, LineCap cap) => self.lineCap = cap;
 
-fn void Paint.join(&self, LineJoin join) {
-	self.lineJoin = join;
-}
+fn void Paint.join(&self, LineJoin join) => self.lineJoin = join;
+
+fn Paint MicroVG.makePaint(&self) => {};

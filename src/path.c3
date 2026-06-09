@@ -39,3 +39,5 @@ fn void Path.close(&self) {
     self.count++;
     self.closed = true;
 }
+
+fn Path MicroVG.makePath(&self) => { .vg = self, .start = self.cmdCount };
