@@ -23,3 +23,5 @@ fn Vec2 vec2_lerp(Vec2 a, Vec2 b, float t) @inline => {
     a.x + (b.x - a.x) * t,
     a.y + (b.y - a.y) * t
 };
+
+

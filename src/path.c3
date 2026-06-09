@@ -6,7 +6,7 @@ enum PathCmdType : char { MOVE_TO, LINE_TO, CLOSE }
 
 struct PathCmd {
     PathCmdType type;
-    float x, y;
+    Vec2 pos;
 }
 
 // Path là handle cho một đường vẽ trong frame hiện tại.
@@ -21,20 +21,20 @@ struct Path {
 }
 
 fn void Path.moveTo(&self, float x, float y) {
-    self.vg.appendPathCmd({ MOVE_TO, x, y });
+    self.vg.appendPathCmd({ MOVE_TO, {x, y} });
     self.cmdCount++;
     self.hasStart = true;
 }
 
 fn void Path.lineTo(&self, float x, float y) {
     if (!self.hasStart) { self.moveTo(x, y); return; }
-    self.vg.appendPathCmd({ LINE_TO, x, y });
+    self.vg.appendPathCmd({ LINE_TO, {x, y} });
     self.cmdCount++;
 }
 
 fn void Path.close(&self) {
     if (!self.hasStart) return;
-    self.vg.appendPathCmd({ CLOSE, 0, 0 });
+    self.vg.appendPathCmd({ CLOSE, {} });
     self.cmdCount++;
     self.closed = true;
 }
