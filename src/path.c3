@@ -2,63 +2,39 @@ module microvg;
 
 // --- Path command ---
 
-enum PathCmdType : char {
-    MOVE_TO,
-    LINE_TO,
-    CLOSE
-}
+enum PathCmdType : char { MOVE_TO, LINE_TO, CLOSE }
 
 struct PathCmd {
     PathCmdType type;
-    float x;
-    float y;
+    float x, y;
 }
 
-// --- Path ---
-// Path là handle đại diện cho một đường vẽ.
-// Dữ liệu cmds sống trong arena của MicroVG.
-// Path chỉ giữ: index bắt đầu vào arena, số lượng cmds, và trạng thái.
-// Tương tác với dữ liệu qua back-reference vg.
-
+// Path là handle cho một đường vẽ trong frame hiện tại.
+// Dữ liệu thực (PathCmd[]) sống trong arena của MicroVG.
+// Path giữ index bắt đầu và số lượng cmd — không phải pointer trực tiếp.
 struct Path {
-    MicroVG* vg;       // back-reference tới context
-    sz cmdStart;       // vị trí bắt đầu trong vg.pathCmds (index, không phải pointer)
-    sz cmdCount;       // số lượng cmds của path này
-    bool closed;       // path đã được đóng?
-    bool hasStart;     // moveTo đã được gọi?
+    MicroVG* vg;
+    sz cmdStart;
+    sz cmdCount;
+    bool closed;
+    bool hasStart;
 }
 
 fn void Path.moveTo(&self, float x, float y) {
-    PathCmd cmd;
-    cmd.type = MOVE_TO;
-    cmd.x = x;
-    cmd.y = y;
-    self.vg.appendPathCmd(cmd);
+    self.vg.appendPathCmd({ MOVE_TO, x, y });
     self.cmdCount++;
     self.hasStart = true;
 }
 
 fn void Path.lineTo(&self, float x, float y) {
-    // Nếu chưa có điểm bắt đầu, treat như moveTo
-    if (!self.hasStart) {
-        self.moveTo(x, y);
-        return;
-    }
-    PathCmd cmd;
-    cmd.type = LINE_TO;
-    cmd.x = x;
-    cmd.y = y;
-    self.vg.appendPathCmd(cmd);
+    if (!self.hasStart) { self.moveTo(x, y); return; }
+    self.vg.appendPathCmd({ LINE_TO, x, y });
     self.cmdCount++;
 }
 
 fn void Path.close(&self) {
     if (!self.hasStart) return;
-    PathCmd cmd;
-    cmd.type = CLOSE;
-    cmd.x = 0;
-    cmd.y = 0;
-    self.vg.appendPathCmd(cmd);
+    self.vg.appendPathCmd({ CLOSE, 0, 0 });
     self.cmdCount++;
     self.closed = true;
 }
