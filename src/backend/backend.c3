@@ -66,12 +66,12 @@ fn void Backend.init(&self) {
 
 fn void Backend.flush(
     &self,
-    Vertex* vertices, sz vertexCount,
-    DrawCall* drawCalls, sz drawCallCount,
+    Vertex* verts, sz count,
+    DrawCall* calls, sz callCount,
     int width, int height
 ) {
     if (!self.shader.id || !self.vao || !self.vbo) return;
-    if (vertexCount == 0 || drawCallCount == 0) return;
+    if (count == 0 || callCount == 0) return;
 
     // Orthographic projection, y-down (top = 0, bottom = height)
     Mat4 proj = IDENTITY_4X4;
@@ -86,13 +86,13 @@ fn void Backend.flush(
     if (gl::bindBuffer) gl::bindBuffer((GLenum)GL_ARRAY_BUFFER, self.vbo);
     if (gl::bufferData) {
         gl::bufferData((GLenum)GL_ARRAY_BUFFER,
-            (long)(vertexCount * Vertex::size), vertices, (GLenum)GL_DYNAMIC_DRAW);
+            (long)(count * Vertex::size), verts, (GLenum)GL_DYNAMIC_DRAW);
     }
 
     if (gl::drawArrays) {
-        for (sz i = 0; i < drawCallCount; i++) {
-            DrawCall* dc = &drawCalls[i];
-            gl::drawArrays((GLenum)GL_TRIANGLES, (int)dc.vertexOffset, (int)dc.vertexCount);
+        for (sz i = 0; i < callCount; i++) {
+            DrawCall* dc = &calls[i];
+            gl::drawArrays((GLenum)GL_TRIANGLES, (int)dc.offset, (int)dc.count);
         }
     }
 

@@ -1,40 +1,41 @@
 module microvg;
 
-// --- Path command ---
+enum PathType : char { MOVE_TO, LINE_TO, CLOSE }
 
-enum PathCmdType : char { MOVE_TO, LINE_TO, CLOSE }
-
-struct PathCmd {
-    PathCmdType type;
+struct Command {
+    PathType type;
     Vec2 pos;
 }
 
-// Path là handle cho một đường vẽ trong frame hiện tại.
-// Dữ liệu thực (PathCmd[]) sống trong arena của MicroVG.
-// Path giữ index bắt đầu và số lượng cmd — không phải pointer trực tiếp.
 struct Path {
     MicroVG* vg;
-    sz cmdStart;
-    sz cmdCount;
+
+    sz start;
+    sz count;
+
     bool closed;
-    bool hasStart;
+    bool started;
 }
 
 fn void Path.moveTo(&self, float x, float y) {
-    self.vg.appendPathCmd({ MOVE_TO, {x, y} });
-    self.cmdCount++;
-    self.hasStart = true;
+    self.vg.pushCmd(MOVE_TO, { x, y });
+    self.count++;
+    self.started = true;
 }
 
 fn void Path.lineTo(&self, float x, float y) {
-    if (!self.hasStart) { self.moveTo(x, y); return; }
-    self.vg.appendPathCmd({ LINE_TO, {x, y} });
-    self.cmdCount++;
+    if (!self.started) {
+        self.moveTo(x, y);
+        return;
+    }
+
+    self.vg.pushCmd(LINE_TO, { x, y });
+    self.count++;
 }
 
 fn void Path.close(&self) {
-    if (!self.hasStart) return;
-    self.vg.appendPathCmd({ CLOSE, {} });
-    self.cmdCount++;
+    if (!self.started) return;
+    self.vg.pushCmd(CLOSE, { });
+    self.count++;
     self.closed = true;
 }

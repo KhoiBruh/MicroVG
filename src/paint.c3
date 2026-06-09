@@ -13,7 +13,6 @@ fn Color rgba(char r, char g, char b, char a) => {
 enum LineCap : char { FLAT, SQUARE, ROUND }
 enum LineJoin : char { MITER, BEVEL, ROUND }
 
-// Paint là value type thuần, được tạo qua vg.makePaint().
 struct Paint {
     Color fillColor, lineColor;
     float lineWidth;

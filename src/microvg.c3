@@ -8,8 +8,15 @@ const sz DRAW_CALL_INIT_CAP @private = 32;
 const sz VERTEX_INIT_CAP @private = 2048;
 const sz PATH_CMD_INIT_CAP @private = 256;
 
-struct Vertex { Vec2 pos; Color color; }
-struct DrawCall { sz vertexOffset, vertexCount; }
+struct Vertex {
+	Vec2 pos;
+	Color color;
+}
+
+struct DrawCall {
+	sz offset;
+	sz count;
+}
 
 struct MicroVG {
     int width, height;
@@ -18,29 +25,27 @@ struct MicroVG {
     State[MAX_STATES] states;
     ichar stateCount;
 
-    PathCmd* pathCmds;
-    sz pathCmdCount, pathCmdCap;
+    Command* cmds;
+    sz cmdCount, cmdCap;
 
-    Vertex* vertices;
-    sz vertexCount, vertexCap;
+    Vertex* verts;
+    sz vertCount, vertCap;
 
-    DrawCall* drawCalls;
-    sz drawCallCount, drawCallCap;
+    DrawCall* calls;
+    sz callCount, callCap;
 
     Backend backend;
 }
 
-// --- Lifecycle ---
-
 fn MicroVG* create() {
     MicroVG* vg = mem::calloc(MicroVG::size);
 
-    vg.pathCmdCap = PATH_CMD_INIT_CAP;
-    vg.pathCmds = mem::calloc(PATH_CMD_INIT_CAP * PathCmd::size);
-    vg.vertexCap = VERTEX_INIT_CAP;
-    vg.vertices = mem::calloc(VERTEX_INIT_CAP * Vertex::size);
-    vg.drawCallCap = DRAW_CALL_INIT_CAP;
-    vg.drawCalls = mem::calloc(DRAW_CALL_INIT_CAP * DrawCall::size);
+    vg.cmdCap = PATH_CMD_INIT_CAP;
+    vg.cmds = mem::calloc(PATH_CMD_INIT_CAP * Command::size);
+    vg.vertCap = VERTEX_INIT_CAP;
+    vg.verts = mem::calloc(VERTEX_INIT_CAP * Vertex::size);
+    vg.callCap = DRAW_CALL_INIT_CAP;
+    vg.calls = mem::calloc(DRAW_CALL_INIT_CAP * DrawCall::size);
 
     vg.backend.init();
     return vg;
@@ -48,38 +53,34 @@ fn MicroVG* create() {
 
 fn void MicroVG.destroy(&self) {
     if (!self) return;
-    mem::free(self.pathCmds);
-    mem::free(self.vertices);
-    mem::free(self.drawCalls);
+    mem::free(self.cmds);
+    mem::free(self.verts);
+    mem::free(self.calls);
     self.backend.destroy();
     mem::free(self);
 }
-
-// --- Frame ---
 
 fn void MicroVG.beginFrame(&self, int width, int height, float dpr) {
     self.width = width;
     self.height = height;
     self.dpr = dpr;
 
-    self.pathCmdCount = 0;
-    self.vertexCount = 0;
-    self.drawCallCount = 0;
+    self.cmdCount = 0;
+    self.vertCount = 0;
+    self.callCount = 0;
 
     self.stateCount = 1;
     self.states[0].reset();
 }
 
 fn void MicroVG.endFrame(&self) {
-    if (self.drawCallCount == 0) return;
+    if (self.callCount == 0) return;
     self.backend.flush(
-        self.vertices, self.vertexCount,
-        self.drawCalls, self.drawCallCount,
+        self.verts, self.vertCount,
+        self.calls, self.callCount,
         self.width, self.height
     );
 }
-
-// --- State ---
 
 fn State* MicroVG.currentState(&self) {
     ichar idx = self.stateCount - 1;
@@ -110,112 +111,6 @@ fn void MicroVG.rotate(&self, float rad) => self.currentState().form.rotate(rad)
 
 fn void MicroVG.alpha(&self, float a) => self.currentState().alpha = a;
 
-// --- Path & Paint ---
-
-fn Path MicroVG.makePath(&self) => { .vg = self, .cmdStart = self.pathCmdCount };
+fn Path MicroVG.makePath(&self) => { .vg = self, .start = self.cmdCount };
 
 fn Paint MicroVG.makePaint(&self) => {};
-
-fn void MicroVG.appendPathCmd(&self, PathCmd cmd) {
-    if (self.pathCmdCount >= self.pathCmdCap) {
-        sz newCap = self.pathCmdCap * 2;
-        PathCmd* buf = mem::calloc(newCap * PathCmd::size);
-        for (sz i = 0; i < self.pathCmdCount; i++) buf[i] = self.pathCmds[i];
-
-        mem::free(self.pathCmds);
-        self.pathCmds = buf;
-        self.pathCmdCap = newCap;
-    }
-
-    self.pathCmds[self.pathCmdCount++] = cmd;
-}
-
-// --- Tessellation ---
-
-fn void MicroVG.pushVertex(&self, Vec2 pos, Color c, float alpha) {
-    if (self.vertexCount >= self.vertexCap) {
-        sz newCap = self.vertexCap * 2;
-        Vertex* buf = mem::calloc(newCap * Vertex::size);
-        for (sz i = 0; i < self.vertexCount; i++) buf[i] = self.vertices[i];
-
-        mem::free(self.vertices);
-        self.vertices  = buf;
-        self.vertexCap = newCap;
-    }
-
-    self.vertices[self.vertexCount++] = { pos, c.alpha(alpha) };
-}
-
-fn void MicroVG.pushDrawCall(&self, sz offset, sz count) {
-    if (self.drawCallCount >= self.drawCallCap) {
-        sz newCap = self.drawCallCap * 2;
-        DrawCall* buf = mem::calloc(newCap * DrawCall::size);
-        for (sz i = 0; i < self.drawCallCount; i++) buf[i] = self.drawCalls[i];
-
-        mem::free(self.drawCalls);
-        self.drawCalls = buf;
-        self.drawCallCap = newCap;
-    }
-
-    self.drawCalls[self.drawCallCount++] = { offset, count };
-}
-
-fn void MicroVG.pushPath(&self, Path path, Paint paint) {
-    State* state = self.currentState();
-    float alpha = state.alpha;
-
-    // Collect transformed points (MOVE_TO + LINE_TO only)
-    PathCmd* cmds = &self.pathCmds[path.cmdStart];
-    Vec2[MAX_PATH_POINTS] pts;
-    int ptCount = 0;
-
-    for (sz i = 0; i < path.cmdCount; i++) {
-        if (cmds[i].type == CLOSE) continue;
-        if (ptCount < MAX_PATH_POINTS) pts[ptCount++] = state.form * cmds[i].pos;
-    }
-
-    if (ptCount < 2) return;
-
-    // Fill: fan triangulation (convex polygon, closed path only)
-    if (paint.hasFill && path.closed && ptCount >= 3) {
-        sz offset = self.vertexCount;
-        Color fc = paint.fillColor;
-
-        for (int i = 1; i < ptCount - 1; i++) {
-            self.pushVertex(pts[0], fc, alpha);
-            self.pushVertex(pts[i], fc, alpha);
-            self.pushVertex(pts[i + 1], fc, alpha);
-        }
-
-        sz n = self.vertexCount - offset;
-        if (n > 0) self.pushDrawCall(offset, n);
-    }
-
-    // Stroke: each segment → quad (2 triangles)
-    if (paint.hasLine) {
-        float hw = paint.lineWidth * 0.5;
-        Color lc = paint.lineColor;
-        sz offset = self.vertexCount;
-        int segs = path.closed ? ptCount : ptCount - 1;
-
-        for (int i = 0; i < segs; i++) {
-            Vec2 a = pts[i];
-            Vec2 b = pts[(i + 1) % ptCount];
-            Vec2 d = b - a;
-            float len = d.length();
-            if (len < 0.0001) continue;
-
-            Vec2 n = { (-d.y / len) * hw, (d.x / len) * hw };
-
-            self.pushVertex(a + n, lc, alpha);
-            self.pushVertex(a - n, lc, alpha);
-            self.pushVertex(b + n, lc, alpha);
-            self.pushVertex(a - n, lc, alpha);
-            self.pushVertex(b - n, lc, alpha);
-            self.pushVertex(b + n, lc, alpha);
-        }
-
-        sz n = self.vertexCount - offset;
-        if (n > 0) self.pushDrawCall(offset, n);
-    }
-}
