@@ -14,7 +14,7 @@ fn void MicroVG.pushCmd(&self, PathType type, Vec2 pt) {
     self.cmds[self.cmdCount++] = { type, pt };
 }
 
-fn void MicroVG.pushVertex(&self, Vec2 pos, Color c, float alpha) {
+fn void MicroVG.pushVert(&self, Vec2 pos, Color c, float a) {
     if (self.vertCount >= self.vertCap) {
         sz newCap = self.vertCap * 2;
         Vertex* buf = mem::calloc(newCap * Vertex::size);
@@ -25,7 +25,7 @@ fn void MicroVG.pushVertex(&self, Vec2 pos, Color c, float alpha) {
         self.vertCap = newCap;
     }
 
-    self.verts[self.vertCount++] = { pos, c.alpha(alpha) };
+    self.verts[self.vertCount++] = { pos, c.alpha(a) };
 }
 
 fn void MicroVG.pushCall(&self, sz offset, sz count) {
@@ -62,9 +62,9 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
         Color fc = paint.fillColor;
 
         for (int i = 1; i < ptCount - 1; i++) {
-            self.pushVertex(pts[0], fc, alpha);
-            self.pushVertex(pts[i], fc, alpha);
-            self.pushVertex(pts[i + 1], fc, alpha);
+            self.pushVert(pts[0], fc, alpha);
+            self.pushVert(pts[i], fc, alpha);
+            self.pushVert(pts[i + 1], fc, alpha);
         }
 
         sz n = self.vertCount - offset;
@@ -86,12 +86,12 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
 
             Vec2 n = { (-d.y / len) * hw, (d.x / len) * hw };
 
-            self.pushVertex(a + n, lc, alpha);
-            self.pushVertex(a - n, lc, alpha);
-            self.pushVertex(b + n, lc, alpha);
-            self.pushVertex(a - n, lc, alpha);
-            self.pushVertex(b - n, lc, alpha);
-            self.pushVertex(b + n, lc, alpha);
+            self.pushVert(a + n, lc, alpha);
+            self.pushVert(a - n, lc, alpha);
+            self.pushVert(b + n, lc, alpha);
+            self.pushVert(a - n, lc, alpha);
+            self.pushVert(b - n, lc, alpha);
+            self.pushVert(b + n, lc, alpha);
         }
 
         sz n = self.vertCount - offset;
