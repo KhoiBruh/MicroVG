@@ -47,9 +47,7 @@ fn void Backend.init(&self) {
     if (gl::genBuffers) gl::genBuffers(1, &self.vbo);
     if (gl::bindBuffer) gl::bindBuffer((GLenum)GL_ARRAY_BUFFER, self.vbo);
 
-    if (gl::bufferData) {
-        gl::bufferData((GLenum) GL_ARRAY_BUFFER, VERTEX_INIT_CAP * Vertex::size, null, (GLenum) GL_DYNAMIC_DRAW);
-    }
+    if (gl::bufferData) gl::bufferData((GLenum) GL_ARRAY_BUFFER, VERTEX_INIT_CAP * Vertex::size, null, (GLenum) GL_DYNAMIC_DRAW);
 
     // aPos: vec2 at offset 0
     if (gl::vertexAttribPointer) gl::vertexAttribPointer(0, 2, (GLenum) GL_FLOAT, GL_FALSE, Vertex::size, null);
@@ -65,8 +63,8 @@ fn void Backend.init(&self) {
 
 fn void Backend.flush(
     &self,
-    Vertex* verts, sz count,
-    DrawCall* calls, sz callCount,
+    Vertex* verts, int count,
+    DrawCall* calls, int callCount,
     int width, int height
 ) {
     if (!self.shader.id || !self.vao || !self.vbo) return;
@@ -87,7 +85,7 @@ fn void Backend.flush(
     if (gl::drawArrays) {
         for (sz i = 0; i < callCount; i++) {
             DrawCall* dc = &calls[i];
-            gl::drawArrays((GLenum) GL_TRIANGLES, (int) dc.offset, (int) dc.count);
+            gl::drawArrays((GLenum) GL_TRIANGLES, dc.offset, dc.count);
         }
     }
 

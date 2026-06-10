@@ -4,9 +4,9 @@ import std::math;
 
 const ichar MAX_STATES @private = 32;
 const int MAX_PATH_POINTS @private = 512;
-const sz DRAW_CALL_INIT_CAP @private = 32;
-const sz VERTEX_INIT_CAP @private = 2048;
-const sz PATH_CMD_INIT_CAP @private = 256;
+const int DRAW_CALL_INIT_CAP @private = 32;
+const int VERTEX_INIT_CAP @private = 2048;
+const int PATH_CMD_INIT_CAP @private = 256;
 
 struct Vertex {
 	Vec2 pos;
@@ -14,25 +14,29 @@ struct Vertex {
 }
 
 struct DrawCall {
-	sz offset;
-	sz count;
+	int offset;
+	int count;
 }
 
 struct MicroVG {
-    int width, height;
+    int width;
+    int height;
     float dpr;
 
     State[MAX_STATES] states;
     ichar stateCount;
 
     Command* cmds;
-    sz cmdCount, cmdCap;
+    int cmdCount;
+    int cmdCap;
 
     Vertex* verts;
-    sz vertCount, vertCap;
+    int vertCount;
+    int vertCap;
 
     DrawCall* calls;
-    sz callCount, callCap;
+    int callCount;
+    int callCap;
 
     Backend backend;
 }
