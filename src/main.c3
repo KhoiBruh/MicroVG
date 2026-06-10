@@ -47,6 +47,11 @@ fn int main(String[] args) {
 
 		vg.beginFrame(window_w, window_h, 1);
 
+		vg.save();
+		vg.scale(2, 2);
+		vg.rotate(0.5);
+		vg.translate(40, -350);
+
 		microvg::Path path = vg.makePath();
 		path.moveTo(200, 300);
         path.lineTo(300, 300);
@@ -58,6 +63,8 @@ fn int main(String[] args) {
 		paint.line(microvg::rgba(255, 0, 0, 255), 5);
 		paint.fill(microvg::rgba(255, 255, 0, 255));
 		vg.pushPath(path, paint);
+
+		vg.restore();
 
         vg.endFrame();
 

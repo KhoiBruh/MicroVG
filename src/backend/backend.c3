@@ -33,6 +33,9 @@ struct Backend {
 fn void Backend.init(&self) {
     if (!shaderReady()) return;
 
+    if (gl::enable) gl::enable((GLenum) GL_BLEND);
+    if (gl::blendFunc) gl::blendFunc((GLenum) GL_SRC_ALPHA, (GLenum) GL_ONE_MINUS_SRC_ALPHA);
+
     self.shader = createShader(VERTEX_SRC, FRAGMENT_SRC);
     if (!self.shader.id) return;
 
