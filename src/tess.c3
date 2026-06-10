@@ -1,16 +1,15 @@
 module microvg;
 
-import std::math;
-
 const float AA_SIZE @private = 1;
 const float MITER_LIMIT @private = 4;
+const float MIN_DIST @private = 0.0001;
 
 fn float pathArea(Vec2* pts, int count) {
     float area = 0;
     for (int i = 0; i < count; i++) {
         Vec2 a = pts[i];
         Vec2 b = pts[(i + 1) % count];
-        area += a.x * b.y - b.x * a.y;
+        area += a.dot(b);
     }
 
     return area;
@@ -19,7 +18,7 @@ fn float pathArea(Vec2* pts, int count) {
 fn Vec2 edgeNormal(Vec2 a, Vec2 b, float scale) {
     Vec2 d = b - a;
     float len = d.length();
-    if (len < 0.0001) return { 0, 0 };
+    if (len < MIN_DIST) return { 0, 0 };
 
     return { (-d.y / len) * scale, (d.x / len) * scale };
 }
@@ -30,17 +29,35 @@ fn void MicroVG.pushTri(&self, Vec2 a, Vec2 b, Vec2 c, Color color, float alpha)
     self.pushVert(c, color, alpha);
 }
 
+fn void MicroVG.pushQuad(&self, Vec2 a, Vec2 b, Vec2 c, Vec2 d, Color color, float alpha) {
+    self.pushVert(a, color, alpha);
+    self.pushVert(b, color, alpha);
+    self.pushVert(c, color, alpha);
+    self.pushVert(a, color, alpha);
+    self.pushVert(c, color, alpha);
+    self.pushVert(d, color, alpha);
+}
+
+fn void MicroVG.pushQuadGradient(&self, Vec2 a, Vec2 b, Vec2 c, Vec2 d, Color color, float alpha1, float alpha2) {
+    self.pushVert(a, color, alpha1);
+    self.pushVert(b, color, alpha1);
+    self.pushVert(c, color, alpha2);
+    self.pushVert(a, color, alpha1);
+    self.pushVert(c, color, alpha2);
+    self.pushVert(d, color, alpha2);
+}
+
 fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color, float alpha, float hw, float aa, LineJoin join) {
     Vec2 a = p - prev;
     Vec2 b = next - p;
     float alen = a.length();
     float blen = b.length();
-    if (alen < 0.0001 || blen < 0.0001) return;
+    if (alen < MIN_DIST || blen < MIN_DIST) return;
 
-    Vec2 ad = { a.x / alen, a.y / alen };
-    Vec2 bd = { b.x / blen, b.y / blen };
+    Vec2 ad = a / alen;
+    Vec2 bd = b / blen;
     float turn = ad.cross(bd);
-    if (math::abs(turn) < 0.0001) return;
+    if (abs(turn) < MIN_DIST) return;
 
     // Unit left-hand normals of each edge direction
     Vec2 na = { -ad.y, ad.x };
@@ -59,27 +76,21 @@ fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color,
     Vec2 fb = nb * ((hw + aa) * side);
 
     if (join == MITER) {
-        // NanoVG-style miter: dm = (na + nb)/2 normalised by its own squared length.
-        float dmx = (na.x + nb.x) * 0.5;
-        float dmy = (na.y + nb.y) * 0.5;
-        float dmr2 = dmx * dmx + dmy * dmy;
-        if (dmr2 > 0.0001) {
-            float scale = 1.0f / dmr2;
-            dmx *= scale;
-            dmy *= scale;
-            float miterRatio = math::sqrt(dmx * dmx + dmy * dmy);
+        Vec2 dm = na.half(nb);
+        float dmr2 = dm.dot(dm);
+
+        if (dmr2 > MIN_DIST) {
+            float scale = 1 / dmr2;
+            dm *= scale;
+			float miterRatio = dm.length();
             if (miterRatio <= MITER_LIMIT) {
-                Vec2 mp = { p.x + dmx * hw * side, p.y + dmy * hw * side };
+				Vec2 mp = p + dm * hw * side;
                 self.pushTri(p + oa, p + ob, mp, color, alpha);
-                
+
                 // Miter AA
-                Vec2 mpe = { p.x + dmx * (hw + aa) * side, p.y + dmy * (hw + aa) * side };
-                // Quad 1: oa -> mp
-                self.pushVert(p + oa, color, alpha); self.pushVert(mp, color, alpha); self.pushVert(mpe, color, 0);
-                self.pushVert(p + oa, color, alpha); self.pushVert(mpe, color, 0); self.pushVert(p + fa, color, 0);
-                // Quad 2: mp -> ob
-                self.pushVert(mp, color, alpha); self.pushVert(p + ob, color, alpha); self.pushVert(p + fb, color, 0);
-                self.pushVert(mp, color, alpha); self.pushVert(p + fb, color, 0); self.pushVert(mpe, color, 0);
+				Vec2 mpe = p + dm * (hw + aa) * side;
+                self.pushQuadGradient(p + oa, mp, mpe, p + fa, color, alpha, 0);
+                self.pushQuadGradient(mp, p + ob, p + fb, mpe, color, alpha, 0);
                 
                 self.pushTri(p, p + oa, p + ob, color, alpha);
                 return;
@@ -91,8 +102,7 @@ fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color,
     self.pushTri(p, p + oa, p + ob, color, alpha);
     
     // Bevel AA quad
-    self.pushVert(p + oa, color, alpha); self.pushVert(p + ob, color, alpha); self.pushVert(p + fb, color, 0);
-    self.pushVert(p + oa, color, alpha); self.pushVert(p + fb, color, 0); self.pushVert(p + fa, color, 0);
+    self.pushQuadGradient(p + oa, p + ob, p + fb, p + fa, color, alpha, 0);
 }
 
 fn void MicroVG.pushCmd(&self, PathType type, Vec2 pt) {
@@ -163,7 +173,7 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
         }
 
         float side = pathArea(&pts[0], ptCount) > 0 ? -1 : 1;
-        float aa = AA_SIZE / math::max(self.dpr, 1.0f);
+        float aa = AA_SIZE / max(self.dpr, 1);
 
         for (int i = 0; i < ptCount; i++) {
             Vec2 a = pts[i];
@@ -171,12 +181,7 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
             Vec2 n = edgeNormal(a, b, aa * side);
             if (n.x == 0 && n.y == 0) continue;
 
-            self.pushVert(a, fc, alpha);
-            self.pushVert(b, fc, alpha);
-            self.pushVert(b + n, fc, 0);
-            self.pushVert(a, fc, alpha);
-            self.pushVert(b + n, fc, 0);
-            self.pushVert(a + n, fc, 0);
+            self.pushQuadGradient(a, b, b + n, a + n, fc, alpha, 0);
         }
 
         sz n = self.vertCount - offset;
@@ -185,7 +190,7 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
 
     if (paint.hasLine) {
         float hw = paint.lineWidth * 0.5;
-        float aa = AA_SIZE / math::max(self.dpr, 1.0f);
+        float aa = AA_SIZE / max(self.dpr, 1);
         Color lc = paint.lineColor;
         sz offset = self.vertCount;
         int segs = path.closed ? ptCount : ptCount - 1;
@@ -195,31 +200,14 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
             Vec2 b = pts[(i + 1) % ptCount];
             Vec2 d = b - a;
             float len = d.length();
-            if (len < 0.0001) continue;
+            if (len < MIN_DIST) continue;
 
             Vec2 n = { (-d.y / len) * hw, (d.x / len) * hw };
             Vec2 f = { (-d.y / len) * (hw + aa), (d.x / len) * (hw + aa) };
 
-            self.pushVert(a + n, lc, alpha);
-            self.pushVert(a - n, lc, alpha);
-            self.pushVert(b + n, lc, alpha);
-            self.pushVert(a - n, lc, alpha);
-            self.pushVert(b - n, lc, alpha);
-            self.pushVert(b + n, lc, alpha);
-
-            self.pushVert(a + f, lc, 0);
-            self.pushVert(a + n, lc, alpha);
-            self.pushVert(b + f, lc, 0);
-            self.pushVert(a + n, lc, alpha);
-            self.pushVert(b + n, lc, alpha);
-            self.pushVert(b + f, lc, 0);
-
-            self.pushVert(a - n, lc, alpha);
-            self.pushVert(a - f, lc, 0);
-            self.pushVert(b - n, lc, alpha);
-            self.pushVert(a - f, lc, 0);
-            self.pushVert(b - f, lc, 0);
-            self.pushVert(b - n, lc, alpha);
+            self.pushQuad(a + n, a - n, b - n, b + n, lc, alpha);
+            self.pushQuadGradient(a + n, b + n, b + f, a + f, lc, alpha, 0);
+            self.pushQuadGradient(b - n, a - n, a - f, b - f, lc, alpha, 0);
         }
 
         int joinStart = path.closed ? 0 : 1;

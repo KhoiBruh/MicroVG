@@ -18,4 +18,4 @@ macro Vec2 Vec2.lerp(self, Vec2 b, float t) => {
     a.y + (b.y - a.y) * t
 };
 
-
+macro Vec2 Vec2.half(self, Vec2 other) => (self + other) * 0.5;
