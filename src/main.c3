@@ -62,6 +62,8 @@ fn int main(String[] args) {
 		microvg::Paint paint = vg.makePaint();
 		paint.line(microvg::rgba(255, 0, 0, 255), 5);
 		paint.fill(microvg::rgba(255, 255, 0, 255));
+//		paint.join(LineJoin.ROUND);
+
 		vg.pushPath(path, paint);
 
 		vg.restore();

@@ -3,6 +3,7 @@ module microvg;
 import std::math;
 
 const float AA_SIZE @private = 1.0f;
+const float MITER_LIMIT @private = 4.0f;
 
 fn float pathArea(Vec2* pts, int count) {
     float area = 0;
@@ -21,6 +22,51 @@ fn Vec2 edgeNormal(Vec2 a, Vec2 b, float scale) {
     if (len < 0.0001) return { 0, 0 };
 
     return { (-d.y / len) * scale, (d.x / len) * scale };
+}
+
+fn void MicroVG.pushTri(&self, Vec2 a, Vec2 b, Vec2 c, Color color, float alpha) {
+    self.pushVert(a, color, alpha);
+    self.pushVert(b, color, alpha);
+    self.pushVert(c, color, alpha);
+}
+
+fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color, float alpha, float hw, LineJoin join) {
+    Vec2 a = p - prev;
+    Vec2 b = next - p;
+    float alen = a.length();
+    float blen = b.length();
+    if (alen < 0.0001 || blen < 0.0001) return;
+
+    Vec2 ad = { a.x / alen, a.y / alen };
+    Vec2 bd = { b.x / blen, b.y / blen };
+    float turn = ad.cross(bd);
+    if (math::abs(turn) < 0.0001) return;
+
+    Vec2 an = { -ad.y * hw, ad.x * hw };
+    Vec2 bn = { -bd.y * hw, bd.x * hw };
+    float side = turn > 0 ? 1.0f : -1.0f;
+    Vec2 oa = an * side;
+    Vec2 ob = bn * side;
+
+    if (join == MITER) {
+        Vec2 tangent = (ad + bd);
+        float tlen = tangent.length();
+        if (tlen > 0.0001) {
+            tangent = { tangent.x / tlen, tangent.y / tlen };
+            Vec2 miter = { -tangent.y * side, tangent.x * side };
+            float denom = miter.dot(an * side);
+            if (math::abs(denom) > 0.0001) {
+                float miterLen = hw / denom;
+                if (math::abs(miterLen) <= hw * MITER_LIMIT) {
+                    Vec2 mp = p + miter * miterLen;
+                    self.pushTri(p + oa, p + ob, mp, color, alpha);
+                    return;
+                }
+            }
+        }
+    }
+
+    self.pushTri(p, p + oa, p + ob, color, alpha);
 }
 
 fn void MicroVG.pushCmd(&self, PathType type, Vec2 pt) {
@@ -148,6 +194,15 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
             self.pushVert(a - f, lc, 0);
             self.pushVert(b - f, lc, 0);
             self.pushVert(b - n, lc, alpha);
+        }
+
+        int joinStart = path.closed ? 0 : 1;
+        int joinEnd = path.closed ? ptCount : ptCount - 1;
+        for (int i = joinStart; i < joinEnd; i++) {
+            Vec2 prev = pts[(i + ptCount - 1) % ptCount];
+            Vec2 p = pts[i];
+            Vec2 next = pts[(i + 1) % ptCount];
+            self.pushStrokeJoin(prev, p, next, lc, alpha, hw, paint.lineJoin);
         }
 
         sz n = self.vertCount - offset;
