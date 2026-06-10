@@ -6,13 +6,8 @@ struct Shader {
 	uint id;
 }
 
-fn bool shaderReady()
-=> gl::createShader && gl::shaderSource && gl::compileShader && gl::getShaderiv &&
-   gl::createProgram && gl::attachShader && gl::linkProgram && gl::getProgramiv &&
-   gl::deleteShader && gl::deleteProgram && gl::useProgram && gl::getUniformLocation;
-
-fn uint compile(uint type, String source) {
-    uint id = gl::createShader((GLenum) type);
+fn uint compile(GLenum type, String source) {
+    uint id = gl::createShader(type);
 
     char* ptr = source.ptr;
     int len = source.len;
@@ -20,15 +15,13 @@ fn uint compile(uint type, String source) {
     gl::compileShader(id);
 
     int ok = 0;
-    gl::getShaderiv(id, (GLenum) GL_COMPILE_STATUS, &ok);
+    gl::getShaderiv(id, GL_COMPILE_STATUS, &ok);
     if (ok == GL_FALSE) gl::deleteShader(id);
 
     return id;
 }
 
 fn Shader createShader(String vertexSrc, String fragmentSrc) {
-    if (!shaderReady()) return { };
-
     uint vert = compile(GL_VERTEX_SHADER, vertexSrc);
     defer if (vert) gl::deleteShader(vert);
 
@@ -41,7 +34,7 @@ fn Shader createShader(String vertexSrc, String fragmentSrc) {
     gl::linkProgram(id);
 
     int ok = 0;
-    gl::getProgramiv(id, (GLenum) GL_LINK_STATUS, &ok);
+    gl::getProgramiv(id, GL_LINK_STATUS, &ok);
     if (ok == GL_FALSE) {
         gl::deleteProgram(id);
         return {};
@@ -54,9 +47,7 @@ fn Shader createShader(String vertexSrc, String fragmentSrc) {
 }
 
 fn void Shader.bind(&self) {
-	if (self.id && gl::useProgram) gl::useProgram(self.id);
+	if (self.id) gl::useProgram(self.id);
 }
 
-fn void Shader.unbind(&self) {
-	if (gl::useProgram) gl::useProgram(0);
-}
+fn void Shader.unbind(&self) => gl::useProgram(0);

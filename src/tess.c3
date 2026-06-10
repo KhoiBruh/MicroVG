@@ -1,8 +1,11 @@
 module microvg;
 
+import std::math;
+
 const float AA_SIZE @private = 1;
 const float MITER_LIMIT @private = 4;
 const float MIN_DIST @private = 0.0001;
+const float SNAP_LINE_WIDTH @private = 1.5;
 
 fn float pathArea(Vec2* pts, int count) {
     float area = 0;
@@ -21,6 +24,13 @@ fn Vec2 edgeNormal(Vec2 a, Vec2 b, float scale) {
     if (len < MIN_DIST) return { 0, 0 };
 
     return { (-d.y / len) * scale, (d.x / len) * scale };
+}
+
+fn float snapCoord(float v, float dpr) => (float) math::floor((double) (v * dpr)) / dpr + 0.5f / dpr;
+
+fn bool shouldSnapStroke(Mat2x3 form, float lineWidth) {
+    if (lineWidth > SNAP_LINE_WIDTH) return false;
+    return abs(form.linear.y) < 0.0001 && abs(form.linear.z) < 0.0001;
 }
 
 fn void MicroVG.pushTri(&self, Vec2 a, Vec2 b, Vec2 c, Color color, float alpha) {
@@ -151,13 +161,19 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
     State* state = self.currentState();
     float alpha = state.alpha;
 
+	bool snapStroke = paint.hasLine && !paint.hasFill && shouldSnapStroke(state.form, paint.lineWidth);
+	float snapDpr = max(self.dpr, 1);
     Command* cmds = &self.cmds[path.start];
     Vec2[MAX_PATH_POINTS] pts;
     int ptCount = 0;
 
     for (int i = 0; i < path.count; i++) {
         if (cmds[i].type == CLOSE) continue;
-        if (ptCount < MAX_PATH_POINTS) pts[ptCount++] = state.form * cmds[i].pos;
+        if (ptCount < MAX_PATH_POINTS) {
+            Vec2 pt = state.form * cmds[i].pos;
+            if (snapStroke) pt = { snapCoord(pt.x, snapDpr), snapCoord(pt.y, snapDpr) };
+            pts[ptCount++] = pt;
+        }
     }
 
     if (ptCount < 2) return;
