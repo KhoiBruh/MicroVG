@@ -2,8 +2,8 @@ module microvg;
 
 import std::math;
 
-const float AA_SIZE @private = 1.0f;
-const float MITER_LIMIT @private = 4.0f;
+const float AA_SIZE @private = 1;
+const float MITER_LIMIT @private = 4;
 
 fn float pathArea(Vec2* pts, int count) {
     float area = 0;
@@ -30,7 +30,7 @@ fn void MicroVG.pushTri(&self, Vec2 a, Vec2 b, Vec2 c, Color color, float alpha)
     self.pushVert(c, color, alpha);
 }
 
-fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color, float alpha, float hw, LineJoin join) {
+fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color, float alpha, float hw, float aa, LineJoin join) {
     Vec2 a = p - prev;
     Vec2 b = next - p;
     float alen = a.length();
@@ -42,31 +42,57 @@ fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color,
     float turn = ad.cross(bd);
     if (math::abs(turn) < 0.0001) return;
 
-    Vec2 an = { -ad.y * hw, ad.x * hw };
-    Vec2 bn = { -bd.y * hw, bd.x * hw };
-    float side = turn > 0 ? 1.0f : -1.0f;
-    Vec2 oa = an * side;
-    Vec2 ob = bn * side;
+    // Unit left-hand normals of each edge direction
+    Vec2 na = { -ad.y, ad.x };
+    Vec2 nb = { -bd.y, bd.x };
+
+    // side = -1 for left turn  → outer corner is on the RIGHT (-na direction)
+    // side = +1 for right turn → outer corner is on the LEFT  (+na direction)
+    float side = turn > 0 ? -1 : 1;
+
+    // Outer corners of the two segment quads at point P
+    Vec2 oa = na * (hw * side);
+    Vec2 ob = nb * (hw * side);
+    
+    // Outer AA corners of the two segment quads
+    Vec2 fa = na * ((hw + aa) * side);
+    Vec2 fb = nb * ((hw + aa) * side);
 
     if (join == MITER) {
-        Vec2 tangent = (ad + bd);
-        float tlen = tangent.length();
-        if (tlen > 0.0001) {
-            tangent = { tangent.x / tlen, tangent.y / tlen };
-            Vec2 miter = { -tangent.y * side, tangent.x * side };
-            float denom = miter.dot(an * side);
-            if (math::abs(denom) > 0.0001) {
-                float miterLen = hw / denom;
-                if (math::abs(miterLen) <= hw * MITER_LIMIT) {
-                    Vec2 mp = p + miter * miterLen;
-                    self.pushTri(p + oa, p + ob, mp, color, alpha);
-                    return;
-                }
+        // NanoVG-style miter: dm = (na + nb)/2 normalised by its own squared length.
+        float dmx = (na.x + nb.x) * 0.5;
+        float dmy = (na.y + nb.y) * 0.5;
+        float dmr2 = dmx * dmx + dmy * dmy;
+        if (dmr2 > 0.0001) {
+            float scale = 1.0f / dmr2;
+            dmx *= scale;
+            dmy *= scale;
+            float miterRatio = math::sqrt(dmx * dmx + dmy * dmy);
+            if (miterRatio <= MITER_LIMIT) {
+                Vec2 mp = { p.x + dmx * hw * side, p.y + dmy * hw * side };
+                self.pushTri(p + oa, p + ob, mp, color, alpha);
+                
+                // Miter AA
+                Vec2 mpe = { p.x + dmx * (hw + aa) * side, p.y + dmy * (hw + aa) * side };
+                // Quad 1: oa -> mp
+                self.pushVert(p + oa, color, alpha); self.pushVert(mp, color, alpha); self.pushVert(mpe, color, 0);
+                self.pushVert(p + oa, color, alpha); self.pushVert(mpe, color, 0); self.pushVert(p + fa, color, 0);
+                // Quad 2: mp -> ob
+                self.pushVert(mp, color, alpha); self.pushVert(p + ob, color, alpha); self.pushVert(p + fb, color, 0);
+                self.pushVert(mp, color, alpha); self.pushVert(p + fb, color, 0); self.pushVert(mpe, color, 0);
+                
+                self.pushTri(p, p + oa, p + ob, color, alpha);
+                return;
             }
         }
     }
 
+    // BEVEL (or miter fallback): fill the outer gap with a simple triangle.
     self.pushTri(p, p + oa, p + ob, color, alpha);
+    
+    // Bevel AA quad
+    self.pushVert(p + oa, color, alpha); self.pushVert(p + ob, color, alpha); self.pushVert(p + fb, color, 0);
+    self.pushVert(p + oa, color, alpha); self.pushVert(p + fb, color, 0); self.pushVert(p + fa, color, 0);
 }
 
 fn void MicroVG.pushCmd(&self, PathType type, Vec2 pt) {
@@ -136,7 +162,7 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
             self.pushVert(pts[i + 1], fc, alpha);
         }
 
-        float side = pathArea(&pts[0], ptCount) > 0 ? -1.0f : 1.0f;
+        float side = pathArea(&pts[0], ptCount) > 0 ? -1 : 1;
         float aa = AA_SIZE / math::max(self.dpr, 1.0f);
 
         for (int i = 0; i < ptCount; i++) {
@@ -202,7 +228,7 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
             Vec2 prev = pts[(i + ptCount - 1) % ptCount];
             Vec2 p = pts[i];
             Vec2 next = pts[(i + 1) % ptCount];
-            self.pushStrokeJoin(prev, p, next, lc, alpha, hw, paint.lineJoin);
+            self.pushStrokeJoin(prev, p, next, lc, alpha, hw, aa, paint.lineJoin);
         }
 
         sz n = self.vertCount - offset;
