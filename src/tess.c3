@@ -18,7 +18,7 @@ fn float pathArea(Vec2* pts, int count) {
     return area;
 }
 
-fn bool pointInTriangle(Vec2 p, Vec2 a, Vec2 b, Vec2 c) {
+fn bool pointInTri(Vec2 p, Vec2 a, Vec2 b, Vec2 c) {
     Vec2 v0 = c - a;
     Vec2 v1 = b - a;
     Vec2 v2 = p - a;
@@ -41,7 +41,8 @@ fn Vec2 edgeNormal(Vec2 a, Vec2 b, float scale) {
     float len = d.length();
     if (len < MIN_DIST) return { 0, 0 };
 
-    return { (-d.y / len) * scale, (d.x / len) * scale };
+    Vec2 n = { -d.y, d.x };
+    return n * (scale / len);
 }
 
 fn float snapPos(float v, float dpr) => math::floor((v * dpr)) / dpr + 0.5f / dpr;
@@ -66,7 +67,7 @@ fn void MicroVG.pushQuad(&self, Vec2 a, Vec2 b, Vec2 c, Vec2 d, Color color, flo
     self.pushVert(d, color, alpha);
 }
 
-fn void MicroVG.pushQuadGradient(&self, Vec2 a, Vec2 b, Vec2 c, Vec2 d, Color color, float alpha1, float alpha2) {
+fn void MicroVG.pushAA(&self, Vec2 a, Vec2 b, Vec2 c, Vec2 d, Color color, float alpha1, float alpha2) {
     self.pushVert(a, color, alpha1);
     self.pushVert(b, color, alpha1);
     self.pushVert(c, color, alpha2);
@@ -75,7 +76,7 @@ fn void MicroVG.pushQuadGradient(&self, Vec2 a, Vec2 b, Vec2 c, Vec2 d, Color co
     self.pushVert(d, color, alpha2);
 }
 
-fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color, float alpha, float hw, float aa, LineJoin join) {
+fn void MicroVG.pushJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color, float alpha, float hw, float aa, LineJoin join) {
     Vec2 a = p - prev;
     Vec2 b = next - p;
     float alen = a.length();
@@ -117,8 +118,8 @@ fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color,
 
                 // Miter AA
 				Vec2 mpe = p + dm * (hw + aa) * side;
-                self.pushQuadGradient(p + oa, mp, mpe, p + fa, color, alpha, 0);
-                self.pushQuadGradient(mp, p + ob, p + fb, mpe, color, alpha, 0);
+                self.pushAA(p + oa, mp, mpe, p + fa, color, alpha, 0);
+                self.pushAA(mp, p + ob, p + fb, mpe, color, alpha, 0);
                 
                 self.pushTri(p, p + oa, p + ob, color, alpha);
                 return;
@@ -130,10 +131,10 @@ fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color,
     self.pushTri(p, p + oa, p + ob, color, alpha);
     
     // Bevel AA quad
-    self.pushQuadGradient(p + oa, p + ob, p + fb, p + fa, color, alpha, 0);
+    self.pushAA(p + oa, p + ob, p + fb, p + fa, color, alpha, 0);
 }
 
-fn void MicroVG.pushLineCap(&self, Vec2 p, Vec2 dir, float hw, float aa, Color color, float alpha, LineCap cap) {
+fn void MicroVG.pushCap(&self, Vec2 p, Vec2 dir, float hw, float aa, Color color, float alpha, LineCap cap) {
     if (cap == ROUND) {
         return;
     }
@@ -145,9 +146,9 @@ fn void MicroVG.pushLineCap(&self, Vec2 p, Vec2 dir, float hw, float aa, Color c
     Vec2 eAA = dir * aa;
 
     Vec2 left = n * hw;
-    Vec2 right = -n * hw;
+    Vec2 right = -left;
     Vec2 fLeft = n * (hw + aa);
-    Vec2 fRight = -n * (hw + aa);
+    Vec2 fRight = -fLeft;
 
     Vec2 p0 = p;
     Vec2 p1 = p + ext;
@@ -155,11 +156,11 @@ fn void MicroVG.pushLineCap(&self, Vec2 p, Vec2 dir, float hw, float aa, Color c
     if (cap == SQUARE) {
         self.pushQuad(p0 + left, p0 + right, p1 + right, p1 + left, color, alpha);
         
-        self.pushQuadGradient(p0 + left, p1 + left, p1 + fLeft, p0 + fLeft, color, alpha, 0);
-        self.pushQuadGradient(p0 + right, p1 + right, p1 + fRight, p0 + fRight, color, alpha, 0);
+        self.pushAA(p0 + left, p1 + left, p1 + fLeft, p0 + fLeft, color, alpha, 0);
+        self.pushAA(p0 + right, p1 + right, p1 + fRight, p0 + fRight, color, alpha, 0);
     }
 
-    self.pushQuadGradient(p1 + left, p1 + right, p1 + right + eAA, p1 + left + eAA, color, alpha, 0);
+    self.pushAA(p1 + left, p1 + right, p1 + right + eAA, p1 + left + eAA, color, alpha, 0);
 
     self.pushVert(p1 + left, color, alpha);
     self.pushVert(p1 + left + eAA, color, 0);
@@ -240,7 +241,7 @@ fn void MicroVG.tessFill(&self, Vec2* pts, int ptCount, Paint paint, float alpha
             for (int j = 0; j < remain; j++) {
                 int idx = indices[j];
                 if (idx == prev || idx == curr || idx == next) continue;
-                if (pointInTriangle(pts[idx], a, b, c)) {
+                if (pointInTri(pts[idx], a, b, c)) {
                     isEar = false;
                     break;
                 }
@@ -270,7 +271,7 @@ fn void MicroVG.tessFill(&self, Vec2* pts, int ptCount, Paint paint, float alpha
         Vec2 n = edgeNormal(a, b, aa * side);
         if (n.x == 0 && n.y == 0) continue;
 
-        self.pushQuadGradient(a, b, b + n, a + n, fc, alpha, 0);
+        self.pushAA(a, b, b + n, a + n, fc, alpha, 0);
     }
 
     int n = self.vertCount - offset;
@@ -291,12 +292,15 @@ fn void MicroVG.tessLine(&self, Vec2* pts, int ptCount, bool closed, Paint paint
         float len = d.length();
         if (len < MIN_DIST) continue;
 
-        Vec2 n = { (-d.y / len) * hw, (d.x / len) * hw };
-        Vec2 f = { (-d.y / len) * (hw + aa), (d.x / len) * (hw + aa) };
+        Vec2 dir = d / len;
+        Vec2 n0 = { -dir.y, dir.x };
+        
+        Vec2 n = n0 * hw;
+        Vec2 f = n0 * (hw + aa);
 
         self.pushQuad(a + n, a - n, b - n, b + n, lc, alpha);
-        self.pushQuadGradient(a + n, b + n, b + f, a + f, lc, alpha, 0);
-        self.pushQuadGradient(b - n, a - n, a - f, b - f, lc, alpha, 0);
+        self.pushAA(a + n, b + n, b + f, a + f, lc, alpha, 0);
+        self.pushAA(b - n, a - n, a - f, b - f, lc, alpha, 0);
     }
 
     int joinStart = closed ? 0 : 1;
@@ -305,7 +309,7 @@ fn void MicroVG.tessLine(&self, Vec2* pts, int ptCount, bool closed, Paint paint
         Vec2 prev = pts[(i + ptCount - 1) % ptCount];
         Vec2 p = pts[i];
         Vec2 next = pts[(i + 1) % ptCount];
-        self.pushStrokeJoin(prev, p, next, lc, alpha, hw, aa, paint.lineJoin);
+        self.pushJoin(prev, p, next, lc, alpha, hw, aa, paint.lineJoin);
     }
 
     if (!closed && ptCount >= 2) {
@@ -313,13 +317,13 @@ fn void MicroVG.tessLine(&self, Vec2* pts, int ptCount, bool closed, Paint paint
         Vec2 p1 = pts[1];
         Vec2 d0 = p1 - p0;
         float len0 = d0.length();
-        if (len0 >= MIN_DIST) self.pushLineCap(p0, -(d0 / len0), hw, aa, lc, alpha, paint.lineCap);
+        if (len0 >= MIN_DIST) self.pushCap(p0, -(d0 / len0), hw, aa, lc, alpha, paint.lineCap);
 
         Vec2 pEnd = pts[ptCount - 1];
         Vec2 pPrev = pts[ptCount - 2];
         Vec2 dEnd = pEnd - pPrev;
         float lenEnd = dEnd.length();
-        if (lenEnd >= MIN_DIST) self.pushLineCap(pEnd, dEnd / lenEnd, hw, aa, lc, alpha, paint.lineCap);
+        if (lenEnd >= MIN_DIST) self.pushCap(pEnd, dEnd / lenEnd, hw, aa, lc, alpha, paint.lineCap);
     }
 
     int n = self.vertCount - offset;
