@@ -43,7 +43,7 @@ fn int main(String[] args) {
 		glfw34::getWindowSize(window, &window_w, &window_h);
 
 		gl::clearColor(0.08, 0.09, 0.1, 1);
-		gl::clear((GLbitfield) GL_COLOR_BUFFER_BIT);
+		gl::clear(GL_COLOR_BUFFER_BIT);
 
 		vg.beginFrame(window_w, window_h, 1);
 

@@ -1,11 +1,6 @@
 module microvg;
 
-struct Color {
-	float r;
-	float g;
-	float b;
-	float a;
-}
+alias Color = float[<4>];
 
 fn Color Color.alpha(self, float a) => {
 	self.r, self.g, self.b, self.a * a

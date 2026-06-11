@@ -12,10 +12,28 @@ fn float pathArea(Vec2* pts, int count) {
     for (int i = 0; i < count; i++) {
         Vec2 a = pts[i];
         Vec2 b = pts[(i + 1) % count];
-        area += a.dot(b);
+        area += a.cross(b);
     }
 
     return area;
+}
+
+fn bool pointInTriangle(Vec2 p, Vec2 a, Vec2 b, Vec2 c) {
+    Vec2 v0 = c - a;
+    Vec2 v1 = b - a;
+    Vec2 v2 = p - a;
+
+    float dot00 = v0.dot(v0);
+    float dot01 = v0.dot(v1);
+    float dot02 = v0.dot(v2);
+    float dot11 = v1.dot(v1);
+    float dot12 = v1.dot(v2);
+
+    float invDenom = 1 / (dot00 * dot11 - dot01 * dot01);
+    float u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+    float v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+    return (u >= 0) && (v >= 0) && (u + v < 1);
 }
 
 fn Vec2 edgeNormal(Vec2 a, Vec2 b, float scale) {
@@ -26,7 +44,7 @@ fn Vec2 edgeNormal(Vec2 a, Vec2 b, float scale) {
     return { (-d.y / len) * scale, (d.x / len) * scale };
 }
 
-fn float snapCoord(float v, float dpr) => (float) math::floor((double) (v * dpr)) / dpr + 0.5f / dpr;
+fn float snapCoord(float v, float dpr) => math::floor((v * dpr)) / dpr + 0.5f / dpr;
 
 fn bool shouldSnapStroke(Mat2x3 form, float lineWidth) {
     if (lineWidth > SNAP_LINE_WIDTH) return false;
@@ -181,14 +199,56 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
     if (paint.hasFill && path.closed && ptCount >= 3) {
         int offset = self.vertCount;
         Color fc = paint.fillColor;
+        bool ccw = pathArea(&pts[0], ptCount) > 0;
+        float side = ccw ? -1 : 1;
 
-        for (int i = 1; i < ptCount - 1; i++) {
-            self.pushVert(pts[0], fc, alpha);
-            self.pushVert(pts[i], fc, alpha);
-            self.pushVert(pts[i + 1], fc, alpha);
+        int[MAX_PATH_POINTS] indices;
+        for (int i = 0; i < ptCount; i++) indices[i] = i;
+
+        int remain = ptCount;
+        while (remain > 2) {
+            bool earFound = false;
+            for (int i = 0; i < remain; i++) {
+                int prev = indices[(i + remain - 1) % remain];
+                int curr = indices[i];
+                int next = indices[(i + 1) % remain];
+
+                Vec2 a = pts[prev];
+                Vec2 b = pts[curr];
+                Vec2 c = pts[next];
+
+                // Check if internal angle is convex based on path winding
+                float cross = (b - a).cross(c - b);
+                if (ccw ? cross < MIN_DIST : cross > -MIN_DIST) continue;
+
+                // Check if any other point is inside this triangle
+                bool isEar = true;
+                for (int j = 0; j < remain; j++) {
+                    int idx = indices[j];
+                    if (idx == prev || idx == curr || idx == next) continue;
+                    if (pointInTriangle(pts[idx], a, b, c)) {
+                        isEar = false;
+                        break;
+                    }
+                }
+
+                if (isEar) {
+                    self.pushTri(a, b, c, fc, alpha);
+                    for (int j = i; j < remain - 1; j++) indices[j] = indices[j + 1];
+                    remain--;
+                    earFound = true;
+                    break;
+                }
+            }
+            
+            if (!earFound) {
+                // Fallback for self-intersecting or complex polygons: just strip an ear.
+                self.pushTri(pts[indices[0]], pts[indices[1]], pts[indices[2]], fc, alpha);
+                for (int j = 1; j < remain - 1; j++) indices[j] = indices[j + 1];
+                remain--;
+            }
         }
 
-        float side = pathArea(&pts[0], ptCount) > 0 ? -1 : 1;
         float aa = AA_SIZE / max(self.dpr, 1);
 
         for (int i = 0; i < ptCount; i++) {
