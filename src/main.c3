@@ -60,13 +60,23 @@ fn int main(String[] args) {
         path.close();
 
 		microvg::Paint paint = vg.makePaint();
-		paint.line(microvg::rgba(255, 0, 0, 255), 20);
-		paint.fill(microvg::rgba(255, 255, 0, 255));
+		paint.line(microvg::rgba(255, 0, 0), 20);
+		paint.fill(microvg::rgba(255, 255, 0));
 		paint.join(LineJoin.MITER);
 
 		vg.pushPath(path, paint);
 
 		vg.restore();
+
+		microvg::Path capLine = vg.makePath();
+		capLine.moveTo(50, 100);
+		capLine.lineTo(300, 700);
+
+		microvg::Paint cap = vg.makePaint();
+		cap.line(microvg::rgba(0, 255, 0), 10);
+		cap.cap(microvg::LineCap.FLAT);
+
+		vg.pushPath(capLine, cap);
 
         vg.endFrame();
 

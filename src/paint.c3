@@ -6,7 +6,7 @@ fn Color Color.alpha(self, float a) => {
 	self.r, self.g, self.b, self.a * a
 };
 
-fn Color rgba(char r, char g, char b, char a) => {
+fn Color rgba(char r, char g, char b, char a = 255) => {
     r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f
 };
 

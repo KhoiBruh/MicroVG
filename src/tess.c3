@@ -133,6 +133,43 @@ fn void MicroVG.pushStrokeJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color,
     self.pushQuadGradient(p + oa, p + ob, p + fb, p + fa, color, alpha, 0);
 }
 
+fn void MicroVG.pushLineCap(&self, Vec2 p, Vec2 dir, float hw, float aa, Color color, float alpha, LineCap cap) {
+    if (cap == ROUND) {
+        return;
+    }
+
+    Vec2 n = { -dir.y, dir.x };
+    
+    float extLen = (cap == SQUARE) ? hw : 0;
+    Vec2 ext = dir * extLen;
+    Vec2 eAA = dir * aa;
+
+    Vec2 left = n * hw;
+    Vec2 right = -n * hw;
+    Vec2 fLeft = n * (hw + aa);
+    Vec2 fRight = -n * (hw + aa);
+
+    Vec2 p0 = p;
+    Vec2 p1 = p + ext;
+
+    if (cap == SQUARE) {
+        self.pushQuad(p0 + left, p0 + right, p1 + right, p1 + left, color, alpha);
+        
+        self.pushQuadGradient(p0 + left, p1 + left, p1 + fLeft, p0 + fLeft, color, alpha, 0);
+        self.pushQuadGradient(p0 + right, p1 + right, p1 + fRight, p0 + fRight, color, alpha, 0);
+    }
+
+    self.pushQuadGradient(p1 + left, p1 + right, p1 + right + eAA, p1 + left + eAA, color, alpha, 0);
+
+    self.pushVert(p1 + left, color, alpha);
+    self.pushVert(p1 + left + eAA, color, 0);
+    self.pushVert(p1 + fLeft, color, 0);
+    
+    self.pushVert(p1 + right, color, alpha);
+    self.pushVert(p1 + right + eAA, color, 0);
+    self.pushVert(p1 + fRight, color, 0);
+}
+
 fn void MicroVG.pushCmd(&self, PathType type, Vec2 pt) {
     if (self.cmdCount >= self.cmdCap) {
         int newCap = self.cmdCap * 2;
@@ -293,6 +330,20 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
             Vec2 p = pts[i];
             Vec2 next = pts[(i + 1) % ptCount];
             self.pushStrokeJoin(prev, p, next, lc, alpha, hw, aa, paint.lineJoin);
+        }
+
+        if (!path.closed && ptCount >= 2) {
+            Vec2 p0 = pts[0];
+            Vec2 p1 = pts[1];
+            Vec2 d0 = p1 - p0;
+            float len0 = d0.length();
+            if (len0 >= MIN_DIST) self.pushLineCap(p0, -(d0 / len0), hw, aa, lc, alpha, paint.lineCap);
+
+            Vec2 pEnd = pts[ptCount - 1];
+            Vec2 pPrev = pts[ptCount - 2];
+            Vec2 dEnd = pEnd - pPrev;
+            float lenEnd = dEnd.length();
+            if (lenEnd >= MIN_DIST) self.pushLineCap(pEnd, dEnd / lenEnd, hw, aa, lc, alpha, paint.lineCap);
         }
 
         int n = self.vertCount - offset;
