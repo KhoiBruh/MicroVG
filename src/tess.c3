@@ -44,9 +44,9 @@ fn Vec2 edgeNormal(Vec2 a, Vec2 b, float scale) {
     return { (-d.y / len) * scale, (d.x / len) * scale };
 }
 
-fn float snapCoord(float v, float dpr) => math::floor((v * dpr)) / dpr + 0.5f / dpr;
+fn float snapPos(float v, float dpr) => math::floor((v * dpr)) / dpr + 0.5f / dpr;
 
-fn bool shouldSnapStroke(Mat2x3 form, float lineWidth) {
+fn bool shouldSnapLine(Mat2x3 form, float lineWidth) {
     if (lineWidth > SNAP_LINE_WIDTH) return false;
     return abs(form.linear.y) < 0.0001 && abs(form.linear.z) < 0.0001;
 }
@@ -212,11 +212,125 @@ fn void MicroVG.pushCall(&self, int offset, int count) {
     self.calls[self.callCount++] = { offset, count };
 }
 
+fn void MicroVG.tessFill(&self, Vec2* pts, int ptCount, Paint paint, float alpha) {
+    int offset = self.vertCount;
+    Color fc = paint.fillColor;
+    bool ccw = pathArea(pts, ptCount) > 0;
+    float side = ccw ? -1 : 1;
+
+    int[MAX_PATH_POINTS] indices;
+    for (int i = 0; i < ptCount; i++) indices[i] = i;
+
+    int remain = ptCount;
+    while (remain > 2) {
+        bool earFound = false;
+        for (int i = 0; i < remain; i++) {
+            int prev = indices[(i + remain - 1) % remain];
+            int curr = indices[i];
+            int next = indices[(i + 1) % remain];
+
+            Vec2 a = pts[prev];
+            Vec2 b = pts[curr];
+            Vec2 c = pts[next];
+
+            float cross = (b - a).cross(c - b);
+            if (ccw ? cross < MIN_DIST : cross > -MIN_DIST) continue;
+
+            bool isEar = true;
+            for (int j = 0; j < remain; j++) {
+                int idx = indices[j];
+                if (idx == prev || idx == curr || idx == next) continue;
+                if (pointInTriangle(pts[idx], a, b, c)) {
+                    isEar = false;
+                    break;
+                }
+            }
+
+            if (isEar) {
+                self.pushTri(a, b, c, fc, alpha);
+                for (int j = i; j < remain - 1; j++) indices[j] = indices[j + 1];
+                remain--;
+                earFound = true;
+                break;
+            }
+        }
+        
+        if (!earFound) {
+            self.pushTri(pts[indices[0]], pts[indices[1]], pts[indices[2]], fc, alpha);
+            for (int j = 1; j < remain - 1; j++) indices[j] = indices[j + 1];
+            remain--;
+        }
+    }
+
+    float aa = AA_SIZE / max(self.dpr, 1);
+
+    for (int i = 0; i < ptCount; i++) {
+        Vec2 a = pts[i];
+        Vec2 b = pts[(i + 1) % ptCount];
+        Vec2 n = edgeNormal(a, b, aa * side);
+        if (n.x == 0 && n.y == 0) continue;
+
+        self.pushQuadGradient(a, b, b + n, a + n, fc, alpha, 0);
+    }
+
+    int n = self.vertCount - offset;
+    if (n > 0) self.pushCall(offset, n);
+}
+
+fn void MicroVG.tessLine(&self, Vec2* pts, int ptCount, bool closed, Paint paint, float alpha) {
+    float hw = paint.lineWidth * 0.5;
+    float aa = AA_SIZE / max(self.dpr, 1);
+    Color lc = paint.lineColor;
+    int offset = self.vertCount;
+    int segs = closed ? ptCount : ptCount - 1;
+
+    for (int i = 0; i < segs; i++) {
+        Vec2 a = pts[i];
+        Vec2 b = pts[(i + 1) % ptCount];
+        Vec2 d = b - a;
+        float len = d.length();
+        if (len < MIN_DIST) continue;
+
+        Vec2 n = { (-d.y / len) * hw, (d.x / len) * hw };
+        Vec2 f = { (-d.y / len) * (hw + aa), (d.x / len) * (hw + aa) };
+
+        self.pushQuad(a + n, a - n, b - n, b + n, lc, alpha);
+        self.pushQuadGradient(a + n, b + n, b + f, a + f, lc, alpha, 0);
+        self.pushQuadGradient(b - n, a - n, a - f, b - f, lc, alpha, 0);
+    }
+
+    int joinStart = closed ? 0 : 1;
+    int joinEnd = closed ? ptCount : ptCount - 1;
+    for (int i = joinStart; i < joinEnd; i++) {
+        Vec2 prev = pts[(i + ptCount - 1) % ptCount];
+        Vec2 p = pts[i];
+        Vec2 next = pts[(i + 1) % ptCount];
+        self.pushStrokeJoin(prev, p, next, lc, alpha, hw, aa, paint.lineJoin);
+    }
+
+    if (!closed && ptCount >= 2) {
+        Vec2 p0 = pts[0];
+        Vec2 p1 = pts[1];
+        Vec2 d0 = p1 - p0;
+        float len0 = d0.length();
+        if (len0 >= MIN_DIST) self.pushLineCap(p0, -(d0 / len0), hw, aa, lc, alpha, paint.lineCap);
+
+        Vec2 pEnd = pts[ptCount - 1];
+        Vec2 pPrev = pts[ptCount - 2];
+        Vec2 dEnd = pEnd - pPrev;
+        float lenEnd = dEnd.length();
+        if (lenEnd >= MIN_DIST) self.pushLineCap(pEnd, dEnd / lenEnd, hw, aa, lc, alpha, paint.lineCap);
+    }
+
+    int n = self.vertCount - offset;
+    if (n > 0) self.pushCall(offset, n);
+}
+
 fn void MicroVG.pushPath(&self, Path path, Paint paint) {
     State* state = self.currentState();
     float alpha = state.alpha;
 
-	bool snapStroke = paint.hasLine && !paint.hasFill && shouldSnapStroke(state.form, paint.lineWidth);
+	bool snapLine = paint.hasLine && !paint.hasFill && shouldSnapLine(state.form, paint.lineWidth);
 	float snapDpr = max(self.dpr, 1);
     Command* cmds = &self.cmds[path.start];
     Vec2[MAX_PATH_POINTS] pts;
@@ -226,127 +340,14 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
         if (cmds[i].type == CLOSE) continue;
         if (ptCount < MAX_PATH_POINTS) {
             Vec2 pt = state.form * cmds[i].pos;
-            if (snapStroke) pt = { snapCoord(pt.x, snapDpr), snapCoord(pt.y, snapDpr) };
+            if (snapLine) pt = { snapPos(pt.x, snapDpr), snapPos(pt.y, snapDpr) };
             pts[ptCount++] = pt;
         }
     }
 
     if (ptCount < 2) return;
 
-    if (paint.hasFill && path.closed && ptCount >= 3) {
-        int offset = self.vertCount;
-        Color fc = paint.fillColor;
-        bool ccw = pathArea(&pts[0], ptCount) > 0;
-        float side = ccw ? -1 : 1;
+    if (paint.hasFill && path.closed && ptCount >= 3) self.tessFill(&pts[0], ptCount, paint, alpha);
 
-        int[MAX_PATH_POINTS] indices;
-        for (int i = 0; i < ptCount; i++) indices[i] = i;
-
-        int remain = ptCount;
-        while (remain > 2) {
-            bool earFound = false;
-            for (int i = 0; i < remain; i++) {
-                int prev = indices[(i + remain - 1) % remain];
-                int curr = indices[i];
-                int next = indices[(i + 1) % remain];
-
-                Vec2 a = pts[prev];
-                Vec2 b = pts[curr];
-                Vec2 c = pts[next];
-
-                // Check if internal angle is convex based on path winding
-                float cross = (b - a).cross(c - b);
-                if (ccw ? cross < MIN_DIST : cross > -MIN_DIST) continue;
-
-                // Check if any other point is inside this triangle
-                bool isEar = true;
-                for (int j = 0; j < remain; j++) {
-                    int idx = indices[j];
-                    if (idx == prev || idx == curr || idx == next) continue;
-                    if (pointInTriangle(pts[idx], a, b, c)) {
-                        isEar = false;
-                        break;
-                    }
-                }
-
-                if (isEar) {
-                    self.pushTri(a, b, c, fc, alpha);
-                    for (int j = i; j < remain - 1; j++) indices[j] = indices[j + 1];
-                    remain--;
-                    earFound = true;
-                    break;
-                }
-            }
-            
-            if (!earFound) {
-                // Fallback for self-intersecting or complex polygons: just strip an ear.
-                self.pushTri(pts[indices[0]], pts[indices[1]], pts[indices[2]], fc, alpha);
-                for (int j = 1; j < remain - 1; j++) indices[j] = indices[j + 1];
-                remain--;
-            }
-        }
-
-        float aa = AA_SIZE / max(self.dpr, 1);
-
-        for (int i = 0; i < ptCount; i++) {
-            Vec2 a = pts[i];
-            Vec2 b = pts[(i + 1) % ptCount];
-            Vec2 n = edgeNormal(a, b, aa * side);
-            if (n.x == 0 && n.y == 0) continue;
-
-            self.pushQuadGradient(a, b, b + n, a + n, fc, alpha, 0);
-        }
-
-        int n = self.vertCount - offset;
-        if (n > 0) self.pushCall(offset, n);
-    }
-
-    if (paint.hasLine) {
-        float hw = paint.lineWidth * 0.5;
-        float aa = AA_SIZE / max(self.dpr, 1);
-        Color lc = paint.lineColor;
-        int offset = self.vertCount;
-        int segs = path.closed ? ptCount : ptCount - 1;
-
-        for (int i = 0; i < segs; i++) {
-            Vec2 a = pts[i];
-            Vec2 b = pts[(i + 1) % ptCount];
-            Vec2 d = b - a;
-            float len = d.length();
-            if (len < MIN_DIST) continue;
-
-            Vec2 n = { (-d.y / len) * hw, (d.x / len) * hw };
-            Vec2 f = { (-d.y / len) * (hw + aa), (d.x / len) * (hw + aa) };
-
-            self.pushQuad(a + n, a - n, b - n, b + n, lc, alpha);
-            self.pushQuadGradient(a + n, b + n, b + f, a + f, lc, alpha, 0);
-            self.pushQuadGradient(b - n, a - n, a - f, b - f, lc, alpha, 0);
-        }
-
-        int joinStart = path.closed ? 0 : 1;
-        int joinEnd = path.closed ? ptCount : ptCount - 1;
-        for (int i = joinStart; i < joinEnd; i++) {
-            Vec2 prev = pts[(i + ptCount - 1) % ptCount];
-            Vec2 p = pts[i];
-            Vec2 next = pts[(i + 1) % ptCount];
-            self.pushStrokeJoin(prev, p, next, lc, alpha, hw, aa, paint.lineJoin);
-        }
-
-        if (!path.closed && ptCount >= 2) {
-            Vec2 p0 = pts[0];
-            Vec2 p1 = pts[1];
-            Vec2 d0 = p1 - p0;
-            float len0 = d0.length();
-            if (len0 >= MIN_DIST) self.pushLineCap(p0, -(d0 / len0), hw, aa, lc, alpha, paint.lineCap);
-
-            Vec2 pEnd = pts[ptCount - 1];
-            Vec2 pPrev = pts[ptCount - 2];
-            Vec2 dEnd = pEnd - pPrev;
-            float lenEnd = dEnd.length();
-            if (lenEnd >= MIN_DIST) self.pushLineCap(pEnd, dEnd / lenEnd, hw, aa, lc, alpha, paint.lineCap);
-        }
-
-        int n = self.vertCount - offset;
-        if (n > 0) self.pushCall(offset, n);
-    }
+    if (paint.hasLine) self.tessLine(&pts[0], ptCount, path.closed, paint, alpha);
 }
