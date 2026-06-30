@@ -10,12 +10,16 @@ const int PATH_CMD_INIT_CAP @private = 256;
 
 struct Vertex {
 	Vec2 pos;
+	Vec2 uv;
 	Color color;
 }
+
+enum DrawMode : char { TRIANGLES, TRIANGLE_STRIP }
 
 struct DrawCall {
 	int offset;
 	int count;
+	DrawMode mode;
 }
 
 struct MicroVG {

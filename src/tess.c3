@@ -7,6 +7,24 @@ const float MITER_LIMIT @private = 4;
 const float MIN_DIST @private = 0.0001;
 const float SNAP_LINE_WIDTH @private = 1.5;
 
+// UV.x convention for antialiasing: the fragment shader fades alpha toward the
+// stroke edges where u -> 0 or u -> 1. u == 0.5 is the solid core/centre line.
+const Vec2 UV_LEFT   @private = { 0, 1 };   // outer-left fringe edge
+const Vec2 UV_RIGHT  @private = { 1, 1 };   // outer-right fringe edge
+const Vec2 UV_CORE   @private = { 0.5, 1 }; // solid interior (fill, centre)
+
+// One precomputed vertex of a path: position, the direction of the edge that
+// leaves it, and the averaged miter vector. Shared by fill fringe and stroke so
+// the join geometry is only solved once.
+struct StrokePoint {
+    Vec2 pos;        // transformed position
+    Vec2 dir;        // unit direction of the edge leaving this point
+    Vec2 dm;         // averaged miter vector (length grows on sharp corners)
+    float len;       // length of the edge leaving this point
+    bool bevel;      // outer corner exceeds the miter limit -> needs a bevel
+    bool innerBevel; // inner corner folds over -> handle inner separately
+}
+
 fn float pathArea(Vec2* pts, int count) {
     float area = 0;
     for (int i = 0; i < count; i++) {
@@ -36,15 +54,6 @@ fn bool pointInTri(Vec2 p, Vec2 a, Vec2 b, Vec2 c) {
     return (u >= 0) && (v >= 0) && (u + v < 1);
 }
 
-fn Vec2 edgeNormal(Vec2 a, Vec2 b, float scale) {
-    Vec2 d = b - a;
-    float len = d.length();
-    if (len < MIN_DIST) return { 0, 0 };
-
-    Vec2 n = { -d.y, d.x };
-    return n * (scale / len);
-}
-
 fn float snapPos(float v, float dpr) => math::floor((v * dpr)) / dpr + 0.5f / dpr;
 
 fn bool shouldSnapLine(Mat2x3 form, float lineWidth) {
@@ -52,282 +61,56 @@ fn bool shouldSnapLine(Mat2x3 form, float lineWidth) {
     return abs(form.linear.y) < 0.0001 && abs(form.linear.z) < 0.0001;
 }
 
-fn void MicroVG.pushTri(&self, Vec2 a, Vec2 b, Vec2 c, Color color, float alpha) {
-    self.pushVert(a, color, alpha);
-    self.pushVert(b, color, alpha);
-    self.pushVert(c, color, alpha);
-}
-
-fn void MicroVG.pushQuad(&self, Vec2 a, Vec2 b, Vec2 c, Vec2 d, Color color, float alpha) {
-    self.pushVert(a, color, alpha);
-    self.pushVert(b, color, alpha);
-    self.pushVert(c, color, alpha);
-    self.pushVert(a, color, alpha);
-    self.pushVert(c, color, alpha);
-    self.pushVert(d, color, alpha);
-}
-
-fn void MicroVG.pushAA(&self, Vec2 a, Vec2 b, Vec2 c, Vec2 d, Color color, float alpha1, float alpha2) {
-    self.pushVert(a, color, alpha1);
-    self.pushVert(b, color, alpha1);
-    self.pushVert(c, color, alpha2);
-    self.pushVert(a, color, alpha1);
-    self.pushVert(c, color, alpha2);
-    self.pushVert(d, color, alpha2);
-}
-
-fn void MicroVG.pushJoin(&self, Vec2 prev, Vec2 p, Vec2 next, Color color, float alpha, float hw, float aa, LineJoin join) {
-    Vec2 a = p - prev;
-    Vec2 b = next - p;
-    float alen = a.length();
-    float blen = b.length();
-    if (alen < MIN_DIST || blen < MIN_DIST) return;
-
-    Vec2 ad = a / alen;
-    Vec2 bd = b / blen;
-    float turn = ad.cross(bd);
-    if (abs(turn) < MIN_DIST) return;
-
-    // Unit left-hand normals of each edge direction
-    Vec2 na = { -ad.y, ad.x };
-    Vec2 nb = { -bd.y, bd.x };
-
-    // side = -1 for left turn  → outer corner is on the RIGHT (-na direction)
-    // side = +1 for right turn → outer corner is on the LEFT  (+na direction)
-    float side = turn > 0 ? -1 : 1;
-
-    // Outer corners of the two segment quads at point P
-    Vec2 oa = na * (hw * side);
-    Vec2 ob = nb * (hw * side);
-    
-    // Outer AA corners of the two segment quads
-    Vec2 fa = na * ((hw + aa) * side);
-    Vec2 fb = nb * ((hw + aa) * side);
-
-    if (join == MITER) {
-        Vec2 dm = na.half(nb);
-        float dmr2 = dm.dot(dm);
-
-        if (dmr2 > MIN_DIST) {
-            float scale = 1 / dmr2;
-            dm *= scale;
-			float miterRatio = dm.length();
-            if (miterRatio <= MITER_LIMIT) {
-				Vec2 mp = p + dm * hw * side;
-                self.pushTri(p + oa, p + ob, mp, color, alpha);
-
-                // Miter AA
-				Vec2 mpe = p + dm * (hw + aa) * side;
-                self.pushAA(p + oa, mp, mpe, p + fa, color, alpha, 0);
-                self.pushAA(mp, p + ob, p + fb, mpe, color, alpha, 0);
-                
-                self.pushTri(p, p + oa, p + ob, color, alpha);
-                return;
-            }
-        }
-    }
-
-    // BEVEL (or miter fallback): fill the outer gap with a simple triangle.
-    self.pushTri(p, p + oa, p + ob, color, alpha);
-    
-    // Bevel AA quad
-    self.pushAA(p + oa, p + ob, p + fb, p + fa, color, alpha, 0);
-}
-
-fn void MicroVG.pushCap(&self, Vec2 p, Vec2 dir, float hw, float aa, Color color, float alpha, LineCap cap) {
-    if (cap == ROUND) {
-        return;
-    }
-
-    Vec2 n = { -dir.y, dir.x };
-    
-    float extLen = (cap == SQUARE) ? hw : 0;
-    Vec2 ext = dir * extLen;
-    Vec2 eAA = dir * aa;
-
-    Vec2 left = n * hw;
-    Vec2 right = -left;
-    Vec2 fLeft = n * (hw + aa);
-    Vec2 fRight = -fLeft;
-
-    Vec2 p0 = p;
-    Vec2 p1 = p + ext;
-
-    if (cap == SQUARE) {
-        self.pushQuad(p0 + left, p0 + right, p1 + right, p1 + left, color, alpha);
-        
-        self.pushAA(p0 + left, p1 + left, p1 + fLeft, p0 + fLeft, color, alpha, 0);
-        self.pushAA(p0 + right, p1 + right, p1 + fRight, p0 + fRight, color, alpha, 0);
-    }
-
-    self.pushAA(p1 + left, p1 + right, p1 + right + eAA, p1 + left + eAA, color, alpha, 0);
-
-    self.pushVert(p1 + left, color, alpha);
-    self.pushVert(p1 + left + eAA, color, 0);
-    self.pushVert(p1 + fLeft, color, 0);
-    
-    self.pushVert(p1 + right, color, alpha);
-    self.pushVert(p1 + right + eAA, color, 0);
-    self.pushVert(p1 + fRight, color, 0);
-}
-
-fn void MicroVG.pushCmd(&self, PathType type, Vec2 pt) {
-    if (self.cmdCount >= self.cmdCap) {
-        int newCap = self.cmdCap * 2;
-        Command* buf = mem::calloc(newCap * Command::size);
-        for (int i = 0; i < self.cmdCount; i++) buf[i] = self.cmds[i];
-
-        mem::free(self.cmds);
-        self.cmds = buf;
-        self.cmdCap = newCap;
-    }
-
-    self.cmds[self.cmdCount++] = { type, pt };
-}
-
-fn void MicroVG.pushVert(&self, Vec2 pos, Color c, float a) {
-    if (self.vertCount >= self.vertCap) {
-        int newCap = self.vertCap * 2;
-        Vertex* buf = mem::calloc(newCap * Vertex::size);
-        for (int i = 0; i < self.vertCount; i++) buf[i] = self.verts[i];
-
-        mem::free(self.verts);
-        self.verts = buf;
-        self.vertCap = newCap;
-    }
-
-    self.verts[self.vertCount++] = { pos, c.alpha(a) };
-}
-
-fn void MicroVG.pushCall(&self, int offset, int count) {
-    if (self.callCount >= self.callCap) {
-        int newCap = self.callCap * 2;
-        DrawCall* buf = mem::calloc(newCap * DrawCall::size);
-        for (int i = 0; i < self.callCount; i++) buf[i] = self.calls[i];
-
-        mem::free(self.calls);
-        self.calls = buf;
-        self.callCap = newCap;
-    }
-
-    self.calls[self.callCount++] = { offset, count };
-}
-
-fn void MicroVG.tessFill(&self, Vec2* pts, int ptCount, Paint paint, float alpha) {
-    int offset = self.vertCount;
-    Color fc = paint.fillColor;
-    bool ccw = pathArea(pts, ptCount) > 0;
-    float side = ccw ? -1 : 1;
-
-    int[MAX_PATH_POINTS] indices;
-    for (int i = 0; i < ptCount; i++) indices[i] = i;
-
-    int remain = ptCount;
-    while (remain > 2) {
-        bool earFound = false;
-        for (int i = 0; i < remain; i++) {
-            int prev = indices[(i + remain - 1) % remain];
-            int curr = indices[i];
-            int next = indices[(i + 1) % remain];
-
-            Vec2 a = pts[prev];
-            Vec2 b = pts[curr];
-            Vec2 c = pts[next];
-
-            float cross = (b - a).cross(c - b);
-            if (ccw ? cross < MIN_DIST : cross > -MIN_DIST) continue;
-
-            bool isEar = true;
-            for (int j = 0; j < remain; j++) {
-                int idx = indices[j];
-                if (idx == prev || idx == curr || idx == next) continue;
-                if (pointInTri(pts[idx], a, b, c)) {
-                    isEar = false;
-                    break;
-                }
-            }
-
-            if (isEar) {
-                self.pushTri(a, b, c, fc, alpha);
-                for (int j = i; j < remain - 1; j++) indices[j] = indices[j + 1];
-                remain--;
-                earFound = true;
-                break;
-            }
-        }
-        
-        if (!earFound) {
-            self.pushTri(pts[indices[0]], pts[indices[1]], pts[indices[2]], fc, alpha);
-            for (int j = 1; j < remain - 1; j++) indices[j] = indices[j + 1];
-            remain--;
-        }
-    }
-
-    float aa = AA_SIZE / max(self.dpr, 1);
-
-    for (int i = 0; i < ptCount; i++) {
+// Build per-point miter/bevel data for the polyline. Mirrors nvg__calculateJoins:
+// each point stores the averaged normal (dm) scaled so that p +/- dm*hw lands on
+// the stroke edge, and flags whether the corner must be bevelled.
+fn void buildPoints(Vec2* pts, int n, bool closed, float hw, StrokePoint* out) {
+    // Edge directions and lengths first.
+    int segs = closed ? n : n - 1;
+    for (int i = 0; i < n; i++) {
         Vec2 a = pts[i];
-        Vec2 b = pts[(i + 1) % ptCount];
-        Vec2 n = edgeNormal(a, b, aa * side);
-        if (n.x == 0 && n.y == 0) continue;
-
-        self.pushAA(a, b, b + n, a + n, fc, alpha, 0);
-    }
-
-    int n = self.vertCount - offset;
-    if (n > 0) self.pushCall(offset, n);
-}
-
-fn void MicroVG.tessLine(&self, Vec2* pts, int ptCount, bool closed, Paint paint, float alpha) {
-    float hw = paint.lineWidth * 0.5;
-    float aa = AA_SIZE / max(self.dpr, 1);
-    Color lc = paint.lineColor;
-    int offset = self.vertCount;
-    int segs = closed ? ptCount : ptCount - 1;
-
-    for (int i = 0; i < segs; i++) {
-        Vec2 a = pts[i];
-        Vec2 b = pts[(i + 1) % ptCount];
+        Vec2 b = pts[(i + 1) % n];
         Vec2 d = b - a;
         float len = d.length();
-        if (len < MIN_DIST) continue;
+        out[i].pos = a;
+        out[i].len = len;
+        out[i].dir = len > MIN_DIST ? d / len : (Vec2) { 0, 0 };
+        out[i].bevel = false;
+        out[i].innerBevel = false;
+    }
+    // For an open path the last point keeps the previous direction.
+    if (!closed && n >= 2) out[n - 1].dir = out[n - 2].dir;
 
-        Vec2 dir = d / len;
-        Vec2 n0 = { -dir.y, dir.x };
-        
-        Vec2 n = n0 * hw;
-        Vec2 f = n0 * (hw + aa);
+    float miterLimit = MITER_LIMIT;
+    float iw = hw > 0 ? 1.0f / hw : 0;
+    for (int i = 0; i < n; i++) {
+        // dir of the edge arriving at i (prev) and the edge leaving i.
+        int prev = (i + n - 1) % n;
+        Vec2 d0 = out[prev].dir;
+        Vec2 d1 = out[i].dir;
 
-        self.pushQuad(a + n, a - n, b - n, b + n, lc, alpha);
-        self.pushAA(a + n, b + n, b + f, a + f, lc, alpha, 0);
-        self.pushAA(b - n, a - n, a - f, b - f, lc, alpha, 0);
+        // Left normals of the two edges (nanovg convention: dl = (dy, -dx)).
+        Vec2 dl0 = { d0.y, -d0.x };
+        Vec2 dl1 = { d1.y, -d1.x };
+
+        Vec2 dm = (dl0 + dl1) * 0.5f;
+        float dmr2 = dm.dot(dm);
+        if (dmr2 > 0.000001f) {
+            float scale = 1.0f / dmr2;
+            if (scale > 600.0f) scale = 600.0f;
+            dm *= scale;
+        }
+        out[i].dm = dm;
+
+        // Inner bevel: averaged miter longer than the shorter adjacent segment.
+        float limit = max(1.01f, min(out[prev].len, out[i].len) * iw);
+        if (dmr2 * limit * limit < 1.0f) out[i].innerBevel = true;
+
+        // Outer bevel: miter exceeds the miter limit.
+        if (dmr2 * miterLimit * miterLimit < 1.0f) out[i].bevel = true;
     }
 
-    int joinStart = closed ? 0 : 1;
-    int joinEnd = closed ? ptCount : ptCount - 1;
-    for (int i = joinStart; i < joinEnd; i++) {
-        Vec2 prev = pts[(i + ptCount - 1) % ptCount];
-        Vec2 p = pts[i];
-        Vec2 next = pts[(i + 1) % ptCount];
-        self.pushJoin(prev, p, next, lc, alpha, hw, aa, paint.lineJoin);
-    }
-
-    if (!closed && ptCount >= 2) {
-        Vec2 p0 = pts[0];
-        Vec2 p1 = pts[1];
-        Vec2 d0 = p1 - p0;
-        float len0 = d0.length();
-        if (len0 >= MIN_DIST) self.pushCap(p0, -(d0 / len0), hw, aa, lc, alpha, paint.lineCap);
-
-        Vec2 pEnd = pts[ptCount - 1];
-        Vec2 pPrev = pts[ptCount - 2];
-        Vec2 dEnd = pEnd - pPrev;
-        float lenEnd = dEnd.length();
-        if (lenEnd >= MIN_DIST) self.pushCap(pEnd, dEnd / lenEnd, hw, aa, lc, alpha, paint.lineCap);
-    }
-
-    int n = self.vertCount - offset;
-    if (n > 0) self.pushCall(offset, n);
+    if (segs == 0) {} // silence unused on degenerate input
 }
 
 fn void MicroVG.pushPath(&self, Path path, Paint paint) {
@@ -351,7 +134,15 @@ fn void MicroVG.pushPath(&self, Path path, Paint paint) {
 
     if (ptCount < 2) return;
 
-    if (paint.hasFill && path.closed && ptCount >= 3) self.tessFill(&pts[0], ptCount, paint, alpha);
+    float hw = max(paint.lineWidth * 0.5f, MIN_DIST);
+    StrokePoint[MAX_PATH_POINTS] spts;
+    buildPoints(&pts[0], ptCount, path.closed, hw, &spts[0]);
 
-    if (paint.hasLine) self.tessLine(&pts[0], ptCount, path.closed, paint, alpha);
+    if (paint.hasFill && path.closed && ptCount >= 3) {
+        self.tessFill(&pts[0], &spts[0], ptCount, paint, alpha);
+    }
+
+    if (paint.hasLine) {
+        self.expandStroke(&spts[0], ptCount, path.closed, paint, alpha);
+    }
 }

@@ -7,6 +7,23 @@ import opengl::gl;
 
 import microvg;
 
+fn void screenshot(int w, int h, String path) {
+	sz npix = (sz)w * (sz)h * 3;
+	char* pixels = mem::malloc(npix);
+	defer mem::free(pixels);
+	gl::readPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+
+	File? f = file::open(path, "wb");
+	if (catch f) return;
+	defer (void) f.close();
+
+	// PPM (P6), flipped vertically (GL origin is bottom-left).
+	io::fprintf(&f, "P6\n%d %d\n255\n", w, h)!!;
+	for (int y = h - 1; y >= 0; y--) {
+		f.write(((char[]) pixels[(usz)(y * w * 3) .. (usz)(y * w * 3 + w * 3 - 1)]))!!;
+	}
+}
+
 fn int main(String[] args) {
 	if (!glfw34::init()) {
 		io::printn("failed to initialize glfw");
@@ -38,6 +55,9 @@ fn int main(String[] args) {
 
 	int window_w;
     int window_h;
+
+	bool shot = args.len > 1 && args[1] == "--shot";
+	int frame = 0;
 
 	while (!glfw34::windowShouldClose(window)) {
 		glfw34::getWindowSize(window, &window_w, &window_h);
@@ -78,10 +98,33 @@ fn int main(String[] args) {
 
 		vg.pushPath(capLine, cap);
 
+		// Acute zigzag at half alpha: tests inner-join overdraw. If inner edges
+		// overlapped, the creases would show as darker bands.
+		vg.save();
+		vg.alpha(0.5);
+		microvg::Path zig = vg.makePath();
+		zig.moveTo(120, 430);
+		zig.lineTo(165, 660);
+		zig.lineTo(230, 430);
+		zig.lineTo(295, 660);
+		zig.lineTo(360, 430);
+
+		microvg::Paint zigPaint = vg.makePaint();
+		zigPaint.line(microvg::rgba(80, 180, 255), 26);
+		zigPaint.join(LineJoin.MITER);
+		vg.pushPath(zig, zigPaint);
+		vg.restore();
+
         vg.endFrame();
 
 		glfw34::swapBuffers(window);
 		glfw34::pollEvents();
+
+		frame++;
+		if (shot && frame >= 2) {
+			screenshot(window_w, window_h, "shot.ppm");
+			break;
+		}
 	}
 
 	return 0;
