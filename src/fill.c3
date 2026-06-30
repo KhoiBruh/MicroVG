@@ -64,8 +64,8 @@ fn void MicroVG.tessFill(&self, Vec2* pts, StrokePoint* spts, int ptCount, Paint
         Vec2 oa = a + spts[i].dm * (aa * side);
         Vec2 ob = b + spts[next].dm * (aa * side);
         // Inner edge solid (u=0.5), outer edge faded (u=0).
-        self.pushVertTri(a, UV_CORE, b, UV_CORE, ob, UV_LEFT, fc, alpha);
-        self.pushVertTri(a, UV_CORE, ob, UV_LEFT, oa, UV_LEFT, fc, alpha);
+        self.pushVertTri(a, U_CORE, b, U_CORE, ob, U_LEFT, fc, alpha);
+        self.pushVertTri(a, U_CORE, ob, U_LEFT, oa, U_LEFT, fc, alpha);
     }
 
     int n = self.vertCount - offset;

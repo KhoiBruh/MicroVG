@@ -23,10 +23,11 @@ in vec2 vUV;
 in vec4 vColor;
 out vec4 fragColor;
 void main() {
-    // vUV.x runs 0..1 across the stroke width; fade alpha toward the edges.
-    // vUV.x == 0.5 is the solid core, 0 and 1 are the outer fringe.
+    // vUV.x runs 0..1 across the stroke width (0.5 = solid core).
+    // vUV.y carries strokeMult = halfWidth/fringe, which scales the edge ramp so
+    // the fade spans exactly one fringe (~1px) regardless of stroke width.
     float edge = 1.0 - abs(vUV.x * 2.0 - 1.0);
-    float aa = clamp(edge / fwidth(edge), 0.0, 1.0);
+    float aa = min(1.0, edge * vUV.y);
     fragColor = vec4(vColor.rgb, vColor.a * aa);
 }
 `;

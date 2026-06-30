@@ -8,10 +8,14 @@ const float MIN_DIST @private = 0.0001;
 const float SNAP_LINE_WIDTH @private = 1.5;
 
 // UV.x convention for antialiasing: the fragment shader fades alpha toward the
-// stroke edges where u -> 0 or u -> 1. u == 0.5 is the solid core/centre line.
-const Vec2 UV_LEFT   @private = { 0, 1 };   // outer-left fringe edge
-const Vec2 UV_RIGHT  @private = { 1, 1 };   // outer-right fringe edge
-const Vec2 UV_CORE   @private = { 0.5, 1 }; // solid interior (fill, centre)
+// stroke edges where x -> 0 or x -> 1. x == 0.5 is the solid core/centre line.
+// UV.y carries strokeMult = halfWidth/fringe so the fade spans one fringe.
+const float U_LEFT  @private = 0;   // outer-left fringe edge
+const float U_RIGHT @private = 1;   // outer-right fringe edge
+const float U_CORE  @private = 0.5; // solid interior (fill, centre)
+
+// Fill geometry needs no width-dependent ramp; its fringe band already spans aa.
+const float FILL_MULT @private = 1;
 
 // One precomputed vertex of a path: position, the direction of the edge that
 // leaves it, and the averaged miter vector. Shared by fill fringe and stroke so

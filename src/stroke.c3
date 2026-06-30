@@ -27,12 +27,13 @@ fn void MicroVG.expandStroke(&self, StrokePoint* pts, int n, bool closed, Paint 
         w = aa * 0.5f;
     }
     float hw = w + aa * 0.5f; // include the fringe in the geometric half-width
+    float mult = hw / aa;     // strokeMult: scales the edge ramp to one fringe
 
     int offset = self.vertCount;
 
     // Starting cap (open paths only).
     if (!closed) {
-        self.strokeCapStart(&pts[0], pts[0].dir, hw, lc, strokeAlpha, paint.lineCap);
+        self.strokeCapStart(&pts[0], pts[0].dir, hw, mult, aa, lc, strokeAlpha, paint.lineCap);
     }
 
     // Walk the points, emitting one strip column (a left/right vertex pair) per
@@ -55,10 +56,10 @@ fn void MicroVG.expandStroke(&self, StrokePoint* pts, int n, bool closed, Paint 
             self.pushVert(v0.pos, v0.uv, lc, strokeAlpha);
             self.pushVert(v1.pos, v1.uv, lc, strokeAlpha);
         } else if (isJoin && (p.bevel || p.innerBevel)) {
-            self.strokeBevel(prev, p, hw, lc, strokeAlpha);
+            self.strokeBevel(prev, p, hw, mult, lc, strokeAlpha);
         } else {
-            self.pushVert(p.pos + p.dm * hw, UV_LEFT, lc, strokeAlpha);
-            self.pushVert(p.pos - p.dm * hw, UV_RIGHT, lc, strokeAlpha);
+            self.pushVert(p.pos + p.dm * hw, { U_LEFT, mult }, lc, strokeAlpha);
+            self.pushVert(p.pos - p.dm * hw, { U_RIGHT, mult }, lc, strokeAlpha);
         }
         prev = p;
     }
@@ -66,7 +67,7 @@ fn void MicroVG.expandStroke(&self, StrokePoint* pts, int n, bool closed, Paint 
     // Ending cap (open paths only).
     if (!closed) {
         StrokePoint* end = &pts[n - 1];
-        self.strokeCapEnd(end, end.dir, hw, lc, strokeAlpha, paint.lineCap);
+        self.strokeCapEnd(end, end.dir, hw, mult, aa, lc, strokeAlpha, paint.lineCap);
     }
 
     int count = self.vertCount - offset;
@@ -79,7 +80,7 @@ fn void MicroVG.expandStroke(&self, StrokePoint* pts, int n, bool closed, Paint 
 // p0 is the incoming point (carries the arriving edge dir), p1 the corner.
 // Outer side emits the two segment-edge points; inner side emits a single
 // shared point (our zero-overdraw change) instead of nanovg's overlapping pair.
-fn void MicroVG.strokeBevel(&self, StrokePoint* p0, StrokePoint* p1, float hw, Color c, float alpha) {
+fn void MicroVG.strokeBevel(&self, StrokePoint* p0, StrokePoint* p1, float hw, float mult, Color c, float alpha) {
     Vec2 dl0 = { p0.dir.y, -p0.dir.x };
     Vec2 dl1 = { p1.dir.y, -p1.dir.x };
     Vec2 p = p1.pos;
@@ -93,34 +94,50 @@ fn void MicroVG.strokeBevel(&self, StrokePoint* p0, StrokePoint* p1, float hw, C
         Vec2 o0 = p - dl0 * hw;               // outer, segment 0 edge
         Vec2 o1 = p - dl1 * hw;               // outer, segment 1 edge
 
-        self.pushVert(inner, UV_LEFT, c, alpha);
-        self.pushVert(o0, UV_RIGHT, c, alpha);
-        self.pushVert(inner, UV_LEFT, c, alpha);
-        self.pushVert(o1, UV_RIGHT, c, alpha);
+        self.pushVert(inner, { U_LEFT, mult }, c, alpha);
+        self.pushVert(o0, { U_RIGHT, mult }, c, alpha);
+        self.pushVert(inner, { U_LEFT, mult }, c, alpha);
+        self.pushVert(o1, { U_RIGHT, mult }, c, alpha);
     } else {
         // Inner = right side (shared point); outer = left side.
         Vec2 inner = p - p1.dm * hw;
         Vec2 o0 = p + dl0 * hw;
         Vec2 o1 = p + dl1 * hw;
 
-        self.pushVert(o0, UV_LEFT, c, alpha);
-        self.pushVert(inner, UV_RIGHT, c, alpha);
-        self.pushVert(o1, UV_LEFT, c, alpha);
-        self.pushVert(inner, UV_RIGHT, c, alpha);
+        self.pushVert(o0, { U_LEFT, mult }, c, alpha);
+        self.pushVert(inner, { U_RIGHT, mult }, c, alpha);
+        self.pushVert(o1, { U_LEFT, mult }, c, alpha);
+        self.pushVert(inner, { U_RIGHT, mult }, c, alpha);
     }
 }
 
 // Butt / square cap at the path start. Round cap deferred (treated as butt).
-fn void MicroVG.strokeCapStart(&self, StrokePoint* p, Vec2 dir, float hw, Color c, float alpha, LineCap cap) {
+// The cap edge is antialiased along the path by prepending a fringe column whose
+// outer vertices are fully transparent (alpha 0), so the strip fades over aa.
+fn void MicroVG.strokeCapStart(&self, StrokePoint* p, Vec2 dir, float hw, float mult, float aa, Color c, float alpha, LineCap cap) {
     Vec2 nrm = { -dir.y, dir.x };
     Vec2 ext = (cap == SQUARE) ? dir * -hw : (Vec2) { 0, 0 };
-    self.pushVert(p.pos + nrm * hw + ext, UV_LEFT, c, alpha);
-    self.pushVert(p.pos - nrm * hw + ext, UV_RIGHT, c, alpha);
+    Vec2 base = p.pos + ext;
+    Vec2 fade = dir * -aa; // push the fringe back, away from the stroke body
+
+    // Transparent fringe column behind the cap edge.
+    self.pushVert(base + nrm * hw + fade, { U_LEFT, mult }, c, 0);
+    self.pushVert(base - nrm * hw + fade, { U_RIGHT, mult }, c, 0);
+    // Real cap edge column.
+    self.pushVert(base + nrm * hw, { U_LEFT, mult }, c, alpha);
+    self.pushVert(base - nrm * hw, { U_RIGHT, mult }, c, alpha);
 }
 
-fn void MicroVG.strokeCapEnd(&self, StrokePoint* p, Vec2 dir, float hw, Color c, float alpha, LineCap cap) {
+fn void MicroVG.strokeCapEnd(&self, StrokePoint* p, Vec2 dir, float hw, float mult, float aa, Color c, float alpha, LineCap cap) {
     Vec2 nrm = { -dir.y, dir.x };
     Vec2 ext = (cap == SQUARE) ? dir * hw : (Vec2) { 0, 0 };
-    self.pushVert(p.pos + nrm * hw + ext, UV_LEFT, c, alpha);
-    self.pushVert(p.pos - nrm * hw + ext, UV_RIGHT, c, alpha);
+    Vec2 base = p.pos + ext;
+    Vec2 fade = dir * aa; // push the fringe forward, past the cap edge
+
+    // Real cap edge column.
+    self.pushVert(base + nrm * hw, { U_LEFT, mult }, c, alpha);
+    self.pushVert(base - nrm * hw, { U_RIGHT, mult }, c, alpha);
+    // Transparent fringe column past the cap edge.
+    self.pushVert(base + nrm * hw + fade, { U_LEFT, mult }, c, 0);
+    self.pushVert(base - nrm * hw + fade, { U_RIGHT, mult }, c, 0);
 }
