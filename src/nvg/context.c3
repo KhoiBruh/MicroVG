@@ -11,14 +11,14 @@ const int NVG_PT_LEFT       = 0x02;
 const int NVG_PT_BEVEL      = 0x04;
 const int NVG_PR_INNERBEVEL = 0x08;
 
-const int NVG_INIT_COMMANDS_SIZE = 256;
-const int NVG_INIT_POINTS_SIZE   = 128;
-const int NVG_INIT_PATHS_SIZE    = 16;
-const int NVG_INIT_VERTS_SIZE    = 256;
+const int INIT_COMMANDS_SIZE = 256;
+const int INIT_POINTS_SIZE   = 128;
+const int INIT_PATHS_SIZE    = 16;
+const int INIT_VERTS_SIZE    = 256;
 
-const int NVG_MAX_STATES = 32;
+const int MAX_STATES = 32;
 
-const float NVG_KAPPA90 = 0.5522847493f;
+const float KAPPA90 = 0.5522847493f;
 
 struct NvgState {
     NvgCompositeOperationState compositeOperation;
@@ -61,7 +61,7 @@ struct NvgContext {
     int ccommands;
     int ncommands;
     float commandx, commandy;
-    NvgState[NVG_MAX_STATES] states;
+    NvgState[MAX_STATES] states;
     int nstates;
     NvgPathCache* cache;
     float tessTol;
@@ -99,20 +99,20 @@ fn NvgPathCache* nvgAllocPathCache() @local {
     if (c == null) return null;
     mem::clear(c, NvgPathCache::size);
 
-    c.points = mem::malloc(NvgPoint::size * NVG_INIT_POINTS_SIZE);
+    c.points = mem::malloc(NvgPoint::size * INIT_POINTS_SIZE);
     if (c.points == null) { nvgDeletePathCache(c); return null; }
     c.npoints = 0;
-    c.cpoints = NVG_INIT_POINTS_SIZE;
+    c.cpoints = INIT_POINTS_SIZE;
 
-    c.paths = mem::malloc(NvgPath::size * NVG_INIT_PATHS_SIZE);
+    c.paths = mem::malloc(NvgPath::size * INIT_PATHS_SIZE);
     if (c.paths == null) { nvgDeletePathCache(c); return null; }
     c.npaths = 0;
-    c.cpaths = NVG_INIT_PATHS_SIZE;
+    c.cpaths = INIT_PATHS_SIZE;
 
-    c.verts = mem::malloc(NvgVertex::size * NVG_INIT_VERTS_SIZE);
+    c.verts = mem::malloc(NvgVertex::size * INIT_VERTS_SIZE);
     if (c.verts == null) { nvgDeletePathCache(c); return null; }
     c.nverts = 0;
-    c.cverts = NVG_INIT_VERTS_SIZE;
+    c.cverts = INIT_VERTS_SIZE;
 
     return c;
 }
@@ -223,10 +223,10 @@ fn NvgContext* nvgCreateInternal(NvgParams* params) {
 
     vg.params = params[0];
 
-    vg.commands = mem::malloc(PathCmd::size * NVG_INIT_COMMANDS_SIZE);
+    vg.commands = mem::malloc(PathCmd::size * INIT_COMMANDS_SIZE);
     if (vg.commands == null) { vg.destroy(); return null; }
     vg.ncommands = 0;
-    vg.ccommands = NVG_INIT_COMMANDS_SIZE;
+    vg.ccommands = INIT_COMMANDS_SIZE;
 
     vg.cache = nvgAllocPathCache();
     if (vg.cache == null) { vg.destroy(); return null; }
@@ -372,18 +372,12 @@ fn int nvgTransformInverse(Mat2x3* inv, Mat2x3* t) {
     return 1;
 }
 
-fn void nvgTransformPoint(float* dx, float* dy, Mat2x3* t, float sx, float sy) {
-    Vec2 result = *t * (Vec2){ sx, sy };
-    dx[0] = result.x;
-    dy[0] = result.y;
-}
-
 fn float nvgDegToRad(float deg) => deg / 180.0f * PI;
 
 fn float nvgRadToDeg(float rad) => rad / PI * 180.0f;
 
 fn void NvgContext.save(&self) {
-    if (self.nstates >= NVG_MAX_STATES) return;
+    if (self.nstates >= MAX_STATES) return;
     if (self.nstates > 0) mem::copy(&self.states[self.nstates], &self.states[self.nstates - 1], NvgState::size);
     self.nstates++;
 }
@@ -528,7 +522,6 @@ fn void NvgContext.updateImage(&self, int image, char* data) {
 fn void NvgContext.imageSize(&self, int image, int* w, int* h) =>
     self.params.renderGetTextureSize(self.params.userPtr, image, w, h);
 
-
 fn void NvgContext.deleteImage(&self, int image) =>
     self.params.renderDeleteTexture(self.params.userPtr, image);
 
@@ -655,42 +648,35 @@ fn void NvgContext.scissor(&self, float x, float y, float w, float h) {
     state.scissor.extent.y = h * 0.5f;
 }
 
-fn void nvgIsectRects(
-    float* dst, float ax, float ay, float aw, float ah,
+fn Vec4 nvgIsectRect(
+    float ax, float ay, float aw, float ah,
     float bx, float by, float bw, float bh
 ) @local {
     float minx = math::max(ax, bx);
     float miny = math::max(ay, by);
     float maxx = math::min(ax + aw, bx + bw);
     float maxy = math::min(ay + ah, by + bh);
-    dst[0] = minx;
-    dst[1] = miny;
-    dst[2] = math::max(0.0f, maxx - minx);
-    dst[3] = math::max(0.0f, maxy - miny);
+    return { minx, miny, math::max(0.0f, maxx - minx), math::max(0.0f, maxy - miny) };
 }
 
 fn void NvgContext.intersectScissor(&self, float x, float y, float w, float h) {
     NvgState* state = self.getState();
-    Mat2x3 pform;
-    Mat2x3 invxorm;
-    Vec4 rect;
 
     if (state.scissor.extent.x < 0) {
         self.scissor(x, y, w, h);
         return;
     }
 
-    pform = state.scissor.form;
-    float ex = state.scissor.extent.x;
-    float ey = state.scissor.extent.y;
+    Mat2x3 pform = state.scissor.form;
+    Mat2x3 invxorm;
+    Vec2 ex = state.scissor.extent;
     nvgTransformInverse(&invxorm, &state.form);
     nvgTransformMultiply(&pform, &invxorm);
-    float tex = ex * math::abs(pform.linear.x) + ey * math::abs(pform.linear.z);
-    float tey = ex * math::abs(pform.linear.y) + ey * math::abs(pform.linear.w);
+    float tex = ex.x * math::abs(pform.linear.x) + ex.y * math::abs(pform.linear.z);
+    float tey = ex.x * math::abs(pform.linear.y) + ex.y * math::abs(pform.linear.w);
 
-    nvgIsectRects(&rect[0], pform.trans.x - tex, pform.trans.y - tey, tex * 2, tey * 2, x, y, w, h);
-
-    self.scissor(rect[0], rect[1], rect[2], rect[3]);
+    Vec4 r = nvgIsectRect(pform.trans.x - tex, pform.trans.y - tey, tex * 2, tey * 2, x, y, w, h);
+    self.scissor(r.x, r.y, r.z, r.w);
 }
 
 fn void NvgContext.resetScissor(&self) {
@@ -759,7 +745,7 @@ fn void NvgContext.appendCommands(&self, PathCmd* cmds, int ncmds) {
 
     PathCmd last = cmds[ncmds - 1];
     if (last.cmd != PathCommand.CLOSE && last.cmd != PathCommand.WINDING) {
-        if (last.cmd == PathCommand.BEZIERTO) {
+        if (last.cmd == PathCommand.BEZIER) {
             self.commandx = last.p2.x;
             self.commandy = last.p2.y;
         } else {
@@ -773,20 +759,12 @@ fn void NvgContext.appendCommands(&self, PathCmd* cmds, int ncmds) {
     for (int i = 0; i < ncmds; i++) {
         PathCmd* cmd = &self.commands[self.ncommands + i];
 
-        switch (cmd.cmd) {
-            case PathCommand.MOVETO:
-                cmd.p0 = state.form * cmd.p0;
-
-            case PathCommand.LINETO:
-                cmd.p0 = state.form * cmd.p0;
-
-            case PathCommand.BEZIERTO:
-                cmd.p0 = state.form * cmd.p0;
-                cmd.p1 = state.form * cmd.p1;
-                cmd.p2 = state.form * cmd.p2;
-
-            default:
-                break;
+        if (cmd.cmd == PathCommand.MOVE || cmd.cmd == PathCommand.LINE) {
+            cmd.p0 = state.form * cmd.p0;
+        } else if (cmd.cmd == PathCommand.BEZIER) {
+            cmd.p0 = state.form * cmd.p0;
+            cmd.p1 = state.form * cmd.p1;
+            cmd.p2 = state.form * cmd.p2;
         }
     }
 
@@ -864,12 +842,6 @@ fn void NvgContext.pathWindingCache(&self, int winding) {
     NvgPath* path = self.lastPath();
     if (path == null) return;
     path.winding = winding;
-}
-
-fn float nvgGetAverageScale(Mat2x3* t) @local {
-    float sx = math::sqrt(t.linear.x * t.linear.x + t.linear.z * t.linear.z);
-    float sy = math::sqrt(t.linear.y * t.linear.y + t.linear.w * t.linear.w);
-    return (sx + sy) * 0.5f;
 }
 
 fn NvgVertex* NvgContext.allocTempVerts(&self, int nverts) {
@@ -968,14 +940,14 @@ fn void NvgContext.flattenPaths(&self) {
         PathCmd* cmd = &self.commands[i];
 
         switch (cmd.cmd) {
-            case PathCommand.MOVETO:
+            case PathCommand.MOVE:
                 self.addPath();
                 self.addPoint(cmd.p0.x, cmd.p0.y, NVG_PT_CORNER);
 
-            case PathCommand.LINETO:
+            case PathCommand.LINE:
                 self.addPoint(cmd.p0.x, cmd.p0.y, NVG_PT_CORNER);
 
-            case PathCommand.BEZIERTO:
+            case PathCommand.BEZIER:
                 NvgPoint* last = self.lastPoint();
                 if (last != null) self.tesselateBezier(
                     last.x, last.y,
@@ -1571,32 +1543,30 @@ fn void NvgContext.beginPath(&self) {
 }
 
 fn void NvgContext.moveTo(&self, float x, float y) {
-    PathCmd[*] cmds = { { .cmd = PathCommand.MOVETO, .p0 = { x, y } } };
-    self.appendCommands(&cmds[0], cmds.len);
+    PathCmd cmd = { .cmd = PathCommand.MOVE, .p0 = { x, y } };
+    self.appendCommands(&cmd, 1);
 }
 
 fn void NvgContext.lineTo(&self, float x, float y) {
-    PathCmd[*] cmds = { { .cmd = PathCommand.LINETO, .p0 = { x, y } } };
-    self.appendCommands(&cmds[0], cmds.len);
+    PathCmd cmd = { .cmd = PathCommand.LINE, .p0 = { x, y } };
+    self.appendCommands(&cmd, 1);
 }
 
 fn void NvgContext.bezierTo(&self, float c1x, float c1y, float c2x, float c2y, float x, float y) {
-    PathCmd[*] cmds = { { .cmd = PathCommand.BEZIERTO, .p0 = { c1x, c1y }, .p1 = { c2x, c2y }, .p2 = { x, y } } };
-    self.appendCommands(&cmds[0], cmds.len);
+    PathCmd cmd = { .cmd = PathCommand.BEZIER, .p0 = { c1x, c1y }, .p1 = { c2x, c2y }, .p2 = { x, y } };
+    self.appendCommands(&cmd, 1);
 }
 
 fn void NvgContext.quadTo(&self, float cx, float cy, float x, float y) {
     float x0 = self.commandx;
     float y0 = self.commandy;
-    PathCmd[*] cmds = {
-        {
-            .cmd = PathCommand.BEZIERTO,
+    PathCmd cmd = {
+            .cmd = PathCommand.BEZIER,
             .p0 = { x0 + 2.0f / 3.0f * (cx - x0), y0 + 2.0f / 3.0f * (cy - y0) },
             .p1 = { x  + 2.0f / 3.0f * (cx - x),  y  + 2.0f / 3.0f * (cy - y) },
-            .p2 = { x, y }
-        }
+            .p2 = { x, y } 
     };
-    self.appendCommands(&cmds[0], cmds.len);
+    self.appendCommands(&cmd, 1);
 }
 
 fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float radius) {
@@ -1648,13 +1618,13 @@ fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float ra
 }
 
 fn void NvgContext.closePath(&self) {
-    PathCmd[*] cmds = { { .cmd = PathCommand.CLOSE } };
-    self.appendCommands(&cmds[0], cmds.len);
+    PathCmd cmd = { .cmd = PathCommand.CLOSE };
+    self.appendCommands(&cmd, 1);
 }
 
 fn void NvgContext.pathWinding(&self, int dir) {
-    PathCmd[*] cmds = { { .cmd = PathCommand.WINDING, .p0 = { (float)dir, 0.0f } } };
-    self.appendCommands(&cmds[0], cmds.len);
+    PathCmd cmd = { .cmd = PathCommand.WINDING, .p0 = { (float)dir, 0.0f } };
+    self.appendCommands(&cmd, 1);
 }
 
 fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, int dir) {
@@ -1663,7 +1633,7 @@ fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, i
     float px = 0; float py = 0; float ptanx = 0; float ptany = 0;
     PathCmd[108] cmds;
     int ndivs, ncmds;
-    PathCommand firstCmd = self.ncommands > 0 ? PathCommand.LINETO : PathCommand.MOVETO;
+    PathCommand firstCmd = self.ncommands > 0 ? PathCommand.LINE : PathCommand.MOVE;
 
     da = a1 - a0;
     if (dir == (int)Winding.CW) {
@@ -1701,7 +1671,7 @@ fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, i
             cmds[ncmds].p0 = { x, y };
             ncmds++;
         } else {
-            cmds[ncmds].cmd = PathCommand.BEZIERTO;
+            cmds[ncmds].cmd = PathCommand.BEZIER;
             cmds[ncmds].p0 = { px + ptanx, py + ptany };
             cmds[ncmds].p1 = { x - tanx, y - tany };
             cmds[ncmds].p2 = { x, y };
@@ -1718,10 +1688,10 @@ fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, i
 
 fn void NvgContext.rect(&self, float x, float y, float w, float h) {
     PathCmd[*] cmds = {
-        { .cmd = PathCommand.MOVETO, .p0 = { x, y } },
-        { .cmd = PathCommand.LINETO, .p0 = { x, y + h } },
-        { .cmd = PathCommand.LINETO, .p0 = { x + w, y + h } },
-        { .cmd = PathCommand.LINETO, .p0 = { x + w, y } },
+        { .cmd = PathCommand.MOVE, .p0 = { x, y } },
+        { .cmd = PathCommand.LINE, .p0 = { x, y + h } },
+        { .cmd = PathCommand.LINE, .p0 = { x + w, y + h } },
+        { .cmd = PathCommand.LINE, .p0 = { x + w, y } },
         { .cmd = PathCommand.CLOSE }
     };
 
@@ -1753,19 +1723,34 @@ fn void NvgContext.roundedRectVarying(
     float ryTL = math::min(radTopLeft, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
 
     PathCmd[*] cmds = {
-        { .cmd = PathCommand.MOVETO, .p0 = { x, y + ryTL } },
-        { .cmd = PathCommand.LINETO, .p0 = { x, y + h - ryBL } },
-        { .cmd = PathCommand.BEZIERTO,
-          .p0 = { x, y + h - ryBL * (1 - NVG_KAPPA90) }, .p1 = { x + rxBL * (1 - NVG_KAPPA90), y + h }, .p2 = { x + rxBL, y + h } },
-        { .cmd = PathCommand.LINETO, .p0 = { x + w - rxBR, y + h } },
-        { .cmd = PathCommand.BEZIERTO,
-          .p0 = { x + w - rxBR * (1 - NVG_KAPPA90), y + h }, .p1 = { x + w, y + h - ryBR * (1 - NVG_KAPPA90) }, .p2 = { x + w, y + h - ryBR } },
-        { .cmd = PathCommand.LINETO, .p0 = { x + w, y + ryTR } },
-        { .cmd = PathCommand.BEZIERTO,
-          .p0 = { x + w, y + ryTR * (1 - NVG_KAPPA90) }, .p1 = { x + w - rxTR * (1 - NVG_KAPPA90), y }, .p2 = { x + w - rxTR, y } },
-        { .cmd = PathCommand.LINETO, .p0 = { x + rxTL, y } },
-        { .cmd = PathCommand.BEZIERTO,
-          .p0 = { x + rxTL * (1 - NVG_KAPPA90), y }, .p1 = { x, y + ryTL * (1 - NVG_KAPPA90) }, .p2 = { x, y + ryTL } },
+        { .cmd = PathCommand.MOVE, .p0 = { x, y + ryTL } },
+        { .cmd = PathCommand.LINE, .p0 = { x, y + h - ryBL } },
+        {
+            .cmd = PathCommand.BEZIER, 
+            .p0 = { x, y + h - ryBL * (1 - KAPPA90) }, 
+            .p1 = { x + rxBL * (1 - KAPPA90), y + h }, .p2 = { x + rxBL, y + h } 
+        },
+        { .cmd = PathCommand.LINE, .p0 = { x + w - rxBR, y + h } },
+        {
+            .cmd = PathCommand.BEZIER, 
+            .p0 = { x + w - rxBR * (1 - KAPPA90), y + h }, 
+            .p1 = { x + w, y + h - ryBR * (1 - KAPPA90) }, 
+            .p2 = { x + w, y + h - ryBR } 
+        },
+        { .cmd = PathCommand.LINE, .p0 = { x + w, y + ryTR } },
+        {
+            .cmd = PathCommand.BEZIER, 
+            .p0 = { x + w, y + ryTR * (1 - KAPPA90) }, 
+            .p1 = { x + w - rxTR * (1 - KAPPA90), y }, 
+            .p2 = { x + w - rxTR, y } 
+        },
+        { .cmd = PathCommand.LINE, .p0 = { x + rxTL, y } },
+        {
+            .cmd = PathCommand.BEZIER, 
+            .p0 = { x + rxTL * (1 - KAPPA90), y }, 
+            .p1 = { x, y + ryTL * (1 - KAPPA90) }, 
+            .p2 = { x, y + ryTL } 
+        },
         { .cmd = PathCommand.CLOSE }
     };
 
@@ -1774,11 +1759,11 @@ fn void NvgContext.roundedRectVarying(
 
 fn void NvgContext.ellipse(&self, float cx, float cy, float rx, float ry) {
     PathCmd[*] cmds = {
-        { .cmd = PathCommand.MOVETO, .p0 = { cx - rx, cy } },
-        { .cmd = PathCommand.BEZIERTO, .p0 = { cx - rx, cy + ry * NVG_KAPPA90 }, .p1 = { cx - rx * NVG_KAPPA90, cy + ry }, .p2 = { cx, cy + ry } },
-        { .cmd = PathCommand.BEZIERTO, .p0 = { cx + rx * NVG_KAPPA90, cy + ry }, .p1 = { cx + rx, cy + ry * NVG_KAPPA90 }, .p2 = { cx + rx, cy } },
-        { .cmd = PathCommand.BEZIERTO, .p0 = { cx + rx, cy - ry * NVG_KAPPA90 }, .p1 = { cx + rx * NVG_KAPPA90, cy - ry }, .p2 = { cx, cy - ry } },
-        { .cmd = PathCommand.BEZIERTO, .p0 = { cx - rx * NVG_KAPPA90, cy - ry }, .p1 = { cx - rx, cy - ry * NVG_KAPPA90 }, .p2 = { cx - rx, cy } },
+        { .cmd = PathCommand.MOVE, .p0 = { cx - rx, cy } },
+        { .cmd = PathCommand.BEZIER, .p0 = { cx - rx, cy + ry * KAPPA90 }, .p1 = { cx - rx * KAPPA90, cy + ry }, .p2 = { cx, cy + ry } },
+        { .cmd = PathCommand.BEZIER, .p0 = { cx + rx * KAPPA90, cy + ry }, .p1 = { cx + rx, cy + ry * KAPPA90 }, .p2 = { cx + rx, cy } },
+        { .cmd = PathCommand.BEZIER, .p0 = { cx + rx, cy - ry * KAPPA90 }, .p1 = { cx + rx * KAPPA90, cy - ry }, .p2 = { cx, cy - ry } },
+        { .cmd = PathCommand.BEZIER, .p0 = { cx - rx * KAPPA90, cy - ry }, .p1 = { cx - rx, cy - ry * KAPPA90 }, .p2 = { cx - rx, cy } },
         { .cmd = PathCommand.CLOSE }
     };
     self.appendCommands(&cmds[0], cmds.len);
@@ -1795,8 +1780,7 @@ fn void NvgContext.fill(&self) {
     self.flattenPaths();
     if (self.params.edgeAntiAlias && state.shapeAntiAlias) {
         self.expandFill(self.fringeWidth, LineJoin.MITER, 2.4f);
-    }
-    else {
+    } else {
         self.expandFill(0.0f, LineJoin.MITER, 2.4f);
     }
 
@@ -1816,7 +1800,7 @@ fn void NvgContext.fill(&self) {
 
 fn void NvgContext.stroke(&self) {
     NvgState* state = self.getState();
-    float scale = nvgGetAverageScale(&state.form);
+    float scale = state.form.averageScale();
     float strokeWidth = math::clamp(state.strokeWidth * scale, 0.0f, 200.0f);
     NvgPaint strokePaint = state.stroke;
 

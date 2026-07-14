@@ -46,6 +46,12 @@ fn void Mat2x3.rotate(&self, float rad) {
     self.linear.w = ly * -s + lw * c;
 }
 
+fn float Mat2x3.averageScale(self) {
+    float sx = math::sqrt(self.linear.x * self.linear.x + self.linear.z * self.linear.z);
+    float sy = math::sqrt(self.linear.y * self.linear.y + self.linear.w * self.linear.w);
+    return (sx + sy) * 0.5f;
+}
+
 fn Mat2x3 Mat2x3.multiply(self, Mat2x3 other) @operator(*) => {
 	{
 		self.linear.x * other.linear.x + self.linear.z * other.linear.y,

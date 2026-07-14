@@ -60,7 +60,7 @@ struct NvgCompositeOperationState {
     int dstAlpha;
 }
 
-enum PathCommand : char { MOVETO, LINETO, BEZIERTO, CLOSE, WINDING }
+enum PathCommand : char { MOVE, LINE, BEZIER, CLOSE, WINDING }
 
 struct PathCmd {
     PathCommand cmd;

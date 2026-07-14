@@ -335,7 +335,7 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, NvgPaint* paint, N
         frag.scissorScale.y = math::sqrt(scissor.form.linear.y * scissor.form.linear.y + scissor.form.linear.w * scissor.form.linear.w) / fringe;
     }
 
-    mem::copy(&frag.extent[0], &paint.extent[0], 2 * float::size);
+    frag.extent = paint.extent;
     frag.strokeMult = (width * 0.5f + fringe * 0.5f) / fringe;
     frag.strokeThr  = strokeThr;
 
@@ -1122,15 +1122,9 @@ fn void glnvgRenderDelete(void* up) @local {
 
     glnvgDeleteShader(&gl.shader);
 
-    if (gl.fragBuf != 0) {
-        gl::deleteBuffers(1, &gl.fragBuf);
-    }
-    if (gl.vertArr != 0) {
-        gl::deleteVertexArrays(1, &gl.vertArr);
-    }
-    if (gl.vertBuf != 0) {
-        gl::deleteBuffers(1, &gl.vertBuf);
-    }
+    if (gl.fragBuf != 0) gl::deleteBuffers(1, &gl.fragBuf);
+    if (gl.vertArr != 0) gl::deleteVertexArrays(1, &gl.vertArr);
+    if (gl.vertBuf != 0) gl::deleteBuffers(1, &gl.vertBuf);
 
     for (int i = 0; i < gl.ntextures; i++) {
         if (gl.textures[i].tex != 0 && (gl.textures[i].flags & NVG_IMAGE_NODELETE) == 0) {
@@ -1173,9 +1167,7 @@ fn NvgContext* nvgCreateGl3(int flags) {
     gl.flags = flags;
 
     ctx = microvg::nvgCreateInternal(&params);
-    if (ctx == null) {
-        return null;
-    }
+    if (ctx == null) return null;
 
     return ctx;
 }
