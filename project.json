@@ -12,7 +12,9 @@
     "MicroVG": {
       "type": "executable",
       "linker-search-paths": [ "build/unpacked_c3l/glfw34.c3l/windows-x64" ],
-      "linked-libraries": [ "glfw", "gdi32", "user32", "shell32" ]
+      "linked-libraries": [ "glfw", "gdi32", "user32", "shell32", "opengl32" ],
+      "c-sources": [ "NanoVG_C3/csource/stb_write_impl.c" ],
+      "c-include-dirs": [ "NanoVG_C3/csource" ]
     }
   },
 
