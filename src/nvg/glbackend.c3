@@ -12,13 +12,13 @@ const int NVG_STENCIL_STROKES  = 1 << 1;
 const int NVG_DEBUG            = 1 << 2;
 const int NVG_IMAGE_NODELETE   = 1 << 16;
 
-enum GlNvgLoc : int { VIEWSIZE, TEX, FRAG, MAX_LOCS }
+enum GlNvgLoc : char { VIEWSIZE, TEX, FRAG, MAX_LOCS }
 
-enum NsvgShader : int { FILLGRAD, FILLIMG, SIMPLE, IMG }
+enum NsvgShader : char { FILLGRAD, FILLIMG, SIMPLE, IMG }
 
 const int GLNVG_FRAG_BINDING = 0;
 
-enum GlNvgCallType : int { NONE, FILL, CONVEXFILL, STROKE, TRIANGLES }
+enum GlNvgCallType : char { NONE, FILL, CONVEXFILL, STROKE, TRIANGLES }
 
 struct GlShader {
     uint   prog;
@@ -356,7 +356,7 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, NvgPaint* paint, N
             microvg::nvgTransformInverse(&invxform[0], &paint.xform[0]);
         }
         frag.type = (int)(NsvgShader.FILLIMG);
-        if (tex.type == microvg::TEXTURE_RGBA) {
+        if (tex.type == (int)TextureType.RGBA) {
             frag.texType = (tex.flags & microvg::IMAGE_PREMULTIPLIED) ? 0 : 1;
         }
         else {
@@ -774,7 +774,7 @@ fn int glnvgRenderCreate(void* up) @local {
     gl::getIntegerv(gl::GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
     gl.fragSize = (int)(GlFragUniforms::size) + align - (int)(GlFragUniforms::size) % align;
 
-    gl.dummyTex = glnvgRenderCreateTexture(gl, microvg::TEXTURE_ALPHA, 1, 1, 0, null);
+    gl.dummyTex = glnvgRenderCreateTexture(gl, (int)TextureType.ALPHA, 1, 1, 0, null);
 
     glnvgCheckError(gl, "create done");
 
@@ -801,7 +801,7 @@ fn int glnvgRenderCreateTexture(void* up, int type, int w, int h, int imageFlags
     gl::pixelStorei(gl::GL_UNPACK_SKIP_PIXELS, 0);
     gl::pixelStorei(gl::GL_UNPACK_SKIP_ROWS, 0);
 
-    if (type == microvg::TEXTURE_RGBA) {
+    if (type == (int)TextureType.RGBA) {
         gl::texImage2D(gl::GL_TEXTURE_2D, 0, (int)(uint)gl::GL_RGBA, w, h, 0, gl::GL_RGBA, gl::GL_UNSIGNED_BYTE, data);
     }
     else {
@@ -874,7 +874,7 @@ fn int glnvgRenderUpdateTexture(void* up, int image, int x, int y, int w, int h,
     gl::pixelStorei(gl::GL_UNPACK_SKIP_PIXELS, x);
     gl::pixelStorei(gl::GL_UNPACK_SKIP_ROWS, y);
 
-    if (tex.type == microvg::TEXTURE_RGBA) {
+    if (tex.type == (int)TextureType.RGBA) {
         gl::texSubImage2D(gl::GL_TEXTURE_2D, 0, x, y, w, h, gl::GL_RGBA, gl::GL_UNSIGNED_BYTE, data);
     }
     else {

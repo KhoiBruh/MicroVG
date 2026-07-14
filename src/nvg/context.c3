@@ -29,8 +29,8 @@ struct NvgState {
     NvgPaint stroke;
     float strokeWidth;
     float miterLimit;
-    int   lineJoin;
-    int   lineCap;
+    LineJoin lineJoin;
+    LineCap lineCap;
     float alpha;
     float[6] xform;
     NvgScissor scissor;
@@ -41,7 +41,7 @@ struct NvgPoint {
     float dx, dy;
     float len;
     float dmx, dmy;
-    char  flags;
+    PathPointFlags flags;
 }
 
 struct NvgPathCache {
@@ -463,8 +463,8 @@ fn void nvgReset(NvgContext* ctx) {
     state.shapeAntiAlias = 1;
     state.strokeWidth = 1.0f;
     state.miterLimit = 10.0f;
-    state.lineCap = (int)(LineCap.BUTT);
-    state.lineJoin = LINE_JOIN_MITER;
+    state.lineCap = LineCap.BUTT;
+    state.lineJoin = LineJoin.MITER;
     state.alpha = 1.0f;
     nvgTransformIdentity(&state.xform[0]);
 
@@ -487,12 +487,12 @@ fn void nvgMiterLimit(NvgContext* ctx, float limit) {
     state.miterLimit = limit;
 }
 
-fn void nvgLineCap(NvgContext* ctx, int cap) {
+fn void nvgLineCap(NvgContext* ctx, LineCap cap) {
     NvgState* state = nvgGetState(ctx);
     state.lineCap = cap;
 }
 
-fn void nvgLineJoin(NvgContext* ctx, int join) {
+fn void nvgLineJoin(NvgContext* ctx, LineJoin join) {
     NvgState* state = nvgGetState(ctx);
     state.lineJoin = join;
 }
@@ -577,7 +577,7 @@ fn void nvgFillPaint(NvgContext* ctx, NvgPaint paint) {
 }
 
 fn int nvgCreateImageRgba(NvgContext* ctx, int w, int h, int imageFlags, char* data) {
-    return ctx.params.renderCreateTexture(ctx.params.userPtr, TEXTURE_RGBA, w, h, imageFlags, data);
+    return ctx.params.renderCreateTexture(ctx.params.userPtr, (int)TextureType.RGBA, w, h, imageFlags, data);
 }
 
 fn void nvgUpdateImage(NvgContext* ctx, int image, char* data) {
@@ -870,7 +870,7 @@ fn void nvgAddPath(NvgContext* ctx) @local {
     NvgPath* path = &ctx.cache.paths[ctx.cache.npaths];
     mem::clear(path, NvgPath::size);
     path.first = ctx.cache.npoints;
-    path.winding = WINDING_CCW;
+    path.winding = (int)Winding.CCW;
 
     ctx.cache.npaths++;
 }
@@ -889,7 +889,7 @@ fn void nvgAddPoint(NvgContext* ctx, float x, float y, int flags) @local {
     if (path.count > 0 && ctx.cache.npoints > 0) {
         NvgPoint* pt = nvgLastPoint(ctx);
         if (nvgPtEquals(pt.x, pt.y, x, y, ctx.distTol)) {
-            pt.flags = (char)(pt.flags | flags);
+            pt.flags = (PathPointFlags)(char)((int)pt.flags | flags);
             return;
         }
     }
@@ -906,7 +906,7 @@ fn void nvgAddPoint(NvgContext* ctx, float x, float y, int flags) @local {
     mem::clear(pt, NvgPoint::size);
     pt.x = x;
     pt.y = y;
-    pt.flags = (char)flags;
+    pt.flags = (PathPointFlags)(char)flags;
 
     ctx.cache.npoints++;
     path.count++;
@@ -1082,10 +1082,10 @@ fn void nvgFlattenPaths(NvgContext* ctx) @local {
 
         if (path.count > 2) {
             float area = nvgPolyArea(pts, path.count);
-            if (path.winding == WINDING_CCW && area < 0.0f) {
+            if (path.winding == (int)Winding.CCW && area < 0.0f) {
                 nvgPolyReverse(pts, path.count);
             }
-            if (path.winding == WINDING_CW && area > 0.0f) {
+            if (path.winding == (int)Winding.CW && area > 0.0f) {
                 nvgPolyReverse(pts, path.count);
             }
         }
@@ -1132,9 +1132,9 @@ fn NvgVertex* nvgRoundJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
     float dlx1 = p1.dy;
     float dly1 = -p1.dx;
 
-    if (p1.flags & NVG_PT_LEFT) {
+    if (p1.flags.left) {
         float lx0, ly0, lx1, ly1;
-        nvgChooseBevel(p1.flags & NVG_PR_INNERBEVEL, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
+        nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
         float a0 = nvgAtan2f(-dly0, -dlx0);
         float a1 = nvgAtan2f(-dly1, -dlx1);
         if (a1 > a0) a1 -= PI * 2;
@@ -1157,7 +1157,7 @@ fn NvgVertex* nvgRoundJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
 
     } else {
         float rx0, ry0, rx1, ry1;
-        nvgChooseBevel(p1.flags & NVG_PR_INNERBEVEL, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
+        nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
         float a0 = nvgAtan2f(dly0, dlx0);
         float a1 = nvgAtan2f(dly1, dlx1);
         if (a1 < a0) a1 += PI * 2;
@@ -1190,14 +1190,14 @@ fn NvgVertex* nvgBevelJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
     float dlx1 = p1.dy;
     float dly1 = -p1.dx;
 
-    if (p1.flags & NVG_PT_LEFT) {
+    if (p1.flags.left) {
         float lx0, ly0, lx1, ly1;
-        nvgChooseBevel(p1.flags & NVG_PR_INNERBEVEL, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
+        nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 
         nvgVset(dst, lx0, ly0, lu, 1); dst++;
         nvgVset(dst, p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1); dst++;
 
-        if (p1.flags & NVG_PT_BEVEL) {
+        if (p1.flags.bevel) {
             nvgVset(dst, lx0, ly0, lu, 1); dst++;
             nvgVset(dst, p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1); dst++;
 
@@ -1222,12 +1222,12 @@ fn NvgVertex* nvgBevelJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
 
     } else {
         float rx0, ry0, rx1, ry1;
-        nvgChooseBevel(p1.flags & NVG_PR_INNERBEVEL, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
+        nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 
         nvgVset(dst, p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1); dst++;
         nvgVset(dst, rx0, ry0, ru, 1); dst++;
 
-        if (p1.flags & NVG_PT_BEVEL) {
+        if (p1.flags.bevel) {
             nvgVset(dst, p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1); dst++;
             nvgVset(dst, rx0, ry0, ru, 1); dst++;
 
@@ -1356,26 +1356,28 @@ fn void nvgCalculateJoins(NvgContext* ctx, float w, int lineJoin, float miterLim
                 p1.dmy *= scale;
             }
 
-            p1.flags = (p1.flags & NVG_PT_CORNER) ? (char)NVG_PT_CORNER : (char)0;
+            PathPointFlags __nf;
+                __nf.corner = p1.flags.corner;
+                p1.flags = __nf;
 
             float cross = p1.dx * p0.dy - p0.dx * p1.dy;
             if (cross > 0.0f) {
                 nleft++;
-                p1.flags = (char)(p1.flags | NVG_PT_LEFT);
+                p1.flags.left = true;
             }
 
             float limit = nvgMaxf(1.01f, nvgMinf(p0.len, p1.len) * iw);
             if ((dmr2 * limit * limit) < 1.0f) {
-                p1.flags = (char)(p1.flags | NVG_PR_INNERBEVEL);
+                p1.flags.innerBevel = true;
             }
 
-            if (p1.flags & NVG_PT_CORNER) {
-                if ((dmr2 * miterLimit * miterLimit) < 1.0f || lineJoin == LINE_JOIN_BEVEL || lineJoin == LINE_JOIN_ROUND) {
-                    p1.flags = (char)(p1.flags | NVG_PT_BEVEL);
+            if (p1.flags.corner) {
+                if ((dmr2 * miterLimit * miterLimit) < 1.0f || lineJoin == (int)LineJoin.BEVEL || lineJoin == (int)LineJoin.ROUND) {
+                    p1.flags.bevel = true;
                 }
             }
 
-            if ((p1.flags & (NVG_PT_BEVEL | NVG_PR_INNERBEVEL)) != 0) {
+            if ((p1.flags.bevel || p1.flags.innerBevel)) {
                 path.nbevel++;
             }
 
@@ -1407,7 +1409,7 @@ fn int nvgExpandStroke(NvgContext* ctx, float w, float fringe, int lineCap, int 
     for (int i = 0; i < cache.npaths; i++) {
         NvgPath* path = &cache.paths[i];
         int loop = (path.closed == 0) ? 0 : 1;
-        if (lineJoin == LINE_JOIN_ROUND) {
+        if (lineJoin == (int)LineJoin.ROUND) {
             cverts += (path.count + path.nbevel * (ncap + 2) + 1) * 2;
         }
         else {
@@ -1468,8 +1470,8 @@ fn int nvgExpandStroke(NvgContext* ctx, float w, float fringe, int lineCap, int 
         }
 
         for (int j = s; j < e; j++) {
-            if ((p1.flags & (NVG_PT_BEVEL | NVG_PR_INNERBEVEL)) != 0) {
-                if (lineJoin == LINE_JOIN_ROUND) {
+            if ((p1.flags.bevel || p1.flags.innerBevel)) {
+                if (lineJoin == (int)LineJoin.ROUND) {
                     dst = nvgRoundJoin(dst, p0, p1, w, w, u0, u1, ncap, aa);
                 } else {
                     dst = nvgBevelJoin(dst, p0, p1, w, w, u0, u1, aa);
@@ -1545,12 +1547,12 @@ fn int nvgExpandFill(NvgContext* ctx, float w, int lineJoin, float miterLimit) @
             p0 = &pts[path.count - 1];
             p1 = &pts[0];
             for (int j = 0; j < path.count; j++) {
-                if (p1.flags & NVG_PT_BEVEL) {
+                if (p1.flags.bevel) {
                     float dlx0 = p0.dy;
                     float dly0 = -p0.dx;
                     float dlx1 = p1.dy;
                     float dly1 = -p1.dx;
-                    if (p1.flags & NVG_PT_LEFT) {
+                    if (p1.flags.left) {
                         float lx = p1.x + p1.dmx * woff;
                         float ly = p1.y + p1.dmy * woff;
                         nvgVset(dst, lx, ly, 0.5f, 1); dst++;
@@ -1595,7 +1597,7 @@ fn int nvgExpandFill(NvgContext* ctx, float w, int lineJoin, float miterLimit) @
             p1 = &pts[0];
 
             for (int j = 0; j < path.count; j++) {
-                if ((p1.flags & (NVG_PT_BEVEL | NVG_PR_INNERBEVEL)) != 0) {
+                if ((p1.flags.bevel || p1.flags.innerBevel)) {
                     dst = nvgBevelJoin(dst, p0, p1, lw, rw, lu, ru, ctx.fringeWidth);
                 } else {
                     nvgVset(dst, p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1); dst++;
@@ -1688,13 +1690,13 @@ fn void nvgArcTo(NvgContext* ctx, float x1, float y1, float x2, float y2, float 
         cy = y1 + dy0 * d + -dx0 * radius;
         a0 = nvgAtan2f(dx0, -dy0);
         a1 = nvgAtan2f(-dx1, dy1);
-        dir = WINDING_CW;
+        dir = (int)Winding.CW;
     } else {
         cx = x1 + dx0 * d + -dy0 * radius;
         cy = y1 + dy0 * d + dx0 * radius;
         a0 = nvgAtan2f(-dx0, dy0);
         a1 = nvgAtan2f(dx1, -dy1);
-        dir = WINDING_CCW;
+        dir = (int)Winding.CCW;
     }
 
     nvgArc(ctx, cx, cy, radius, a0, a1, dir);
@@ -1719,7 +1721,7 @@ fn void nvgArc(NvgContext* ctx, float cx, float cy, float r, float a0, float a1,
     int move = ctx.ncommands > 0 ? (int)(PathCommand.LINETO) : (int)(PathCommand.MOVETO);
 
     da = a1 - a0;
-    if (dir == WINDING_CW) {
+    if (dir == (int)Winding.CW) {
         if (nvgAbsf(da) >= PI * 2) {
             da = PI * 2;
         } else {
@@ -1737,7 +1739,7 @@ fn void nvgArc(NvgContext* ctx, float cx, float cy, float r, float a0, float a1,
     hda = (da / (float)ndivs) / 2.0f;
     kappa = nvgAbsf(4.0f / 3.0f * (1.0f - nvgCosf(hda)) / nvgSinf(hda));
 
-    if (dir == WINDING_CCW) {
+    if (dir == (int)Winding.CCW) {
         kappa = -kappa;
     }
 
@@ -1842,10 +1844,10 @@ fn void nvgFill(NvgContext* ctx) {
 
     nvgFlattenPaths(ctx);
     if (ctx.params.edgeAntiAlias && state.shapeAntiAlias) {
-        nvgExpandFill(ctx, ctx.fringeWidth, LINE_JOIN_MITER, 2.4f);
+        nvgExpandFill(ctx, ctx.fringeWidth, (int)LineJoin.MITER, 2.4f);
     }
     else {
-        nvgExpandFill(ctx, 0.0f, LINE_JOIN_MITER, 2.4f);
+        nvgExpandFill(ctx, 0.0f, (int)LineJoin.MITER, 2.4f);
     }
 
     fillPaint.innerColor.a *= state.alpha;
@@ -1881,10 +1883,10 @@ fn void nvgStroke(NvgContext* ctx) {
     nvgFlattenPaths(ctx);
 
     if (ctx.params.edgeAntiAlias && state.shapeAntiAlias) {
-        nvgExpandStroke(ctx, strokeWidth * 0.5f, ctx.fringeWidth, state.lineCap, state.lineJoin, state.miterLimit);
+        nvgExpandStroke(ctx, strokeWidth * 0.5f, ctx.fringeWidth, state.lineCap.ordinal, (int)state.lineJoin, state.miterLimit);
     }
     else {
-        nvgExpandStroke(ctx, strokeWidth * 0.5f, 0.0f, state.lineCap, state.lineJoin, state.miterLimit);
+        nvgExpandStroke(ctx, strokeWidth * 0.5f, 0.0f, state.lineCap.ordinal, (int)state.lineJoin, state.miterLimit);
     }
 
     ctx.params.renderStroke(ctx.params.userPtr, &strokePaint, state.compositeOperation, &state.scissor,

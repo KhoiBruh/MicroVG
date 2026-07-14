@@ -21,14 +21,11 @@ struct NvgPaint {
     int       image;
 }
 
-const int WINDING_CCW = 1;
-const int WINDING_CW  = 2;
+enum Winding : char { CCW, CW }
 
-enum LineCap : int { BUTT, ROUND, SQUARE }
+enum LineCap : char { BUTT, ROUND, SQUARE }
 
-const int LINE_JOIN_ROUND = 1;
-const int LINE_JOIN_BEVEL = 3;
-const int LINE_JOIN_MITER = 4;
+enum LineJoin : char { ROUND, BEVEL, MITER }
 
 const int BLEND_ZERO                = 1 << 0;
 const int BLEND_ONE                 = 1 << 1;
@@ -42,7 +39,7 @@ const int BLEND_DST_ALPHA           = 1 << 8;
 const int BLEND_ONE_MINUS_DST_ALPHA = 1 << 9;
 const int BLEND_SRC_ALPHA_SATURATE  = 1 << 10;
 
-enum CompositeOp : int {
+enum CompositeOp : char {
     SOURCE_OVER,
     SOURCE_IN,
     SOURCE_OUT,
@@ -53,7 +50,7 @@ enum CompositeOp : int {
     DESTINATION_ATOP,
     LIGHTER,
     COPY,
-    XOR,
+    XOR
 }
 
 struct NvgCompositeOperationState {
@@ -70,8 +67,14 @@ const int IMAGE_FLIPY            = 1 << 3;
 const int IMAGE_PREMULTIPLIED     = 1 << 4;
 const int IMAGE_NEAREST           = 1 << 5;
 
-const int TEXTURE_ALPHA = 0x01;
-const int TEXTURE_RGBA  = 0x02;
+enum TextureType : char { ALPHA, RGBA }
+
+bitstruct PathPointFlags : char {
+    bool corner     : 0..0;
+    bool left       : 1..1;
+    bool bevel      : 2..2;
+    bool innerBevel : 3..3;
+}
 
 struct NvgScissor {
     float[6] xform;
