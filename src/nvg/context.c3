@@ -6,8 +6,6 @@ import std::math;
 extern fn float fmodf(float a, float b);
 extern fn int printf(char* fmt, ...);
 
-enum PathCommand : int { MOVETO, LINETO, BEZIERTO, CLOSE, WINDING }
-
 const int NVG_PT_CORNER     = 0x01;
 const int NVG_PT_LEFT       = 0x02;
 const int NVG_PT_BEVEL      = 0x04;
@@ -59,7 +57,7 @@ struct NvgPathCache {
 
 struct NvgContext {
     NvgParams params;
-    float* commands;
+    PathCmd* commands;
     int ccommands;
     int ncommands;
     float commandx, commandy;
@@ -76,7 +74,7 @@ struct NvgContext {
     int textTriCount;
 }
 
-fn float nvgCross(float dx0, float dy0, float dx1, float dy1) @local { return dx1 * dy0 - dx0 * dy1; }
+fn float nvgCross(float dx0, float dy0, float dx1, float dy1) @local => dx1 * dy0 - dx0 * dy1;
 
 fn float nvgNormalize(float* x, float* y) @local {
     float d = math::sqrt(x[0] * x[0] + y[0] * y[0]);
@@ -130,42 +128,54 @@ fn NvgCompositeOperationState nvgCompositeOpState(int op) @local {
     int sfactor;
     int dfactor;
 
-    if (op == (int)CompositeOp.SOURCE_OVER) {
-        sfactor = BLEND_ONE;
-        dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-    } else if (op == (int)CompositeOp.SOURCE_IN) {
-        sfactor = BLEND_DST_ALPHA;
-        dfactor = BLEND_ZERO;
-    } else if (op == (int)CompositeOp.SOURCE_OUT) {
-        sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-        dfactor = BLEND_ZERO;
-    } else if (op == (int)CompositeOp.ATOP) {
-        sfactor = BLEND_DST_ALPHA;
-        dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-    } else if (op == (int)CompositeOp.DESTINATION_OVER) {
-        sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-        dfactor = BLEND_ONE;
-    } else if (op == (int)CompositeOp.DESTINATION_IN) {
-        sfactor = BLEND_ZERO;
-        dfactor = BLEND_SRC_ALPHA;
-    } else if (op == (int)CompositeOp.DESTINATION_OUT) {
-        sfactor = BLEND_ZERO;
-        dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-    } else if (op == (int)CompositeOp.DESTINATION_ATOP) {
-        sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-        dfactor = BLEND_SRC_ALPHA;
-    } else if (op == (int)CompositeOp.LIGHTER) {
-        sfactor = BLEND_ONE;
-        dfactor = BLEND_ONE;
-    } else if (op == (int)CompositeOp.COPY) {
-        sfactor = BLEND_ONE;
-        dfactor = BLEND_ZERO;
-    } else if (op == (int)CompositeOp.XOR) {
-        sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-        dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-    } else {
-        sfactor = BLEND_ONE;
-        dfactor = BLEND_ZERO;
+    switch (op) {
+        case (int)CompositeOp.SOURCE_OVER:
+            sfactor = BLEND_ONE;
+            dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
+
+        case (int)CompositeOp.SOURCE_IN:
+            sfactor = BLEND_DST_ALPHA;
+            dfactor = BLEND_ZERO;
+
+        case (int)CompositeOp.SOURCE_OUT:
+            sfactor = BLEND_ONE_MINUS_DST_ALPHA;
+            dfactor = BLEND_ZERO;
+
+        case (int)CompositeOp.ATOP:
+            sfactor = BLEND_DST_ALPHA;
+            dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
+
+        case (int)CompositeOp.DESTINATION_OVER:
+            sfactor = BLEND_ONE_MINUS_DST_ALPHA;
+            dfactor = BLEND_ONE;
+
+        case (int)CompositeOp.DESTINATION_IN:
+            sfactor = BLEND_ZERO;
+            dfactor = BLEND_SRC_ALPHA;
+
+        case (int)CompositeOp.DESTINATION_OUT:
+            sfactor = BLEND_ZERO;
+            dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
+
+        case (int)CompositeOp.DESTINATION_ATOP:
+            sfactor = BLEND_ONE_MINUS_DST_ALPHA;
+            dfactor = BLEND_SRC_ALPHA;
+
+        case (int)CompositeOp.LIGHTER:
+            sfactor = BLEND_ONE;
+            dfactor = BLEND_ONE;
+
+        case (int)CompositeOp.COPY:
+            sfactor = BLEND_ONE;
+            dfactor = BLEND_ZERO;
+
+        case (int)CompositeOp.XOR:
+            sfactor = BLEND_ONE_MINUS_DST_ALPHA;
+            dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
+
+        default:
+            sfactor = BLEND_ONE;
+            dfactor = BLEND_ZERO;
     }
 
     NvgCompositeOperationState state;
@@ -173,12 +183,11 @@ fn NvgCompositeOperationState nvgCompositeOpState(int op) @local {
     state.dstRGB   = dfactor;
     state.srcAlpha = sfactor;
     state.dstAlpha = dfactor;
+
     return state;
 }
 
-fn NvgState* NvgContext.getState(&self) {
-    return &self.states[self.nstates - 1];
-}
+fn NvgState* NvgContext.getState(&self) => &self.states[self.nstates - 1];
 
 fn void nvgSetPaintColor(NvgPaint* p, NvgColor color) @local {
     mem::clear(p, NvgPaint::size);
@@ -192,15 +201,18 @@ fn void nvgSetPaintColor(NvgPaint* p, NvgColor color) @local {
 fn float nvgHue(float h, float m1, float m2) @local {
     if (h < 0) h += 1;
     if (h > 1) h -= 1;
-    if (h < 1.0f / 6.0f) {
-        return m1 + (m2 - m1) * h * 6.0f;
+
+    switch {
+        case h < 1.0f / 6.0f:
+            return m1 + (m2 - m1) * h * 6.0f;
+
+        case h < 3.0f / 6.0f:
+            return m2;
+
+        case h < 4.0f / 6.0f:
+            return m1 + (m2 - m1) * (2.0f / 3.0f - h) * 6.0f;
     }
-    else if (h < 3.0f / 6.0f) {
-        return m2;
-    }
-    else if (h < 4.0f / 6.0f) {
-        return m1 + (m2 - m1) * (2.0f / 3.0f - h) * 6.0f;
-    }
+
     return m1;
 }
 
@@ -211,7 +223,7 @@ fn NvgContext* nvgCreateInternal(NvgParams* params) {
 
     vg.params = params[0];
 
-    vg.commands = mem::malloc(float::size * NVG_INIT_COMMANDS_SIZE);
+    vg.commands = mem::malloc(PathCmd::size * NVG_INIT_COMMANDS_SIZE);
     if (vg.commands == null) { vg.destroy(); return null; }
     vg.ncommands = 0;
     vg.ccommands = NVG_INIT_COMMANDS_SIZE;
@@ -229,18 +241,14 @@ fn NvgContext* nvgCreateInternal(NvgParams* params) {
     return vg;
 }
 
-fn NvgParams* NvgContext.internalParams(&self) {
-    return &self.params;
-}
+fn NvgParams* NvgContext.internalParams(&self) => &self.params;
 
 fn void NvgContext.destroy(&self) {
     if (self == null) return;
     if (self.commands != null) mem::free(self.commands);
     if (self.cache != null) nvgDeletePathCache(self.cache);
 
-    if (self.params.renderDelete != null) {
-        self.params.renderDelete(self.params.userPtr);
-    }
+    if (self.params.renderDelete != null) self.params.renderDelete(self.params.userPtr);
 
     mem::free(self);
 }
@@ -260,21 +268,13 @@ fn void NvgContext.beginFrame(&self, float windowWidth, float windowHeight, floa
     self.textTriCount   = 0;
 }
 
-fn void NvgContext.cancelFrame(&self) {
-    self.params.renderCancel(self.params.userPtr);
-}
+fn void NvgContext.cancelFrame(&self) => self.params.renderCancel(self.params.userPtr);
 
-fn void NvgContext.endFrame(&self) {
-    self.params.renderFlush(self.params.userPtr);
-}
+fn void NvgContext.endFrame(&self) => self.params.renderFlush(self.params.userPtr);
 
-fn NvgColor nvgRgb(char r, char g, char b) {
-    return nvgRgba(r, g, b, 255);
-}
+fn NvgColor nvgRgb(char r, char g, char b) => nvgRgba(r, g, b, 255);
 
-fn NvgColor nvgRgbf(float r, float g, float b) {
-    return nvgRgbaf(r, g, b, 1.0f);
-}
+fn NvgColor nvgRgbf(float r, float g, float b) => nvgRgbaf(r, g, b, 1.0f);
 
 fn NvgColor nvgRgba(char r, char g, char b, char a) {
     NvgColor color;
@@ -309,15 +309,12 @@ fn NvgColor nvgLerpRgba(NvgColor c0, NvgColor c1, float u) {
     mem::clear(&cint, NvgColor::size);
     u = math::clamp(u, 0.0f, 1.0f);
     float oneminu = 1.0f - u;
-    for (int i = 0; i < 4; i++) {
-        cint.rgba[i] = c0.rgba[i] * oneminu + c1.rgba[i] * u;
-    }
+
+    for (int i = 0; i < 4; i++) cint.rgba[i] = c0.rgba[i] * oneminu + c1.rgba[i] * u;
     return cint;
 }
 
-fn NvgColor nvgHsl(float h, float s, float l) {
-    return nvgHsla(h, s, l, 255);
-}
+fn NvgColor nvgHsl(float h, float s, float l) => nvgHsla(h, s, l, 255);
 
 fn NvgColor nvgHsla(float h, float s, float l, char a) {
     NvgColor col;
@@ -381,28 +378,18 @@ fn void nvgTransformPoint(float* dx, float* dy, Mat2x3* t, float sx, float sy) {
     dy[0] = result.y;
 }
 
-fn float nvgDegToRad(float deg) {
-    return deg / 180.0f * PI;
-}
+fn float nvgDegToRad(float deg) => deg / 180.0f * PI;
 
-fn float nvgRadToDeg(float rad) {
-    return rad / PI * 180.0f;
-}
+fn float nvgRadToDeg(float rad) => rad / PI * 180.0f;
 
 fn void NvgContext.save(&self) {
-    if (self.nstates >= NVG_MAX_STATES) {
-        return;
-    }
-    if (self.nstates > 0) {
-        mem::copy(&self.states[self.nstates], &self.states[self.nstates - 1], NvgState::size);
-    }
+    if (self.nstates >= NVG_MAX_STATES) return;
+    if (self.nstates > 0) mem::copy(&self.states[self.nstates], &self.states[self.nstates - 1], NvgState::size);
     self.nstates++;
 }
 
 fn void NvgContext.restore(&self) {
-    if (self.nstates <= 1) {
-        return;
-    }
+    if (self.nstates <= 1) return;
     self.nstates--;
 }
 
@@ -529,9 +516,8 @@ fn void NvgContext.fillPaint(&self, NvgPaint paint) {
     nvgTransformMultiply(&state.fill.form, &state.form);
 }
 
-fn int NvgContext.createImageRgba(&self, int w, int h, int imageFlags, char* data) {
-    return self.params.renderCreateTexture(self.params.userPtr, (int)TextureType.RGBA, w, h, imageFlags, data);
-}
+fn int NvgContext.createImageRgba(&self, int w, int h, int imageFlags, char* data) =>
+    self.params.renderCreateTexture(self.params.userPtr, (int)TextureType.RGBA, w, h, imageFlags, data);
 
 fn void NvgContext.updateImage(&self, int image, char* data) {
     int w, h;
@@ -539,16 +525,17 @@ fn void NvgContext.updateImage(&self, int image, char* data) {
     self.params.renderUpdateTexture(self.params.userPtr, image, 0, 0, w, h, data);
 }
 
-fn void NvgContext.imageSize(&self, int image, int* w, int* h) {
+fn void NvgContext.imageSize(&self, int image, int* w, int* h) =>
     self.params.renderGetTextureSize(self.params.userPtr, image, w, h);
-}
 
-fn void NvgContext.deleteImage(&self, int image) {
+
+fn void NvgContext.deleteImage(&self, int image) =>
     self.params.renderDeleteTexture(self.params.userPtr, image);
-}
 
-fn NvgPaint NvgContext.linearGradient(&self, float sx, float sy, float ex, float ey,
-                                NvgColor icol, NvgColor ocol) {
+fn NvgPaint NvgContext.linearGradient(
+    &self, float sx, float sy, float ex, float ey,
+    NvgColor icol, NvgColor ocol
+) {
     NvgPaint p;
     float large = 1e5f;
     mem::clear(&p, NvgPaint::size);
@@ -581,8 +568,10 @@ fn NvgPaint NvgContext.linearGradient(&self, float sx, float sy, float ex, float
     return p;
 }
 
-fn NvgPaint NvgContext.radialGradient(&self, float cx, float cy, float inr, float outr,
-                               NvgColor icol, NvgColor ocol) {
+fn NvgPaint NvgContext.radialGradient(
+    &self, float cx, float cy, float inr, float outr,
+    NvgColor icol, NvgColor ocol
+) {
     NvgPaint p;
     float r = (inr + outr) * 0.5f;
     float f = (outr - inr);
@@ -605,8 +594,10 @@ fn NvgPaint NvgContext.radialGradient(&self, float cx, float cy, float inr, floa
     return p;
 }
 
-fn NvgPaint NvgContext.boxGradient(&self, float x, float y, float w, float h, float r, float f,
-                            NvgColor icol, NvgColor ocol) {
+fn NvgPaint NvgContext.boxGradient(
+    &self, float x, float y, float w, float h, float r, float f,
+    NvgColor icol, NvgColor ocol
+) {
     NvgPaint p;
     mem::clear(&p, NvgPaint::size);
 
@@ -627,8 +618,10 @@ fn NvgPaint NvgContext.boxGradient(&self, float x, float y, float w, float h, fl
     return p;
 }
 
-fn NvgPaint NvgContext.imagePattern(&self, float cx, float cy, float w, float h, float angle,
-                             int image, float alpha) {
+fn NvgPaint NvgContext.imagePattern(
+    &self, float cx, float cy, float w, float h,
+    float angle, int image, float alpha
+) {
     NvgPaint p;
     mem::clear(&p, NvgPaint::size);
 
@@ -662,8 +655,10 @@ fn void NvgContext.scissor(&self, float x, float y, float w, float h) {
     state.scissor.extent.y = h * 0.5f;
 }
 
-fn void nvgIsectRects(float* dst, float ax, float ay, float aw, float ah,
-                       float bx, float by, float bw, float bh) @local {
+fn void nvgIsectRects(
+    float* dst, float ax, float ay, float aw, float ah,
+    float bx, float by, float bw, float bh
+) @local {
     float minx = math::max(ax, bx);
     float miny = math::max(ay, by);
     float maxx = math::min(ax + aw, bx + bw);
@@ -710,12 +705,13 @@ fn void NvgContext.globalCompositeOperation(&self, int op) {
     state.compositeOperation = nvgCompositeOpState(op);
 }
 
-fn void NvgContext.globalCompositeBlendFunc(&self, int sfactor, int dfactor) {
+fn void NvgContext.globalCompositeBlendFunc(&self, int sfactor, int dfactor) =>
     self.globalCompositeBlendFuncSeparate(sfactor, dfactor, sfactor, dfactor);
-}
 
-fn void NvgContext.globalCompositeBlendFuncSeparate(&self, int srcRGB, int dstRGB,
-                                              int srcAlpha, int dstAlpha) {
+fn void NvgContext.globalCompositeBlendFuncSeparate(
+    &self, int srcRGB, int dstRGB,
+    int srcAlpha, int dstAlpha
+) {
     NvgCompositeOperationState op;
     op.srcRGB   = srcRGB;
     op.dstRGB   = dstRGB;
@@ -750,54 +746,51 @@ fn float nvgDistPtSeg(float x, float y, float px, float py, float qx, float qy) 
     return ddx * ddx + ddy * ddy;
 }
 
-fn void NvgContext.appendCommands(&self, float* vals, int nvals) {
+fn void NvgContext.appendCommands(&self, PathCmd* cmds, int ncmds) {
     NvgState* state = self.getState();
 
-    if (self.ncommands + nvals > self.ccommands) {
-        int ccommands = self.ncommands + nvals + self.ccommands / 2;
-        float* commands = mem::realloc(self.commands, float::size * ccommands);
+    if (self.ncommands + ncmds > self.ccommands) {
+        int ccommands = self.ncommands + ncmds + self.ccommands / 2;
+        PathCmd* commands = mem::realloc(self.commands, PathCmd::size * ccommands);
         if (commands == null) return;
         self.commands = commands;
         self.ccommands = ccommands;
     }
 
-    if ((int)vals[0] != (int)(PathCommand.CLOSE) && (int)vals[0] != (int)(PathCommand.WINDING)) {
-        self.commandx = vals[nvals - 2];
-        self.commandy = vals[nvals - 1];
-    }
-
-    int i = 0;
-    while (i < nvals) {
-        int cmd = (int)vals[i];
-        switch (cmd) {
-        case (int)(PathCommand.MOVETO):
-            nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.form, vals[i + 1], vals[i + 2]);
-            i += 3;
-            break;
-        case (int)(PathCommand.LINETO):
-            nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.form, vals[i + 1], vals[i + 2]);
-            i += 3;
-            break;
-        case (int)(PathCommand.BEZIERTO):
-            nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.form, vals[i + 1], vals[i + 2]);
-            nvgTransformPoint(&vals[i + 3], &vals[i + 4], &state.form, vals[i + 3], vals[i + 4]);
-            nvgTransformPoint(&vals[i + 5], &vals[i + 6], &state.form, vals[i + 5], vals[i + 6]);
-            i += 7;
-            break;
-        case (int)(PathCommand.CLOSE):
-            i++;
-            break;
-        case (int)(PathCommand.WINDING):
-            i += 2;
-            break;
-        default:
-            i++;
+    PathCmd last = cmds[ncmds - 1];
+    if (last.cmd != PathCommand.CLOSE && last.cmd != PathCommand.WINDING) {
+        if (last.cmd == PathCommand.BEZIERTO) {
+            self.commandx = last.p2.x;
+            self.commandy = last.p2.y;
+        } else {
+            self.commandx = last.p0.x;
+            self.commandy = last.p0.y;
         }
     }
 
-    mem::copy(&self.commands[self.ncommands], vals, nvals * float::size);
+    mem::copy(&self.commands[self.ncommands], cmds, ncmds * PathCmd::size);
 
-    self.ncommands += nvals;
+    for (int i = 0; i < ncmds; i++) {
+        PathCmd* cmd = &self.commands[self.ncommands + i];
+
+        switch (cmd.cmd) {
+            case PathCommand.MOVETO:
+                cmd.p0 = state.form * cmd.p0;
+
+            case PathCommand.LINETO:
+                cmd.p0 = state.form * cmd.p0;
+
+            case PathCommand.BEZIERTO:
+                cmd.p0 = state.form * cmd.p0;
+                cmd.p1 = state.form * cmd.p1;
+                cmd.p2 = state.form * cmd.p2;
+
+            default:
+                break;
+        }
+    }
+
+    self.ncommands += ncmds;
 }
 
 fn void NvgContext.clearPathCache(&self) {
@@ -806,9 +799,7 @@ fn void NvgContext.clearPathCache(&self) {
 }
 
 fn NvgPath* NvgContext.lastPath(&self) {
-    if (self.cache.npaths > 0) {
-        return &self.cache.paths[self.cache.npaths - 1];
-    }
+    if (self.cache.npaths > 0) return &self.cache.paths[self.cache.npaths - 1];
     return null;
 }
 
@@ -829,9 +820,7 @@ fn void NvgContext.addPath(&self) {
 }
 
 fn NvgPoint* NvgContext.lastPoint(&self) {
-    if (self.cache.npoints > 0) {
-        return &self.cache.points[self.cache.npoints - 1];
-    }
+    if (self.cache.npoints > 0) return &self.cache.points[self.cache.npoints - 1];
     return null;
 }
 
@@ -900,6 +889,7 @@ fn float nvgTriarea2(float ax, float ay, float bx, float by, float cx, float cy)
     float aby = by - ay;
     float acx = cx - ax;
     float acy = cy - ay;
+
     return acx * aby - abx * acy;
 }
 
@@ -911,6 +901,7 @@ fn float nvgPolyArea(NvgPoint* pts, int npts) @local {
         NvgPoint* c = &pts[i];
         area += nvgTriarea2(a.x, a.y, b.x, b.y, c.x, c.y);
     }
+
     return area * 0.5f;
 }
 
@@ -936,8 +927,8 @@ fn void nvgVset(NvgVertex* vtx, float x, float y, float u, float v) @local {
 fn void NvgContext.tesselateBezier(&self,
     float x1, float y1, float x2, float y2,
     float x3, float y3, float x4, float y4,
-    int level, int type)
-{
+    int level, int type
+) {
     if (level > 10) return;
 
     float x12 = (x1 + x2) * 0.5f;
@@ -971,48 +962,34 @@ fn void NvgContext.tesselateBezier(&self,
 fn void NvgContext.flattenPaths(&self) {
     NvgPathCache* cache = self.cache;
 
-    if (cache.npaths > 0) {
-        return;
-    }
+    if (cache.npaths > 0) return;
 
-    int i = 0;
-    while (i < self.ncommands) {
-        int cmd = (int)(self.commands)[i];
-        switch (cmd) {
-        case (int)(PathCommand.MOVETO): {
-            self.addPath();
-            float* p = &self.commands[i + 1];
-            self.addPoint(p[0], p[1], NVG_PT_CORNER);
-            i += 3;
-            break;
-        }
-        case (int)(PathCommand.LINETO): {
-            float* p = &self.commands[i + 1];
-            self.addPoint(p[0], p[1], NVG_PT_CORNER);
-            i += 3;
-            break;
-        }
-        case (int)(PathCommand.BEZIERTO): {
-            NvgPoint* last = self.lastPoint();
-            if (last != null) {
-                float* cp1 = &self.commands[i + 1];
-                float* cp2 = &self.commands[i + 3];
-                float* p   = &self.commands[i + 5];
-                self.tesselateBezier(last.x, last.y, cp1[0], cp1[1], cp2[0], cp2[1], p[0], p[1], 0, NVG_PT_CORNER);
-            }
-            i += 7;
-            break;
-        }
-        case (int)(PathCommand.CLOSE):
-            self.closePathCache();
-            i++;
-            break;
-        case (int)(PathCommand.WINDING):
-            self.pathWindingCache((int)(self.commands)[i + 1]);
-            i += 2;
-            break;
-        default:
-            i++;
+    for (int i = 0; i < self.ncommands; i++) {
+        PathCmd* cmd = &self.commands[i];
+
+        switch (cmd.cmd) {
+            case PathCommand.MOVETO:
+                self.addPath();
+                self.addPoint(cmd.p0.x, cmd.p0.y, NVG_PT_CORNER);
+
+            case PathCommand.LINETO:
+                self.addPoint(cmd.p0.x, cmd.p0.y, NVG_PT_CORNER);
+
+            case PathCommand.BEZIERTO:
+                NvgPoint* last = self.lastPoint();
+                if (last != null) self.tesselateBezier(
+                    last.x, last.y,
+                    cmd.p0.x, cmd.p0.y,
+                    cmd.p1.x, cmd.p1.y,
+                    cmd.p2.x, cmd.p2.y,
+                    0, NVG_PT_CORNER
+                );
+
+            case PathCommand.CLOSE:
+                self.closePathCache();
+
+            case PathCommand.WINDING:
+                self.pathWindingCache((int)cmd.p0.x);
         }
     }
 
@@ -1035,12 +1012,8 @@ fn void NvgContext.flattenPaths(&self) {
 
         if (path.count > 2) {
             float area = nvgPolyArea(pts, path.count);
-            if (path.winding == (int)Winding.CCW && area < 0.0f) {
-                nvgPolyReverse(pts, path.count);
-            }
-            if (path.winding == (int)Winding.CW && area > 0.0f) {
-                nvgPolyReverse(pts, path.count);
-            }
+            if (path.winding == (int)Winding.CCW && area < 0.0f) nvgPolyReverse(pts, path.count);
+            if (path.winding == (int)Winding.CW && area > 0.0f) nvgPolyReverse(pts, path.count);
         }
 
         for (int k = 0; k < path.count; k++) {
@@ -1062,8 +1035,10 @@ fn int nvgCurveDivs(float r, float arc, float tol) @local {
     return math::max(2, (int)math::ceil(arc / da));
 }
 
-fn void nvgChooseBevel(int bevel, NvgPoint* p0, NvgPoint* p1, float w,
-                        float* x0, float* y0, float* x1, float* y1) @local {
+fn void nvgChooseBevel(
+    int bevel, NvgPoint* p0, NvgPoint* p1, float w,
+    float* x0, float* y0, float* x1, float* y1
+) @local {
     if (bevel) {
         x0[0] = p1.x + p0.dy * w;
         y0[0] = p1.y - p0.dx * w;
@@ -1077,9 +1052,10 @@ fn void nvgChooseBevel(int bevel, NvgPoint* p0, NvgPoint* p1, float w,
     }
 }
 
-fn NvgVertex* nvgRoundJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
-    float lw, float rw, float lu, float ru, int ncap, float fringe) @local
-{
+fn NvgVertex* nvgRoundJoin(
+    NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
+    float lw, float rw, float lu, float ru, int ncap, float fringe
+) @local {
     float dlx0 = p0.dy;
     float dly0 = -p0.dx;
     float dlx1 = p1.dy;
@@ -1107,7 +1083,6 @@ fn NvgVertex* nvgRoundJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
 
         nvgVset(dst, lx1, ly1, lu, 1); dst++;
         nvgVset(dst, p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1); dst++;
-
     } else {
         float rx0, ry0, rx1, ry1;
         nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
@@ -1130,14 +1105,15 @@ fn NvgVertex* nvgRoundJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
 
         nvgVset(dst, p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1); dst++;
         nvgVset(dst, rx1, ry1, ru, 1); dst++;
-
     }
+
     return dst;
 }
 
-fn NvgVertex* nvgBevelJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
-    float lw, float rw, float lu, float ru, float fringe) @local
-{
+fn NvgVertex* nvgBevelJoin(
+    NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
+    float lw, float rw, float lu, float ru, float fringe
+) @local {
     float dlx0 = p0.dy;
     float dly0 = -p0.dx;
     float dlx1 = p1.dy;
@@ -1172,7 +1148,6 @@ fn NvgVertex* nvgBevelJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
 
         nvgVset(dst, lx1, ly1, lu, 1); dst++;
         nvgVset(dst, p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1); dst++;
-
     } else {
         float rx0, ry0, rx1, ry1;
         nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
@@ -1207,44 +1182,52 @@ fn NvgVertex* nvgBevelJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
     return dst;
 }
 
-fn NvgVertex* nvgButtCapStart(NvgVertex* dst, NvgPoint* p,
+fn NvgVertex* nvgButtCapStart(
+    NvgVertex* dst, NvgPoint* p,
     float dx, float dy, float w, float d,
-    float aa, float u0, float u1) @local
-{
+    float aa, float u0, float u1
+) @local {
     float px = p.x - dx * d;
     float py = p.y - dy * d;
     float dlx = dy;
     float dly = -dx;
+
     nvgVset(dst, px + dlx * w - dx * aa, py + dly * w - dy * aa, u0, 0); dst++;
     nvgVset(dst, px - dlx * w - dx * aa, py - dly * w - dy * aa, u1, 0); dst++;
     nvgVset(dst, px + dlx * w, py + dly * w, u0, 1); dst++;
     nvgVset(dst, px - dlx * w, py - dly * w, u1, 1); dst++;
+
     return dst;
 }
 
-fn NvgVertex* nvgButtCapEnd(NvgVertex* dst, NvgPoint* p,
+fn NvgVertex* nvgButtCapEnd(
+    NvgVertex* dst, NvgPoint* p,
     float dx, float dy, float w, float d,
-    float aa, float u0, float u1) @local
-{
+    float aa, float u0, float u1
+) @local {
     float px = p.x + dx * d;
     float py = p.y + dy * d;
     float dlx = dy;
     float dly = -dx;
+
     nvgVset(dst, px + dlx * w, py + dly * w, u0, 1); dst++;
     nvgVset(dst, px - dlx * w, py - dly * w, u1, 1); dst++;
     nvgVset(dst, px + dlx * w + dx * aa, py + dly * w + dy * aa, u0, 0); dst++;
     nvgVset(dst, px - dlx * w + dx * aa, py - dly * w + dy * aa, u1, 0); dst++;
+
     return dst;
 }
 
-fn NvgVertex* nvgRoundCapStart(NvgVertex* dst, NvgPoint* p,
+fn NvgVertex* nvgRoundCapStart(
+    NvgVertex* dst, NvgPoint* p,
     float dx, float dy, float w, int ncap,
-    float aa, float u0, float u1) @local
-{
+    float aa, float u0, float u1
+) @local {
     float px = p.x;
     float py = p.y;
     float dlx = dy;
     float dly = -dx;
+
     for (int i = 0; i < ncap; i++) {
         float a = i / (float)(ncap - 1) * PI;
         float ax = math::cos(a) * w;
@@ -1252,21 +1235,26 @@ fn NvgVertex* nvgRoundCapStart(NvgVertex* dst, NvgPoint* p,
         nvgVset(dst, px - dlx * ax - dx * ay, py - dly * ax - dy * ay, u0, 1); dst++;
         nvgVset(dst, px, py, 0.5f, 1); dst++;
     }
+
     nvgVset(dst, px + dlx * w, py + dly * w, u0, 1); dst++;
     nvgVset(dst, px - dlx * w, py - dly * w, u1, 1); dst++;
+
     return dst;
 }
 
-fn NvgVertex* nvgRoundCapEnd(NvgVertex* dst, NvgPoint* p,
+fn NvgVertex* nvgRoundCapEnd(
+    NvgVertex* dst, NvgPoint* p,
     float dx, float dy, float w, int ncap,
-    float aa, float u0, float u1) @local
-{
+    float aa, float u0, float u1
+) @local {
     float px = p.x;
     float py = p.y;
     float dlx = dy;
     float dly = -dx;
+
     nvgVset(dst, px + dlx * w, py + dly * w, u0, 1); dst++;
     nvgVset(dst, px - dlx * w, py - dly * w, u1, 1); dst++;
+
     for (int i = 0; i < ncap; i++) {
         float a = i / (float)(ncap - 1) * PI;
         float ax = math::cos(a) * w;
@@ -1274,6 +1262,7 @@ fn NvgVertex* nvgRoundCapEnd(NvgVertex* dst, NvgPoint* p,
         nvgVset(dst, px, py, 0.5f, 1); dst++;
         nvgVset(dst, px - dlx * ax + dx * ay, py - dly * ax + dy * ay, u0, 1); dst++;
     }
+
     return dst;
 }
 
@@ -1299,6 +1288,7 @@ fn void NvgContext.calculateJoins(&self, float w, LineJoin lineJoin, float miter
             float dly1 = -p1.dx;
             p1.dmx = (dlx0 + dlx1) * 0.5f;
             p1.dmy = (dly0 + dly1) * 0.5f;
+
             float dmr2 = p1.dmx * p1.dmx + p1.dmy * p1.dmy;
             if (dmr2 > 0.000001f) {
                 float scale = 1.0f / dmr2;
@@ -1320,9 +1310,7 @@ fn void NvgContext.calculateJoins(&self, float w, LineJoin lineJoin, float miter
             }
 
             float limit = math::max(1.01f, math::min(p0.len, p1.len) * iw);
-            if ((dmr2 * limit * limit) < 1.0f) {
-                p1.flags.innerBevel = true;
-            }
+            if ((dmr2 * limit * limit) < 1.0f) p1.flags.innerBevel = true;
 
             if (p1.flags.corner) {
                 if ((dmr2 * miterLimit * miterLimit) < 1.0f || lineJoin == LineJoin.BEVEL || lineJoin == LineJoin.ROUND) {
@@ -1330,9 +1318,7 @@ fn void NvgContext.calculateJoins(&self, float w, LineJoin lineJoin, float miter
                 }
             }
 
-            if ((p1.flags.bevel || p1.flags.innerBevel)) {
-                path.nbevel++;
-            }
+            if ((p1.flags.bevel || p1.flags.innerBevel)) path.nbevel++;
 
             p0 = p1;
             p1++;
@@ -1362,12 +1348,13 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, LineCap lineCap, Li
     for (int i = 0; i < cache.npaths; i++) {
         NvgPath* path = &cache.paths[i];
         int loop = (path.closed == 0) ? 0 : 1;
+
         if (lineJoin == LineJoin.ROUND) {
             cverts += (path.count + path.nbevel * (ncap + 2) + 1) * 2;
-        }
-        else {
+        } else {
             cverts += (path.count + path.nbevel * 5 + 1) * 2;
         }
+
         if (loop == 0) {
             if (lineCap == LineCap.ROUND) {
                 cverts += (ncap * 2 + 2) * 2;
@@ -1411,14 +1398,16 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, LineCap lineCap, Li
             dx = p1.x - p0.x;
             dy = p1.y - p0.y;
             nvgNormalize(&dx, &dy);
-            if (lineCap == LineCap.BUTT) {
-                dst = nvgButtCapStart(dst, p0, dx, dy, w, -aa * 0.5f, aa, u0, u1);
-            }
-            else if (lineCap == LineCap.SQUARE) {
-                dst = nvgButtCapStart(dst, p0, dx, dy, w, w - aa, aa, u0, u1);
-            }
-            else if (lineCap == LineCap.ROUND) {
-                dst = nvgRoundCapStart(dst, p0, dx, dy, w, ncap, aa, u0, u1);
+
+            switch (lineCap) {
+                case LineCap.BUTT:
+                    dst = nvgButtCapStart(dst, p0, dx, dy, w, -aa * 0.5f, aa, u0, u1);
+
+                case LineCap.SQUARE:
+                    dst = nvgButtCapStart(dst, p0, dx, dy, w, w - aa, aa, u0, u1);
+
+                case LineCap.ROUND:
+                    dst = nvgRoundCapStart(dst, p0, dx, dy, w, ncap, aa, u0, u1);
             }
         }
 
@@ -1445,14 +1434,15 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, LineCap lineCap, Li
             dy = p1.y - p0.y;
             nvgNormalize(&dx, &dy);
 
-            if (lineCap == LineCap.BUTT) {
-                dst = nvgButtCapEnd(dst, p1, dx, dy, w, -aa * 0.5f, aa, u0, u1);
-            }
-            else if (lineCap == LineCap.SQUARE) {
-                dst = nvgButtCapEnd(dst, p1, dx, dy, w, w - aa, aa, u0, u1);
-            }
-            else if (lineCap == LineCap.ROUND) {
-                dst = nvgRoundCapEnd(dst, p1, dx, dy, w, ncap, aa, u0, u1);
+            switch (lineCap) {
+                case LineCap.BUTT:
+                    dst = nvgButtCapEnd(dst, p1, dx, dy, w, -aa * 0.5f, aa, u0, u1);
+
+                case LineCap.SQUARE:
+                    dst = nvgButtCapEnd(dst, p1, dx, dy, w, w - aa, aa, u0, u1);
+
+                case LineCap.ROUND:
+                    dst = nvgRoundCapEnd(dst, p1, dx, dy, w, ncap, aa, u0, u1);
             }
         }
 
@@ -1581,39 +1571,39 @@ fn void NvgContext.beginPath(&self) {
 }
 
 fn void NvgContext.moveTo(&self, float x, float y) {
-    float[*] vals = { (float)(int)(PathCommand.MOVETO), x, y };
-    self.appendCommands(&vals[0], vals.len);
+    PathCmd[*] cmds = { { .cmd = PathCommand.MOVETO, .p0 = { x, y } } };
+    self.appendCommands(&cmds[0], cmds.len);
 }
 
 fn void NvgContext.lineTo(&self, float x, float y) {
-    float[*] vals = { (float)(int)(PathCommand.LINETO), x, y };
-    self.appendCommands(&vals[0], vals.len);
+    PathCmd[*] cmds = { { .cmd = PathCommand.LINETO, .p0 = { x, y } } };
+    self.appendCommands(&cmds[0], cmds.len);
 }
 
 fn void NvgContext.bezierTo(&self, float c1x, float c1y, float c2x, float c2y, float x, float y) {
-    float[*] vals = { (float)(int)(PathCommand.BEZIERTO), c1x, c1y, c2x, c2y, x, y };
-    self.appendCommands(&vals[0], vals.len);
+    PathCmd[*] cmds = { { .cmd = PathCommand.BEZIERTO, .p0 = { c1x, c1y }, .p1 = { c2x, c2y }, .p2 = { x, y } } };
+    self.appendCommands(&cmds[0], cmds.len);
 }
 
 fn void NvgContext.quadTo(&self, float cx, float cy, float x, float y) {
     float x0 = self.commandx;
     float y0 = self.commandy;
-    float[*] vals = {
-        (float)(int)(PathCommand.BEZIERTO),
-        x0 + 2.0f / 3.0f * (cx - x0), y0 + 2.0f / 3.0f * (cy - y0),
-        x  + 2.0f / 3.0f * (cx - x),  y  + 2.0f / 3.0f * (cy - y),
-        x, y
+    PathCmd[*] cmds = {
+        {
+            .cmd = PathCommand.BEZIERTO,
+            .p0 = { x0 + 2.0f / 3.0f * (cx - x0), y0 + 2.0f / 3.0f * (cy - y0) },
+            .p1 = { x  + 2.0f / 3.0f * (cx - x),  y  + 2.0f / 3.0f * (cy - y) },
+            .p2 = { x, y }
+        }
     };
-    self.appendCommands(&vals[0], vals.len);
+    self.appendCommands(&cmds[0], cmds.len);
 }
 
 fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float radius) {
     float x0 = self.commandx;
     float y0 = self.commandy;
 
-    if (self.ncommands == 0) {
-        return;
-    }
+    if (self.ncommands == 0) return;
 
     if (nvgPtEquals(x0, y0, x1, y1, self.distTol) ||
         nvgPtEquals(x1, y1, x2, y2, self.distTol) ||
@@ -1639,6 +1629,7 @@ fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float ra
 
     float cx, cy, a0, a1;
     int dir;
+
     if (nvgCross(dx0, dy0, dx1, dy1) > 0.0f) {
         cx = x1 + dx0 * d + dy0 * radius;
         cy = y1 + dy0 * d + -dx0 * radius;
@@ -1657,22 +1648,22 @@ fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float ra
 }
 
 fn void NvgContext.closePath(&self) {
-    float[*] vals = { (float)(int)(PathCommand.CLOSE) };
-    self.appendCommands(&vals[0], vals.len);
+    PathCmd[*] cmds = { { .cmd = PathCommand.CLOSE } };
+    self.appendCommands(&cmds[0], cmds.len);
 }
 
 fn void NvgContext.pathWinding(&self, int dir) {
-    float[*] vals = { (float)(int)(PathCommand.WINDING), (float)dir };
-    self.appendCommands(&vals[0], vals.len);
+    PathCmd[*] cmds = { { .cmd = PathCommand.WINDING, .p0 = { (float)dir, 0.0f } } };
+    self.appendCommands(&cmds[0], cmds.len);
 }
 
 fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, int dir) {
     float a = 0; float da = 0; float hda = 0; float kappa = 0;
     float dx = 0; float dy = 0; float x = 0; float y = 0; float tanx = 0; float tany = 0;
     float px = 0; float py = 0; float ptanx = 0; float ptany = 0;
-    float[3 + 5 * 7 + 100] vals;
-    int ndivs, nvals;
-    int move = self.ncommands > 0 ? (int)(PathCommand.LINETO) : (int)(PathCommand.MOVETO);
+    PathCmd[108] cmds;
+    int ndivs, ncmds;
+    PathCommand firstCmd = self.ncommands > 0 ? PathCommand.LINETO : PathCommand.MOVETO;
 
     da = a1 - a0;
     if (dir == (int)Winding.CW) {
@@ -1693,11 +1684,9 @@ fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, i
     hda = (da / (float)ndivs) / 2.0f;
     kappa = math::abs(4.0f / 3.0f * (1.0f - math::cos(hda)) / math::sin(hda));
 
-    if (dir == (int)Winding.CCW) {
-        kappa = -kappa;
-    }
+    if (dir == (int)Winding.CCW) kappa = -kappa;
 
-    nvals = 0;
+    ncmds = 0;
     for (int i = 0; i <= ndivs; i++) {
         a = a0 + da * (i / (float)ndivs);
         dx = math::cos(a);
@@ -1708,17 +1697,15 @@ fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, i
         tany = dx * r * kappa;
 
         if (i == 0) {
-            vals[nvals] = (float)move; nvals++;
-            vals[nvals] = x; nvals++;
-            vals[nvals] = y; nvals++;
+            cmds[ncmds].cmd = firstCmd;
+            cmds[ncmds].p0 = { x, y };
+            ncmds++;
         } else {
-            vals[nvals] = (float)(int)(PathCommand.BEZIERTO); nvals++;
-            vals[nvals] = px + ptanx; nvals++;
-            vals[nvals] = py + ptany; nvals++;
-            vals[nvals] = x - tanx; nvals++;
-            vals[nvals] = y - tany; nvals++;
-            vals[nvals] = x; nvals++;
-            vals[nvals] = y; nvals++;
+            cmds[ncmds].cmd = PathCommand.BEZIERTO;
+            cmds[ncmds].p0 = { px + ptanx, py + ptany };
+            cmds[ncmds].p1 = { x - tanx, y - tany };
+            cmds[ncmds].p2 = { x, y };
+            ncmds++;
         }
         px = x;
         py = y;
@@ -1726,31 +1713,34 @@ fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, i
         ptany = tany;
     }
 
-    self.appendCommands(&vals[0], nvals);
+    self.appendCommands(&cmds[0], ncmds);
 }
 
 fn void NvgContext.rect(&self, float x, float y, float w, float h) {
-    float[*] vals = {
-        (float)(int)(PathCommand.MOVETO), x, y,
-        (float)(int)(PathCommand.LINETO), x, y + h,
-        (float)(int)(PathCommand.LINETO), x + w, y + h,
-        (float)(int)(PathCommand.LINETO), x + w, y,
-        (float)(int)(PathCommand.CLOSE)
+    PathCmd[*] cmds = {
+        { .cmd = PathCommand.MOVETO, .p0 = { x, y } },
+        { .cmd = PathCommand.LINETO, .p0 = { x, y + h } },
+        { .cmd = PathCommand.LINETO, .p0 = { x + w, y + h } },
+        { .cmd = PathCommand.LINETO, .p0 = { x + w, y } },
+        { .cmd = PathCommand.CLOSE }
     };
-    self.appendCommands(&vals[0], vals.len);
+
+    self.appendCommands(&cmds[0], cmds.len);
 }
 
-fn void NvgContext.roundedRect(&self, float x, float y, float w, float h, float r) {
+fn void NvgContext.roundedRect(&self, float x, float y, float w, float h, float r) =>
     self.roundedRectVarying(x, y, w, h, r, r, r, r);
-}
 
-fn void NvgContext.roundedRectVarying(&self, float x, float y, float w, float h,
-                               float radTopLeft, float radTopRight,
-                               float radBottomRight, float radBottomLeft) {
+fn void NvgContext.roundedRectVarying(
+    &self, float x, float y, float w, float h,
+    float radTopLeft, float radTopRight,
+    float radBottomRight, float radBottomLeft
+) {
     if (radTopLeft < 0.1f && radTopRight < 0.1f && radBottomRight < 0.1f && radBottomLeft < 0.1f) {
         self.rect(x, y, w, h);
         return;
     }
+
     float halfw = math::abs(w) * 0.5f;
     float halfh = math::abs(h) * 0.5f;
     float rxBL = math::min(radBottomLeft, halfw) * ((w) >= 0.0f ? 1.0f : -1.0f);
@@ -1761,31 +1751,37 @@ fn void NvgContext.roundedRectVarying(&self, float x, float y, float w, float h,
     float ryTR = math::min(radTopRight, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
     float rxTL = math::min(radTopLeft, halfw) * ((w) >= 0.0f ? 1.0f : -1.0f);
     float ryTL = math::min(radTopLeft, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
-    float[*] vals = {
-        (float)(int)(PathCommand.MOVETO), x, y + ryTL,
-        (float)(int)(PathCommand.LINETO), x, y + h - ryBL,
-        (float)(int)(PathCommand.BEZIERTO), x, y + h - ryBL * (1 - NVG_KAPPA90), x + rxBL * (1 - NVG_KAPPA90), y + h, x + rxBL, y + h,
-        (float)(int)(PathCommand.LINETO), x + w - rxBR, y + h,
-        (float)(int)(PathCommand.BEZIERTO), x + w - rxBR * (1 - NVG_KAPPA90), y + h, x + w, y + h - ryBR * (1 - NVG_KAPPA90), x + w, y + h - ryBR,
-        (float)(int)(PathCommand.LINETO), x + w, y + ryTR,
-        (float)(int)(PathCommand.BEZIERTO), x + w, y + ryTR * (1 - NVG_KAPPA90), x + w - rxTR * (1 - NVG_KAPPA90), y, x + w - rxTR, y,
-        (float)(int)(PathCommand.LINETO), x + rxTL, y,
-        (float)(int)(PathCommand.BEZIERTO), x + rxTL * (1 - NVG_KAPPA90), y, x, y + ryTL * (1 - NVG_KAPPA90), x, y + ryTL,
-        (float)(int)(PathCommand.CLOSE)
+
+    PathCmd[*] cmds = {
+        { .cmd = PathCommand.MOVETO, .p0 = { x, y + ryTL } },
+        { .cmd = PathCommand.LINETO, .p0 = { x, y + h - ryBL } },
+        { .cmd = PathCommand.BEZIERTO,
+          .p0 = { x, y + h - ryBL * (1 - NVG_KAPPA90) }, .p1 = { x + rxBL * (1 - NVG_KAPPA90), y + h }, .p2 = { x + rxBL, y + h } },
+        { .cmd = PathCommand.LINETO, .p0 = { x + w - rxBR, y + h } },
+        { .cmd = PathCommand.BEZIERTO,
+          .p0 = { x + w - rxBR * (1 - NVG_KAPPA90), y + h }, .p1 = { x + w, y + h - ryBR * (1 - NVG_KAPPA90) }, .p2 = { x + w, y + h - ryBR } },
+        { .cmd = PathCommand.LINETO, .p0 = { x + w, y + ryTR } },
+        { .cmd = PathCommand.BEZIERTO,
+          .p0 = { x + w, y + ryTR * (1 - NVG_KAPPA90) }, .p1 = { x + w - rxTR * (1 - NVG_KAPPA90), y }, .p2 = { x + w - rxTR, y } },
+        { .cmd = PathCommand.LINETO, .p0 = { x + rxTL, y } },
+        { .cmd = PathCommand.BEZIERTO,
+          .p0 = { x + rxTL * (1 - NVG_KAPPA90), y }, .p1 = { x, y + ryTL * (1 - NVG_KAPPA90) }, .p2 = { x, y + ryTL } },
+        { .cmd = PathCommand.CLOSE }
     };
-    self.appendCommands(&vals[0], vals.len);
+
+    self.appendCommands(&cmds[0], cmds.len);
 }
 
 fn void NvgContext.ellipse(&self, float cx, float cy, float rx, float ry) {
-    float[*] vals = {
-        (float)(int)(PathCommand.MOVETO), cx - rx, cy,
-        (float)(int)(PathCommand.BEZIERTO), cx - rx, cy + ry * NVG_KAPPA90, cx - rx * NVG_KAPPA90, cy + ry, cx, cy + ry,
-        (float)(int)(PathCommand.BEZIERTO), cx + rx * NVG_KAPPA90, cy + ry, cx + rx, cy + ry * NVG_KAPPA90, cx + rx, cy,
-        (float)(int)(PathCommand.BEZIERTO), cx + rx, cy - ry * NVG_KAPPA90, cx + rx * NVG_KAPPA90, cy - ry, cx, cy - ry,
-        (float)(int)(PathCommand.BEZIERTO), cx - rx * NVG_KAPPA90, cy - ry, cx - rx, cy - ry * NVG_KAPPA90, cx - rx, cy,
-        (float)(int)(PathCommand.CLOSE)
+    PathCmd[*] cmds = {
+        { .cmd = PathCommand.MOVETO, .p0 = { cx - rx, cy } },
+        { .cmd = PathCommand.BEZIERTO, .p0 = { cx - rx, cy + ry * NVG_KAPPA90 }, .p1 = { cx - rx * NVG_KAPPA90, cy + ry }, .p2 = { cx, cy + ry } },
+        { .cmd = PathCommand.BEZIERTO, .p0 = { cx + rx * NVG_KAPPA90, cy + ry }, .p1 = { cx + rx, cy + ry * NVG_KAPPA90 }, .p2 = { cx + rx, cy } },
+        { .cmd = PathCommand.BEZIERTO, .p0 = { cx + rx, cy - ry * NVG_KAPPA90 }, .p1 = { cx + rx * NVG_KAPPA90, cy - ry }, .p2 = { cx, cy - ry } },
+        { .cmd = PathCommand.BEZIERTO, .p0 = { cx - rx * NVG_KAPPA90, cy - ry }, .p1 = { cx - rx, cy - ry * NVG_KAPPA90 }, .p2 = { cx - rx, cy } },
+        { .cmd = PathCommand.CLOSE }
     };
-    self.appendCommands(&vals[0], vals.len);
+    self.appendCommands(&cmds[0], cmds.len);
 }
 
 fn void NvgContext.circle(&self, float cx, float cy, float r) {
@@ -1838,8 +1834,7 @@ fn void NvgContext.stroke(&self) {
 
     if (self.params.edgeAntiAlias && state.shapeAntiAlias) {
         self.expandStroke(strokeWidth * 0.5f, self.fringeWidth, state.lineCap, state.lineJoin, state.miterLimit);
-    }
-    else {
+    } else {
         self.expandStroke(strokeWidth * 0.5f, 0.0f, state.lineCap, state.lineJoin, state.miterLimit);
     }
 

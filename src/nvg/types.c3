@@ -60,6 +60,13 @@ struct NvgCompositeOperationState {
     int dstAlpha;
 }
 
+enum PathCommand : char { MOVETO, LINETO, BEZIERTO, CLOSE, WINDING }
+
+struct PathCmd {
+    PathCommand cmd;
+    Vec2 p0, p1, p2;
+}
+
 const int IMAGE_GENERATE_MIPMAPS = 1 << 0;
 const int IMAGE_REPEATX          = 1 << 1;
 const int IMAGE_REPEATY          = 1 << 2;
