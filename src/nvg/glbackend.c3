@@ -12,23 +12,13 @@ const int NVG_STENCIL_STROKES  = 1 << 1;
 const int NVG_DEBUG            = 1 << 2;
 const int NVG_IMAGE_NODELETE   = 1 << 16;
 
-const int GLNVG_LOC_VIEWSIZE = 0;
-const int GLNVG_LOC_TEX      = 1;
-const int GLNVG_LOC_FRAG     = 2;
-const int GLNVG_MAX_LOCS     = 3;
+enum GlNvgLoc : int { VIEWSIZE, TEX, FRAG, MAX_LOCS }
 
-const int NSVG_SHADER_FILLGRAD = 0;
-const int NSVG_SHADER_FILLIMG  = 1;
-const int NSVG_SHADER_SIMPLE   = 2;
-const int NSVG_SHADER_IMG      = 3;
+enum NsvgShader : int { FILLGRAD, FILLIMG, SIMPLE, IMG }
 
 const int GLNVG_FRAG_BINDING = 0;
 
-const int GLNVG_NONE        = 0;
-const int GLNVG_FILL        = 1;
-const int GLNVG_CONVEXFILL  = 2;
-const int GLNVG_STROKE      = 3;
-const int GLNVG_TRIANGLES   = 4;
+enum GlNvgCallType : int { NONE, FILL, CONVEXFILL, STROKE, TRIANGLES }
 
 struct GlShader {
     uint   prog;
@@ -294,9 +284,9 @@ fn void glnvgDeleteShader(GlShader* shader) @local {
 }
 
 fn void glnvgGetUniforms(GlShader* shader) @local {
-    shader.loc[GLNVG_LOC_VIEWSIZE] = gl::getUniformLocation(shader.prog, "viewSize");
-    shader.loc[GLNVG_LOC_TEX]      = gl::getUniformLocation(shader.prog, "tex");
-    shader.loc[GLNVG_LOC_FRAG]     = (int)gl::getUniformBlockIndex(shader.prog, "frag");
+    shader.loc[(int)(GlNvgLoc.VIEWSIZE)] = gl::getUniformLocation(shader.prog, "viewSize");
+    shader.loc[(int)(GlNvgLoc.TEX)]      = gl::getUniformLocation(shader.prog, "tex");
+    shader.loc[(int)(GlNvgLoc.FRAG)]     = (int)gl::getUniformBlockIndex(shader.prog, "frag");
 }
 
 fn void glnvgXformToMat3x4(float* m3, float* t) @local {
@@ -365,7 +355,7 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, NvgPaint* paint, N
         } else {
             microvg::nvgTransformInverse(&invxform[0], &paint.xform[0]);
         }
-        frag.type = NSVG_SHADER_FILLIMG;
+        frag.type = (int)(NsvgShader.FILLIMG);
         if (tex.type == microvg::TEXTURE_RGBA) {
             frag.texType = (tex.flags & microvg::IMAGE_PREMULTIPLIED) ? 0 : 1;
         }
@@ -373,7 +363,7 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, NvgPaint* paint, N
             frag.texType = 2;
         }
     } else {
-        frag.type   = NSVG_SHADER_FILLGRAD;
+        frag.type   = (int)(NsvgShader.FILLGRAD);
         frag.radius = paint.radius;
         frag.feather = paint.feather;
         microvg::nvgTransformInverse(&invxform[0], &paint.xform[0]);
@@ -779,7 +769,7 @@ fn int glnvgRenderCreate(void* up) @local {
     gl::genVertexArrays(1, &gl.vertArr);
     gl::genBuffers(1, &gl.vertBuf);
 
-    gl::uniformBlockBinding(gl.shader.prog, (uint)gl.shader.loc[GLNVG_LOC_FRAG], GLNVG_FRAG_BINDING);
+    gl::uniformBlockBinding(gl.shader.prog, (uint)gl.shader.loc[(int)(GlNvgLoc.FRAG)], GLNVG_FRAG_BINDING);
     gl::genBuffers(1, &gl.fragBuf);
     gl::getIntegerv(gl::GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
     gl.fragSize = (int)(GlFragUniforms::size) + align - (int)(GlFragUniforms::size) % align;
@@ -956,24 +946,24 @@ fn void glnvgRenderFlush(void* up) @local {
         gl::vertexAttribPointer(0, 2, gl::GL_FLOAT, gl::GL_FALSE, NvgVertex::size, (void*)(usz)0);
         gl::vertexAttribPointer(1, 2, gl::GL_FLOAT, gl::GL_FALSE, NvgVertex::size, (void*)(usz)(2 * float::size));
 
-        gl::uniform1i(gl.shader.loc[GLNVG_LOC_TEX], 0);
-        gl::uniform2fv(gl.shader.loc[GLNVG_LOC_VIEWSIZE], 1, &gl.view[0]);
+        gl::uniform1i(gl.shader.loc[(int)(GlNvgLoc.TEX)], 0);
+        gl::uniform2fv(gl.shader.loc[(int)(GlNvgLoc.VIEWSIZE)], 1, &gl.view[0]);
 
         gl::bindBuffer(gl::GL_UNIFORM_BUFFER, gl.fragBuf);
 
         for (int i = 0; i < gl.ncalls; i++) {
             GlCall* call = &gl.calls[i];
             glnvgBlendFuncSeparate(gl, &call.blendFunc);
-            if (call.type == GLNVG_FILL) {
+            if (call.type == (int)(GlNvgCallType.FILL)) {
                 glnvgFill(gl, call);
             }
-            else if (call.type == GLNVG_CONVEXFILL) {
+            else if (call.type == (int)(GlNvgCallType.CONVEXFILL)) {
                 glnvgConvexFill(gl, call);
             }
-            else if (call.type == GLNVG_STROKE) {
+            else if (call.type == (int)(GlNvgCallType.STROKE)) {
                 glnvgStroke(gl, call);
             }
-            else if (call.type == GLNVG_TRIANGLES) {
+            else if (call.type == (int)(GlNvgCallType.TRIANGLES)) {
                 glnvgTriangles(gl, call);
             }
         }
@@ -1002,7 +992,7 @@ fn void glnvgRenderFill(void* up, NvgPaint* paint, NvgCompositeOperationState co
 
     if (call == null) return;
 
-    call.type          = GLNVG_FILL;
+    call.type          = (int)(GlNvgCallType.FILL);
     call.triangleCount = 4;
     call.pathOffset    = glnvgAllocPaths(gl, npaths);
     if (call.pathOffset == -1) { if (gl.ncalls > 0) gl.ncalls--; return; }
@@ -1011,7 +1001,7 @@ fn void glnvgRenderFill(void* up, NvgPaint* paint, NvgCompositeOperationState co
     call.blendFunc  = glnvgBlendCompositeOperation(compositeOperation);
 
     if (npaths == 1 && paths[0].convex) {
-        call.type          = GLNVG_CONVEXFILL;
+        call.type          = (int)(GlNvgCallType.CONVEXFILL);
         call.triangleCount = 0;
     }
 
@@ -1037,7 +1027,7 @@ fn void glnvgRenderFill(void* up, NvgPaint* paint, NvgCompositeOperationState co
         }
     }
 
-    if (call.type == GLNVG_FILL) {
+    if (call.type == (int)(GlNvgCallType.FILL)) {
         call.triangleOffset = offset;
         quad = &gl.verts[call.triangleOffset];
         glnvgVset(&quad[0], bounds[2], bounds[3], 0.5f, 1.0f);
@@ -1050,7 +1040,7 @@ fn void glnvgRenderFill(void* up, NvgPaint* paint, NvgCompositeOperationState co
         frag = glnvgFragUniformPtr(gl, call.uniformOffset);
         mem::clear(frag, GlFragUniforms::size);
         frag.strokeThr = -1.0f;
-        frag.type      = NSVG_SHADER_SIMPLE;
+        frag.type      = (int)(NsvgShader.SIMPLE);
         glnvgConvertPaint(gl, glnvgFragUniformPtr(gl, call.uniformOffset + gl.fragSize), paint, scissor, fringe, fringe, -1.0f);
     } else {
         call.uniformOffset = glnvgAllocFragUniforms(gl, 1);
@@ -1066,7 +1056,7 @@ fn void glnvgRenderStroke(void* up, NvgPaint* paint, NvgCompositeOperationState 
 
     if (call == null) return;
 
-    call.type       = GLNVG_STROKE;
+    call.type       = (int)(GlNvgCallType.STROKE);
     call.pathOffset = glnvgAllocPaths(gl, npaths);
     if (call.pathOffset == -1) { if (gl.ncalls > 0) gl.ncalls--; return; }
     call.pathCount = npaths;
@@ -1109,7 +1099,7 @@ fn void glnvgRenderTriangles(void* up, NvgPaint* paint, NvgCompositeOperationSta
 
     if (call == null) return;
 
-    call.type      = GLNVG_TRIANGLES;
+    call.type      = (int)(GlNvgCallType.TRIANGLES);
     call.image     = paint.image;
     call.blendFunc = glnvgBlendCompositeOperation(compositeOperation);
 
@@ -1123,7 +1113,7 @@ fn void glnvgRenderTriangles(void* up, NvgPaint* paint, NvgCompositeOperationSta
     if (call.uniformOffset == -1) { if (gl.ncalls > 0) gl.ncalls--; return; }
     frag = glnvgFragUniformPtr(gl, call.uniformOffset);
     glnvgConvertPaint(gl, frag, paint, scissor, 1.0f, fringe, -1.0f);
-    frag.type = NSVG_SHADER_IMG;
+    frag.type = (int)(NsvgShader.IMG);
 }
 
 fn void glnvgRenderDelete(void* up) @local {

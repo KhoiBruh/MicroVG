@@ -162,7 +162,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     }
     microvg::nvgStrokeColor(vg, microvg::nvgRgba(0, 220, 255, 255));
     microvg::nvgStrokeWidth(vg, 6.0f);
-    microvg::nvgLineCap(vg, microvg::LINE_CAP_ROUND);
+    microvg::nvgLineCap(vg, (int)(LineCap.ROUND));
     microvg::nvgLineJoin(vg, microvg::LINE_JOIN_ROUND);
     microvg::nvgStroke(vg);
     microvg::nvgRestore(vg);
@@ -198,7 +198,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     microvg::nvgArc(vg, 160.0f, 440.0f, 50.0f, microvg::nvgDegToRad(0.0f), microvg::nvgDegToRad(270.0f), microvg::WINDING_CW);
     microvg::nvgStrokeColor(vg, microvg::nvgRgba(255, 128, 0, 255));
     microvg::nvgStrokeWidth(vg, 4.0f);
-    microvg::nvgLineCap(vg, microvg::LINE_CAP_ROUND);
+    microvg::nvgLineCap(vg, (int)(LineCap.ROUND));
     microvg::nvgStroke(vg);
 
     microvg::nvgSave(vg);
@@ -207,7 +207,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     microvg::nvgLineTo(vg, 400.0f, 400.0f);
     microvg::nvgStrokeColor(vg, microvg::nvgRgba(255, 80, 80, 255));
     microvg::nvgStrokeWidth(vg, 6.0f);
-    microvg::nvgLineCap(vg, microvg::LINE_CAP_BUTT);
+    microvg::nvgLineCap(vg, (int)(LineCap.BUTT));
     microvg::nvgStroke(vg);
 
     microvg::nvgBeginPath(vg);
@@ -215,7 +215,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     microvg::nvgLineTo(vg, 400.0f, 430.0f);
     microvg::nvgStrokeColor(vg, microvg::nvgRgba(80, 255, 80, 255));
     microvg::nvgStrokeWidth(vg, 6.0f);
-    microvg::nvgLineCap(vg, microvg::LINE_CAP_ROUND);
+    microvg::nvgLineCap(vg, (int)(LineCap.ROUND));
     microvg::nvgStroke(vg);
 
     microvg::nvgBeginPath(vg);
@@ -223,7 +223,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     microvg::nvgLineTo(vg, 400.0f, 460.0f);
     microvg::nvgStrokeColor(vg, microvg::nvgRgba(80, 80, 255, 255));
     microvg::nvgStrokeWidth(vg, 6.0f);
-    microvg::nvgLineCap(vg, microvg::LINE_CAP_SQUARE);
+    microvg::nvgLineCap(vg, (int)(LineCap.SQUARE));
     microvg::nvgStroke(vg);
     microvg::nvgRestore(vg);
 
@@ -235,7 +235,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     microvg::nvgStrokeColor(vg, microvg::nvgRgba(255, 200, 0, 255));
     microvg::nvgStrokeWidth(vg, 5.0f);
     microvg::nvgLineJoin(vg, microvg::LINE_JOIN_BEVEL);
-    microvg::nvgLineCap(vg, microvg::LINE_CAP_ROUND);
+    microvg::nvgLineCap(vg, (int)(LineCap.ROUND));
     microvg::nvgStroke(vg);
 
     microvg::nvgBeginPath(vg);
@@ -245,7 +245,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     microvg::nvgStrokeColor(vg, microvg::nvgRgba(0, 255, 200, 255));
     microvg::nvgStrokeWidth(vg, 5.0f);
     microvg::nvgLineJoin(vg, microvg::LINE_JOIN_ROUND);
-    microvg::nvgLineCap(vg, microvg::LINE_CAP_ROUND);
+    microvg::nvgLineCap(vg, (int)(LineCap.ROUND));
     microvg::nvgStroke(vg);
 
     microvg::nvgBeginPath(vg);
@@ -255,7 +255,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     microvg::nvgStrokeColor(vg, microvg::nvgRgba(200, 0, 255, 255));
     microvg::nvgStrokeWidth(vg, 5.0f);
     microvg::nvgLineJoin(vg, microvg::LINE_JOIN_MITER);
-    microvg::nvgLineCap(vg, microvg::LINE_CAP_ROUND);
+    microvg::nvgLineCap(vg, (int)(LineCap.ROUND));
     microvg::nvgStroke(vg);
     microvg::nvgRestore(vg);
 

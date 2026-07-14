@@ -24,12 +24,8 @@ struct NvgPaint {
 const int WINDING_CCW = 1;
 const int WINDING_CW  = 2;
 
-const int SOLID = 1;
-const int HOLE  = 2;
+enum LineCap : int { BUTT, ROUND, SQUARE }
 
-const int LINE_CAP_BUTT   = 0;
-const int LINE_CAP_ROUND  = 1;
-const int LINE_CAP_SQUARE = 2;
 const int LINE_JOIN_ROUND = 1;
 const int LINE_JOIN_BEVEL = 3;
 const int LINE_JOIN_MITER = 4;
@@ -46,17 +42,19 @@ const int BLEND_DST_ALPHA           = 1 << 8;
 const int BLEND_ONE_MINUS_DST_ALPHA = 1 << 9;
 const int BLEND_SRC_ALPHA_SATURATE  = 1 << 10;
 
-const int COMPOSITE_SOURCE_OVER      = 0;
-const int COMPOSITE_SOURCE_IN        = 1;
-const int COMPOSITE_SOURCE_OUT       = 2;
-const int COMPOSITE_ATOP             = 3;
-const int COMPOSITE_DESTINATION_OVER = 4;
-const int COMPOSITE_DESTINATION_IN   = 5;
-const int COMPOSITE_DESTINATION_OUT  = 6;
-const int COMPOSITE_DESTINATION_ATOP = 7;
-const int COMPOSITE_LIGHTER          = 8;
-const int COMPOSITE_COPY             = 9;
-const int COMPOSITE_XOR              = 10;
+enum CompositeOp : int {
+    SOURCE_OVER,
+    SOURCE_IN,
+    SOURCE_OUT,
+    ATOP,
+    DESTINATION_OVER,
+    DESTINATION_IN,
+    DESTINATION_OUT,
+    DESTINATION_ATOP,
+    LIGHTER,
+    COPY,
+    XOR,
+}
 
 struct NvgCompositeOperationState {
     int srcRGB;

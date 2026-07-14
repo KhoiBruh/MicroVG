@@ -6,11 +6,7 @@ import std::math;
 extern fn float fmodf(float a, float b);
 extern fn int printf(char* fmt, ...);
 
-const int NVG_MOVETO   = 0;
-const int NVG_LINETO   = 1;
-const int NVG_BEZIERTO = 2;
-const int NVG_CLOSE    = 3;
-const int NVG_WINDING  = 4;
+enum PathCommand : int { MOVETO, LINETO, BEZIERTO, CLOSE, WINDING }
 
 const int NVG_PT_CORNER     = 0x01;
 const int NVG_PT_LEFT       = 0x02;
@@ -150,37 +146,37 @@ fn NvgCompositeOperationState nvgCompositeOpState(int op) @local {
     int sfactor;
     int dfactor;
 
-    if (op == COMPOSITE_SOURCE_OVER) {
+    if (op == (int)CompositeOp.SOURCE_OVER) {
         sfactor = BLEND_ONE;
         dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-    } else if (op == COMPOSITE_SOURCE_IN) {
+    } else if (op == (int)CompositeOp.SOURCE_IN) {
         sfactor = BLEND_DST_ALPHA;
         dfactor = BLEND_ZERO;
-    } else if (op == COMPOSITE_SOURCE_OUT) {
+    } else if (op == (int)CompositeOp.SOURCE_OUT) {
         sfactor = BLEND_ONE_MINUS_DST_ALPHA;
         dfactor = BLEND_ZERO;
-    } else if (op == COMPOSITE_ATOP) {
+    } else if (op == (int)CompositeOp.ATOP) {
         sfactor = BLEND_DST_ALPHA;
         dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-    } else if (op == COMPOSITE_DESTINATION_OVER) {
+    } else if (op == (int)CompositeOp.DESTINATION_OVER) {
         sfactor = BLEND_ONE_MINUS_DST_ALPHA;
         dfactor = BLEND_ONE;
-    } else if (op == COMPOSITE_DESTINATION_IN) {
+    } else if (op == (int)CompositeOp.DESTINATION_IN) {
         sfactor = BLEND_ZERO;
         dfactor = BLEND_SRC_ALPHA;
-    } else if (op == COMPOSITE_DESTINATION_OUT) {
+    } else if (op == (int)CompositeOp.DESTINATION_OUT) {
         sfactor = BLEND_ZERO;
         dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-    } else if (op == COMPOSITE_DESTINATION_ATOP) {
+    } else if (op == (int)CompositeOp.DESTINATION_ATOP) {
         sfactor = BLEND_ONE_MINUS_DST_ALPHA;
         dfactor = BLEND_SRC_ALPHA;
-    } else if (op == COMPOSITE_LIGHTER) {
+    } else if (op == (int)CompositeOp.LIGHTER) {
         sfactor = BLEND_ONE;
         dfactor = BLEND_ONE;
-    } else if (op == COMPOSITE_COPY) {
+    } else if (op == (int)CompositeOp.COPY) {
         sfactor = BLEND_ONE;
         dfactor = BLEND_ZERO;
-    } else if (op == COMPOSITE_XOR) {
+    } else if (op == (int)CompositeOp.XOR) {
         sfactor = BLEND_ONE_MINUS_DST_ALPHA;
         dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
     } else {
@@ -463,11 +459,11 @@ fn void nvgReset(NvgContext* ctx) {
 
     nvgSetPaintColor(&state.fill, nvgRgba(255, 255, 255, 255));
     nvgSetPaintColor(&state.stroke, nvgRgba(0, 0, 0, 255));
-    state.compositeOperation = nvgCompositeOpState(COMPOSITE_SOURCE_OVER);
+    state.compositeOperation = nvgCompositeOpState((int)CompositeOp.SOURCE_OVER);
     state.shapeAntiAlias = 1;
     state.strokeWidth = 1.0f;
     state.miterLimit = 10.0f;
-    state.lineCap = LINE_CAP_BUTT;
+    state.lineCap = (int)(LineCap.BUTT);
     state.lineJoin = LINE_JOIN_MITER;
     state.alpha = 1.0f;
     nvgTransformIdentity(&state.xform[0]);
@@ -812,7 +808,7 @@ fn void nvgAppendCommands(NvgContext* ctx, float* vals, int nvals) @local {
         ctx.ccommands = ccommands;
     }
 
-    if ((int)vals[0] != NVG_CLOSE && (int)vals[0] != NVG_WINDING) {
+    if ((int)vals[0] != (int)(PathCommand.CLOSE) && (int)vals[0] != (int)(PathCommand.WINDING)) {
         ctx.commandx = vals[nvals - 2];
         ctx.commandy = vals[nvals - 1];
     }
@@ -821,24 +817,24 @@ fn void nvgAppendCommands(NvgContext* ctx, float* vals, int nvals) @local {
     while (i < nvals) {
         int cmd = (int)vals[i];
         switch (cmd) {
-        case NVG_MOVETO:
+        case (int)(PathCommand.MOVETO):
             nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.xform[0], vals[i + 1], vals[i + 2]);
             i += 3;
             break;
-        case NVG_LINETO:
+        case (int)(PathCommand.LINETO):
             nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.xform[0], vals[i + 1], vals[i + 2]);
             i += 3;
             break;
-        case NVG_BEZIERTO:
+        case (int)(PathCommand.BEZIERTO):
             nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.xform[0], vals[i + 1], vals[i + 2]);
             nvgTransformPoint(&vals[i + 3], &vals[i + 4], &state.xform[0], vals[i + 3], vals[i + 4]);
             nvgTransformPoint(&vals[i + 5], &vals[i + 6], &state.xform[0], vals[i + 5], vals[i + 6]);
             i += 7;
             break;
-        case NVG_CLOSE:
+        case (int)(PathCommand.CLOSE):
             i++;
             break;
-        case NVG_WINDING:
+        case (int)(PathCommand.WINDING):
             i += 2;
             break;
         default:
@@ -1028,22 +1024,22 @@ fn void nvgFlattenPaths(NvgContext* ctx) @local {
 
     int i = 0;
     while (i < ctx.ncommands) {
-        int cmd = (int)ctx.commands[i];
+        int cmd = (int)(ctx.commands)[i];
         switch (cmd) {
-        case NVG_MOVETO: {
+        case (int)(PathCommand.MOVETO): {
             nvgAddPath(ctx);
             float* p = &ctx.commands[i + 1];
             nvgAddPoint(ctx, p[0], p[1], NVG_PT_CORNER);
             i += 3;
             break;
         }
-        case NVG_LINETO: {
+        case (int)(PathCommand.LINETO): {
             float* p = &ctx.commands[i + 1];
             nvgAddPoint(ctx, p[0], p[1], NVG_PT_CORNER);
             i += 3;
             break;
         }
-        case NVG_BEZIERTO: {
+        case (int)(PathCommand.BEZIERTO): {
             NvgPoint* last = nvgLastPoint(ctx);
             if (last != null) {
                 float* cp1 = &ctx.commands[i + 1];
@@ -1054,12 +1050,12 @@ fn void nvgFlattenPaths(NvgContext* ctx) @local {
             i += 7;
             break;
         }
-        case NVG_CLOSE:
+        case (int)(PathCommand.CLOSE):
             nvgClosePathCache(ctx);
             i++;
             break;
-        case NVG_WINDING:
-            nvgPathWindingCache(ctx, (int)ctx.commands[i + 1]);
+        case (int)(PathCommand.WINDING):
+            nvgPathWindingCache(ctx, (int)(ctx.commands)[i + 1]);
             i += 2;
             break;
         default:
@@ -1418,7 +1414,7 @@ fn int nvgExpandStroke(NvgContext* ctx, float w, float fringe, int lineCap, int 
             cverts += (path.count + path.nbevel * 5 + 1) * 2;
         }
         if (loop == 0) {
-            if (lineCap == LINE_CAP_ROUND) {
+            if (lineCap == (int)(LineCap.ROUND)) {
                 cverts += (ncap * 2 + 2) * 2;
             } else {
                 cverts += (3 + 3) * 2;
@@ -1460,13 +1456,13 @@ fn int nvgExpandStroke(NvgContext* ctx, float w, float fringe, int lineCap, int 
             dx = p1.x - p0.x;
             dy = p1.y - p0.y;
             nvgNormalize(&dx, &dy);
-            if (lineCap == LINE_CAP_BUTT) {
+            if (lineCap == (int)(LineCap.BUTT)) {
                 dst = nvgButtCapStart(dst, p0, dx, dy, w, -aa * 0.5f, aa, u0, u1);
             }
-            else if (lineCap == LINE_CAP_SQUARE) {
+            else if (lineCap == (int)(LineCap.SQUARE)) {
                 dst = nvgButtCapStart(dst, p0, dx, dy, w, w - aa, aa, u0, u1);
             }
-            else if (lineCap == LINE_CAP_ROUND) {
+            else if (lineCap == (int)(LineCap.ROUND)) {
                 dst = nvgRoundCapStart(dst, p0, dx, dy, w, ncap, aa, u0, u1);
             }
         }
@@ -1493,13 +1489,13 @@ fn int nvgExpandStroke(NvgContext* ctx, float w, float fringe, int lineCap, int 
             dx = p1.x - p0.x;
             dy = p1.y - p0.y;
             nvgNormalize(&dx, &dy);
-            if (lineCap == LINE_CAP_BUTT) {
+            if (lineCap == (int)(LineCap.BUTT)) {
                 dst = nvgButtCapEnd(dst, p1, dx, dy, w, -aa * 0.5f, aa, u0, u1);
             }
-            else if (lineCap == LINE_CAP_SQUARE) {
+            else if (lineCap == (int)(LineCap.SQUARE)) {
                 dst = nvgButtCapEnd(dst, p1, dx, dy, w, w - aa, aa, u0, u1);
             }
-            else if (lineCap == LINE_CAP_ROUND) {
+            else if (lineCap == (int)(LineCap.ROUND)) {
                 dst = nvgRoundCapEnd(dst, p1, dx, dy, w, ncap, aa, u0, u1);
             }
         }
@@ -1629,17 +1625,17 @@ fn void nvgBeginPath(NvgContext* ctx) {
 }
 
 fn void nvgMoveTo(NvgContext* ctx, float x, float y) {
-    float[*] vals = { (float)NVG_MOVETO, x, y };
+    float[*] vals = { (float)(int)(PathCommand.MOVETO), x, y };
     nvgAppendCommands(ctx, &vals[0], vals.len);
 }
 
 fn void nvgLineTo(NvgContext* ctx, float x, float y) {
-    float[*] vals = { (float)NVG_LINETO, x, y };
+    float[*] vals = { (float)(int)(PathCommand.LINETO), x, y };
     nvgAppendCommands(ctx, &vals[0], vals.len);
 }
 
 fn void nvgBezierTo(NvgContext* ctx, float c1x, float c1y, float c2x, float c2y, float x, float y) {
-    float[*] vals = { (float)NVG_BEZIERTO, c1x, c1y, c2x, c2y, x, y };
+    float[*] vals = { (float)(int)(PathCommand.BEZIERTO), c1x, c1y, c2x, c2y, x, y };
     nvgAppendCommands(ctx, &vals[0], vals.len);
 }
 
@@ -1647,7 +1643,7 @@ fn void nvgQuadTo(NvgContext* ctx, float cx, float cy, float x, float y) {
     float x0 = ctx.commandx;
     float y0 = ctx.commandy;
     float[*] vals = {
-        (float)NVG_BEZIERTO,
+        (float)(int)(PathCommand.BEZIERTO),
         x0 + 2.0f / 3.0f * (cx - x0), y0 + 2.0f / 3.0f * (cy - y0),
         x  + 2.0f / 3.0f * (cx - x),  y  + 2.0f / 3.0f * (cy - y),
         x, y
@@ -1705,12 +1701,12 @@ fn void nvgArcTo(NvgContext* ctx, float x1, float y1, float x2, float y2, float 
 }
 
 fn void nvgClosePath(NvgContext* ctx) {
-    float[*] vals = { (float)NVG_CLOSE };
+    float[*] vals = { (float)(int)(PathCommand.CLOSE) };
     nvgAppendCommands(ctx, &vals[0], vals.len);
 }
 
 fn void nvgPathWinding(NvgContext* ctx, int dir) {
-    float[*] vals = { (float)NVG_WINDING, (float)dir };
+    float[*] vals = { (float)(int)(PathCommand.WINDING), (float)dir };
     nvgAppendCommands(ctx, &vals[0], vals.len);
 }
 
@@ -1720,7 +1716,7 @@ fn void nvgArc(NvgContext* ctx, float cx, float cy, float r, float a0, float a1,
     float px = 0; float py = 0; float ptanx = 0; float ptany = 0;
     float[3 + 5 * 7 + 100] vals;
     int ndivs, nvals;
-    int move = ctx.ncommands > 0 ? NVG_LINETO : NVG_MOVETO;
+    int move = ctx.ncommands > 0 ? (int)(PathCommand.LINETO) : (int)(PathCommand.MOVETO);
 
     da = a1 - a0;
     if (dir == WINDING_CW) {
@@ -1760,7 +1756,7 @@ fn void nvgArc(NvgContext* ctx, float cx, float cy, float r, float a0, float a1,
             vals[nvals] = x; nvals++;
             vals[nvals] = y; nvals++;
         } else {
-            vals[nvals] = (float)NVG_BEZIERTO; nvals++;
+            vals[nvals] = (float)(int)(PathCommand.BEZIERTO); nvals++;
             vals[nvals] = px + ptanx; nvals++;
             vals[nvals] = py + ptany; nvals++;
             vals[nvals] = x - tanx; nvals++;
@@ -1779,11 +1775,11 @@ fn void nvgArc(NvgContext* ctx, float cx, float cy, float r, float a0, float a1,
 
 fn void nvgRect(NvgContext* ctx, float x, float y, float w, float h) {
     float[*] vals = {
-        (float)NVG_MOVETO, x, y,
-        (float)NVG_LINETO, x, y + h,
-        (float)NVG_LINETO, x + w, y + h,
-        (float)NVG_LINETO, x + w, y,
-        (float)NVG_CLOSE
+        (float)(int)(PathCommand.MOVETO), x, y,
+        (float)(int)(PathCommand.LINETO), x, y + h,
+        (float)(int)(PathCommand.LINETO), x + w, y + h,
+        (float)(int)(PathCommand.LINETO), x + w, y,
+        (float)(int)(PathCommand.CLOSE)
     };
     nvgAppendCommands(ctx, &vals[0], vals.len);
 }
@@ -1810,28 +1806,28 @@ fn void nvgRoundedRectVarying(NvgContext* ctx, float x, float y, float w, float 
     float rxTL = nvgMinf(radTopLeft, halfw) * nvgSignf(w);
     float ryTL = nvgMinf(radTopLeft, halfh) * nvgSignf(h);
     float[*] vals = {
-        (float)NVG_MOVETO, x, y + ryTL,
-        (float)NVG_LINETO, x, y + h - ryBL,
-        (float)NVG_BEZIERTO, x, y + h - ryBL * (1 - NVG_KAPPA90), x + rxBL * (1 - NVG_KAPPA90), y + h, x + rxBL, y + h,
-        (float)NVG_LINETO, x + w - rxBR, y + h,
-        (float)NVG_BEZIERTO, x + w - rxBR * (1 - NVG_KAPPA90), y + h, x + w, y + h - ryBR * (1 - NVG_KAPPA90), x + w, y + h - ryBR,
-        (float)NVG_LINETO, x + w, y + ryTR,
-        (float)NVG_BEZIERTO, x + w, y + ryTR * (1 - NVG_KAPPA90), x + w - rxTR * (1 - NVG_KAPPA90), y, x + w - rxTR, y,
-        (float)NVG_LINETO, x + rxTL, y,
-        (float)NVG_BEZIERTO, x + rxTL * (1 - NVG_KAPPA90), y, x, y + ryTL * (1 - NVG_KAPPA90), x, y + ryTL,
-        (float)NVG_CLOSE
+        (float)(int)(PathCommand.MOVETO), x, y + ryTL,
+        (float)(int)(PathCommand.LINETO), x, y + h - ryBL,
+        (float)(int)(PathCommand.BEZIERTO), x, y + h - ryBL * (1 - NVG_KAPPA90), x + rxBL * (1 - NVG_KAPPA90), y + h, x + rxBL, y + h,
+        (float)(int)(PathCommand.LINETO), x + w - rxBR, y + h,
+        (float)(int)(PathCommand.BEZIERTO), x + w - rxBR * (1 - NVG_KAPPA90), y + h, x + w, y + h - ryBR * (1 - NVG_KAPPA90), x + w, y + h - ryBR,
+        (float)(int)(PathCommand.LINETO), x + w, y + ryTR,
+        (float)(int)(PathCommand.BEZIERTO), x + w, y + ryTR * (1 - NVG_KAPPA90), x + w - rxTR * (1 - NVG_KAPPA90), y, x + w - rxTR, y,
+        (float)(int)(PathCommand.LINETO), x + rxTL, y,
+        (float)(int)(PathCommand.BEZIERTO), x + rxTL * (1 - NVG_KAPPA90), y, x, y + ryTL * (1 - NVG_KAPPA90), x, y + ryTL,
+        (float)(int)(PathCommand.CLOSE)
     };
     nvgAppendCommands(ctx, &vals[0], vals.len);
 }
 
 fn void nvgEllipse(NvgContext* ctx, float cx, float cy, float rx, float ry) {
     float[*] vals = {
-        (float)NVG_MOVETO, cx - rx, cy,
-        (float)NVG_BEZIERTO, cx - rx, cy + ry * NVG_KAPPA90, cx - rx * NVG_KAPPA90, cy + ry, cx, cy + ry,
-        (float)NVG_BEZIERTO, cx + rx * NVG_KAPPA90, cy + ry, cx + rx, cy + ry * NVG_KAPPA90, cx + rx, cy,
-        (float)NVG_BEZIERTO, cx + rx, cy - ry * NVG_KAPPA90, cx + rx * NVG_KAPPA90, cy - ry, cx, cy - ry,
-        (float)NVG_BEZIERTO, cx - rx * NVG_KAPPA90, cy - ry, cx - rx, cy - ry * NVG_KAPPA90, cx - rx, cy,
-        (float)NVG_CLOSE
+        (float)(int)(PathCommand.MOVETO), cx - rx, cy,
+        (float)(int)(PathCommand.BEZIERTO), cx - rx, cy + ry * NVG_KAPPA90, cx - rx * NVG_KAPPA90, cy + ry, cx, cy + ry,
+        (float)(int)(PathCommand.BEZIERTO), cx + rx * NVG_KAPPA90, cy + ry, cx + rx, cy + ry * NVG_KAPPA90, cx + rx, cy,
+        (float)(int)(PathCommand.BEZIERTO), cx + rx, cy - ry * NVG_KAPPA90, cx + rx * NVG_KAPPA90, cy - ry, cx, cy - ry,
+        (float)(int)(PathCommand.BEZIERTO), cx - rx * NVG_KAPPA90, cy - ry, cx - rx, cy - ry * NVG_KAPPA90, cx - rx, cy,
+        (float)(int)(PathCommand.CLOSE)
     };
     nvgAppendCommands(ctx, &vals[0], vals.len);
 }
