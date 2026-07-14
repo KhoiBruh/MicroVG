@@ -511,7 +511,7 @@ fn void NvgContext.fillPaint(&self, NvgPaint paint) {
 }
 
 fn int NvgContext.createImageRgba(&self, int w, int h, int imageFlags, char* data) =>
-    self.params.renderCreateTexture(self.params.userPtr, (int)TextureType.RGBA, w, h, imageFlags, data);
+    self.params.renderCreateTexture(self.params.userPtr, TextureType.RGBA, w, h, imageFlags, data);
 
 fn void NvgContext.updateImage(&self, int image, char* data) {
     int w, h;

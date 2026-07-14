@@ -52,6 +52,8 @@ fn void main(String[] args) {
     io::printfn("OpenGL loaded (version tag %d)", loaded);
 
     microvg::NvgContext* vg = glbackend::nvgCreateGl3(glbackend::NVG_ANTIALIAS | glbackend::NVG_STENCIL_STROKES);
+    defer vg.destroy();
+
     if (vg == null) {
         io::printn("Failed to create NanoVG context");
         glfw34::terminate();
@@ -88,7 +90,6 @@ fn void main(String[] args) {
         glfw34::pollEvents();
     }
 
-    glbackend::nvgDeleteGl3(vg);
     glfw34::terminate();
     io::printn("Demo finished.");
 }

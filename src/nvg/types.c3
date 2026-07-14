@@ -106,7 +106,7 @@ struct NvgPath {
 }
 
 alias RenderCreate         = fn int(void*);
-alias RenderCreateTexture  = fn int(void*, int, int, int, int, char*);
+alias RenderCreateTexture  = fn int(void*, TextureType, int, int, int, char*);
 alias RenderDeleteTexture  = fn int(void*, int);
 alias RenderUpdateTexture  = fn int(void*, int, int, int, int, int, char*);
 alias RenderGetTextureSize = fn int(void*, int, int*, int*);
