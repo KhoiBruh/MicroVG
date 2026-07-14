@@ -32,7 +32,7 @@ struct NvgState {
     LineJoin lineJoin;
     LineCap lineCap;
     float alpha;
-    float[6] xform;
+    Mat2x3 form;
     NvgScissor scissor;
 }
 
@@ -54,7 +54,7 @@ struct NvgPathCache {
     NvgVertex* verts;
     int nverts;
     int cverts;
-    float[4] bounds;
+    Vec4 bounds;
 }
 
 struct NvgContext {
@@ -182,7 +182,7 @@ fn NvgState* NvgContext.getState(&self) {
 
 fn void nvgSetPaintColor(NvgPaint* p, NvgColor color) @local {
     mem::clear(p, NvgPaint::size);
-    nvgTransformIdentity(&p.xform[0]);
+    nvgTransformIdentity(&p.form);
     p.radius = 0.0f;
     p.feather = 1.0f;
     p.innerColor = color;
@@ -334,82 +334,51 @@ fn NvgColor nvgHsla(float h, float s, float l, char a) {
     return col;
 }
 
-fn void nvgTransformIdentity(float* t) {
-    t[0] = 1.0f; t[1] = 0.0f;
-    t[2] = 0.0f; t[3] = 1.0f;
-    t[4] = 0.0f; t[5] = 0.0f;
+fn void nvgTransformIdentity(Mat2x3* t) {
+    *t = IDENTITY_2X3;
 }
 
-fn void nvgTransformTranslate(float* t, float tx, float ty) {
-    t[0] = 1.0f; t[1] = 0.0f;
-    t[2] = 0.0f; t[3] = 1.0f;
-    t[4] = tx;   t[5] = ty;
+fn void nvgTransformTranslate(Mat2x3* t, float tx, float ty) {
+    *t = { { 1, 0, 0, 1 }, { tx, ty } };
 }
 
-fn void nvgTransformScale(float* t, float sx, float sy) {
-    t[0] = sx;   t[1] = 0.0f;
-    t[2] = 0.0f; t[3] = sy;
-    t[4] = 0.0f; t[5] = 0.0f;
+fn void nvgTransformScale(Mat2x3* t, float sx, float sy) {
+    *t = { { sx, 0, 0, sy }, { 0, 0 } };
 }
 
-fn void nvgTransformRotate(float* t, float a) {
+fn void nvgTransformRotate(Mat2x3* t, float a) {
     float cs = math::cos(a);
     float sn = math::sin(a);
-    t[0] = cs;  t[1] = sn;
-    t[2] = -sn; t[3] = cs;
-    t[4] = 0.0f; t[5] = 0.0f;
+    *t = { { cs, sn, -sn, cs }, { 0, 0 } };
 }
 
-fn void nvgTransformSkewX(float* t, float a) {
-    t[0] = 1.0f; t[1] = 0.0f;
-    t[2] = math::tan(a); t[3] = 1.0f;
-    t[4] = 0.0f; t[5] = 0.0f;
+fn void nvgTransformSkewX(Mat2x3* t, float a) {
+    *t = { { 1, 0, math::tan(a), 1 }, { 0, 0 } };
 }
 
-fn void nvgTransformSkewY(float* t, float a) {
-    t[0] = 1.0f; t[1] = math::tan(a);
-    t[2] = 0.0f; t[3] = 1.0f;
-    t[4] = 0.0f; t[5] = 0.0f;
+fn void nvgTransformSkewY(Mat2x3* t, float a) {
+    *t = { { 1, math::tan(a), 0, 1 }, { 0, 0 } };
 }
 
-fn void nvgTransformMultiply(float* t, float* s) {
-    float t0 = t[0] * s[0] + t[1] * s[2];
-    float t2 = t[2] * s[0] + t[3] * s[2];
-    float t4 = t[4] * s[0] + t[5] * s[2] + s[4];
-    t[1] = t[0] * s[1] + t[1] * s[3];
-    t[3] = t[2] * s[1] + t[3] * s[3];
-    t[5] = t[4] * s[1] + t[5] * s[3] + s[5];
-    t[0] = t0;
-    t[2] = t2;
-    t[4] = t4;
+fn void nvgTransformMultiply(Mat2x3* t, Mat2x3* s) {
+    *t = *s * *t;
 }
 
-fn void nvgTransformPremultiply(float* t, float* s) {
-    float[6] s2;
-    mem::copy(&s2[0], s, float::size * 6);
-    nvgTransformMultiply(&s2[0], t);
-    mem::copy(t, &s2[0], float::size * 6);
+fn void nvgTransformPremultiply(Mat2x3* t, Mat2x3* s) {
+    *t = *t * *s;
 }
 
-fn int nvgTransformInverse(float* inv, float* t) {
-    double det = (double)t[0] * t[3] - (double)t[2] * t[1];
-    if (det > -1e-6 && det < 1e-6) {
-        nvgTransformIdentity(inv);
-        return 0;
-    }
-    double invdet = 1.0 / det;
-    inv[0] = (float)((double)t[3] * invdet);
-    inv[2] = (float)(-(double)t[2] * invdet);
-    inv[4] = (float)(((double)t[2] * t[5] - (double)t[3] * t[4]) * invdet);
-    inv[1] = (float)(-(double)t[1] * invdet);
-    inv[3] = (float)((double)t[0] * invdet);
-    inv[5] = (float)(((double)t[1] * t[4] - (double)t[0] * t[5]) * invdet);
+fn int nvgTransformInverse(Mat2x3* inv, Mat2x3* t) {
+    *inv = t.inverse();
+    float det = t.linear.x * t.linear.w - t.linear.z * t.linear.y;
+    if (det > -1e-6f && det < 1e-6f) return 0;
     return 1;
 }
 
-fn void nvgTransformPoint(float* dx, float* dy, float* t, float sx, float sy) {
-    dx[0] = sx * t[0] + sy * t[2] + t[4];
-    dy[0] = sx * t[1] + sy * t[3] + t[5];
+fn void nvgTransformPoint(float* dx, float* dy, Mat2x3* t, float sx, float sy) {
+    Vec2 result = *t * (Vec2){ sx, sy };
+    dx[0] = result.x;
+    dy[0] = result.y;
 }
 
 fn float nvgDegToRad(float deg) {
@@ -450,10 +419,10 @@ fn void NvgContext.reset(&self) {
     state.lineCap = LineCap.BUTT;
     state.lineJoin = LineJoin.MITER;
     state.alpha = 1.0f;
-    nvgTransformIdentity(&state.xform[0]);
+    nvgTransformIdentity(&state.form);
 
-    state.scissor.extent[0] = -1.0f;
-    state.scissor.extent[1] = -1.0f;
+    state.scissor.extent.x = -1.0f;
+    state.scissor.extent.y = -1.0f;
 }
 
 fn void NvgContext.shapeAntiAlias(&self, int enabled) {
@@ -488,54 +457,54 @@ fn void NvgContext.globalAlpha(&self, float alpha) {
 
 fn void NvgContext.transform(&self, float a, float b, float c, float d, float e, float f) {
     NvgState* state = self.getState();
-    float[6] t = { a, b, c, d, e, f };
-    nvgTransformPremultiply(&state.xform[0], &t[0]);
+    Mat2x3 t = { { a, b, c, d }, { e, f } };
+    nvgTransformPremultiply(&state.form, &t);
 }
 
 fn void NvgContext.resetTransform(&self) {
     NvgState* state = self.getState();
-    nvgTransformIdentity(&state.xform[0]);
+    nvgTransformIdentity(&state.form);
 }
 
 fn void NvgContext.translate(&self, float x, float y) {
     NvgState* state = self.getState();
-    float[6] t;
-    nvgTransformTranslate(&t[0], x, y);
-    nvgTransformPremultiply(&state.xform[0], &t[0]);
+    Mat2x3 t;
+    nvgTransformTranslate(&t, x, y);
+    nvgTransformPremultiply(&state.form, &t);
 }
 
 fn void NvgContext.rotate(&self, float angle) {
     NvgState* state = self.getState();
-    float[6] t;
-    nvgTransformRotate(&t[0], angle);
-    nvgTransformPremultiply(&state.xform[0], &t[0]);
+    Mat2x3 t;
+    nvgTransformRotate(&t, angle);
+    nvgTransformPremultiply(&state.form, &t);
 }
 
 fn void NvgContext.skewX(&self, float angle) {
     NvgState* state = self.getState();
-    float[6] t;
-    nvgTransformSkewX(&t[0], angle);
-    nvgTransformPremultiply(&state.xform[0], &t[0]);
+    Mat2x3 t;
+    nvgTransformSkewX(&t, angle);
+    nvgTransformPremultiply(&state.form, &t);
 }
 
 fn void NvgContext.skewY(&self, float angle) {
     NvgState* state = self.getState();
-    float[6] t;
-    nvgTransformSkewY(&t[0], angle);
-    nvgTransformPremultiply(&state.xform[0], &t[0]);
+    Mat2x3 t;
+    nvgTransformSkewY(&t, angle);
+    nvgTransformPremultiply(&state.form, &t);
 }
 
 fn void NvgContext.scale(&self, float x, float y) {
     NvgState* state = self.getState();
-    float[6] t;
-    nvgTransformScale(&t[0], x, y);
-    nvgTransformPremultiply(&state.xform[0], &t[0]);
+    Mat2x3 t;
+    nvgTransformScale(&t, x, y);
+    nvgTransformPremultiply(&state.form, &t);
 }
 
-fn void NvgContext.currentTransform(&self, float* xform) {
+fn void NvgContext.currentTransform(&self, float* form) {
     NvgState* state = self.getState();
-    if (xform == null) return;
-    mem::copy(xform, &state.xform[0], float::size * 6);
+    if (form == null) return;
+    mem::copy(form, &state.form, float::size * 6);
 }
 
 fn void NvgContext.strokeColor(&self, NvgColor color) {
@@ -546,7 +515,7 @@ fn void NvgContext.strokeColor(&self, NvgColor color) {
 fn void NvgContext.strokePaint(&self, NvgPaint paint) {
     NvgState* state = self.getState();
     state.stroke = paint;
-    nvgTransformMultiply(&state.stroke.xform[0], &state.xform[0]);
+    nvgTransformMultiply(&state.stroke.form, &state.form);
 }
 
 fn void NvgContext.fillColor(&self, NvgColor color) {
@@ -557,7 +526,7 @@ fn void NvgContext.fillColor(&self, NvgColor color) {
 fn void NvgContext.fillPaint(&self, NvgPaint paint) {
     NvgState* state = self.getState();
     state.fill = paint;
-    nvgTransformMultiply(&state.fill.xform[0], &state.xform[0]);
+    nvgTransformMultiply(&state.fill.form, &state.form);
 }
 
 fn int NvgContext.createImageRgba(&self, int w, int h, int imageFlags, char* data) {
@@ -595,12 +564,12 @@ fn NvgPaint NvgContext.linearGradient(&self, float sx, float sy, float ex, float
         dy = 1;
     }
 
-    p.xform[0] = dy;  p.xform[1] = -dx;
-    p.xform[2] = dx;  p.xform[3] = dy;
-    p.xform[4] = sx - dx * large; p.xform[5] = sy - dy * large;
+    p.form.linear.x = dy;  p.form.linear.y = -dx;
+    p.form.linear.z = dx;  p.form.linear.w = dy;
+    p.form.trans.x = sx - dx * large; p.form.trans.y = sy - dy * large;
 
-    p.extent[0] = large;
-    p.extent[1] = large + d * 0.5f;
+    p.extent.x = large;
+    p.extent.y = large + d * 0.5f;
 
     p.radius = 0.0f;
 
@@ -619,12 +588,12 @@ fn NvgPaint NvgContext.radialGradient(&self, float cx, float cy, float inr, floa
     float f = (outr - inr);
     mem::clear(&p, NvgPaint::size);
 
-    nvgTransformIdentity(&p.xform[0]);
-    p.xform[4] = cx;
-    p.xform[5] = cy;
+    nvgTransformIdentity(&p.form);
+    p.form.trans.x = cx;
+    p.form.trans.y = cy;
 
-    p.extent[0] = r;
-    p.extent[1] = r;
+    p.extent.x = r;
+    p.extent.y = r;
 
     p.radius = r;
 
@@ -641,12 +610,12 @@ fn NvgPaint NvgContext.boxGradient(&self, float x, float y, float w, float h, fl
     NvgPaint p;
     mem::clear(&p, NvgPaint::size);
 
-    nvgTransformIdentity(&p.xform[0]);
-    p.xform[4] = x + w * 0.5f;
-    p.xform[5] = y + h * 0.5f;
+    nvgTransformIdentity(&p.form);
+    p.form.trans.x = x + w * 0.5f;
+    p.form.trans.y = y + h * 0.5f;
 
-    p.extent[0] = w * 0.5f;
-    p.extent[1] = h * 0.5f;
+    p.extent.x = w * 0.5f;
+    p.extent.y = h * 0.5f;
 
     p.radius = r;
 
@@ -663,12 +632,12 @@ fn NvgPaint NvgContext.imagePattern(&self, float cx, float cy, float w, float h,
     NvgPaint p;
     mem::clear(&p, NvgPaint::size);
 
-    nvgTransformRotate(&p.xform[0], angle);
-    p.xform[4] = cx;
-    p.xform[5] = cy;
+    nvgTransformRotate(&p.form, angle);
+    p.form.trans.x = cx;
+    p.form.trans.y = cy;
 
-    p.extent[0] = w;
-    p.extent[1] = h;
+    p.extent.x = w;
+    p.extent.y = h;
 
     p.image = image;
 
@@ -684,13 +653,13 @@ fn void NvgContext.scissor(&self, float x, float y, float w, float h) {
     w = math::max(0.0f, w);
     h = math::max(0.0f, h);
 
-    nvgTransformIdentity(&state.scissor.xform[0]);
-    state.scissor.xform[4] = x + w * 0.5f;
-    state.scissor.xform[5] = y + h * 0.5f;
-    nvgTransformMultiply(&state.scissor.xform[0], &state.xform[0]);
+    nvgTransformIdentity(&state.scissor.form);
+    state.scissor.form.trans.x = x + w * 0.5f;
+    state.scissor.form.trans.y = y + h * 0.5f;
+    nvgTransformMultiply(&state.scissor.form, &state.form);
 
-    state.scissor.extent[0] = w * 0.5f;
-    state.scissor.extent[1] = h * 0.5f;
+    state.scissor.extent.x = w * 0.5f;
+    state.scissor.extent.y = h * 0.5f;
 }
 
 fn void nvgIsectRects(float* dst, float ax, float ay, float aw, float ah,
@@ -707,33 +676,33 @@ fn void nvgIsectRects(float* dst, float ax, float ay, float aw, float ah,
 
 fn void NvgContext.intersectScissor(&self, float x, float y, float w, float h) {
     NvgState* state = self.getState();
-    float[6] pxform;
-    float[6] invxorm;
-    float[4] rect;
+    Mat2x3 pform;
+    Mat2x3 invxorm;
+    Vec4 rect;
 
-    if (state.scissor.extent[0] < 0) {
+    if (state.scissor.extent.x < 0) {
         self.scissor(x, y, w, h);
         return;
     }
 
-    mem::copy(&pxform[0], &state.scissor.xform[0], float::size * 6);
-    float ex = state.scissor.extent[0];
-    float ey = state.scissor.extent[1];
-    nvgTransformInverse(&invxorm[0], &state.xform[0]);
-    nvgTransformMultiply(&pxform[0], &invxorm[0]);
-    float tex = ex * math::abs(pxform[0]) + ey * math::abs(pxform[2]);
-    float tey = ex * math::abs(pxform[1]) + ey * math::abs(pxform[3]);
+    pform = state.scissor.form;
+    float ex = state.scissor.extent.x;
+    float ey = state.scissor.extent.y;
+    nvgTransformInverse(&invxorm, &state.form);
+    nvgTransformMultiply(&pform, &invxorm);
+    float tex = ex * math::abs(pform.linear.x) + ey * math::abs(pform.linear.z);
+    float tey = ex * math::abs(pform.linear.y) + ey * math::abs(pform.linear.w);
 
-    nvgIsectRects(&rect[0], pxform[4] - tex, pxform[5] - tey, tex * 2, tey * 2, x, y, w, h);
+    nvgIsectRects(&rect[0], pform.trans.x - tex, pform.trans.y - tey, tex * 2, tey * 2, x, y, w, h);
 
     self.scissor(rect[0], rect[1], rect[2], rect[3]);
 }
 
 fn void NvgContext.resetScissor(&self) {
     NvgState* state = self.getState();
-    mem::clear(&state.scissor.xform[0], float::size * 6);
-    state.scissor.extent[0] = -1.0f;
-    state.scissor.extent[1] = -1.0f;
+    mem::clear(&state.scissor.form, Mat2x3::size);
+    state.scissor.extent.x = -1.0f;
+    state.scissor.extent.y = -1.0f;
 }
 
 fn void NvgContext.globalCompositeOperation(&self, int op) {
@@ -802,17 +771,17 @@ fn void NvgContext.appendCommands(&self, float* vals, int nvals) {
         int cmd = (int)vals[i];
         switch (cmd) {
         case (int)(PathCommand.MOVETO):
-            nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.xform[0], vals[i + 1], vals[i + 2]);
+            nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.form, vals[i + 1], vals[i + 2]);
             i += 3;
             break;
         case (int)(PathCommand.LINETO):
-            nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.xform[0], vals[i + 1], vals[i + 2]);
+            nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.form, vals[i + 1], vals[i + 2]);
             i += 3;
             break;
         case (int)(PathCommand.BEZIERTO):
-            nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.xform[0], vals[i + 1], vals[i + 2]);
-            nvgTransformPoint(&vals[i + 3], &vals[i + 4], &state.xform[0], vals[i + 3], vals[i + 4]);
-            nvgTransformPoint(&vals[i + 5], &vals[i + 6], &state.xform[0], vals[i + 5], vals[i + 6]);
+            nvgTransformPoint(&vals[i + 1], &vals[i + 2], &state.form, vals[i + 1], vals[i + 2]);
+            nvgTransformPoint(&vals[i + 3], &vals[i + 4], &state.form, vals[i + 3], vals[i + 4]);
+            nvgTransformPoint(&vals[i + 5], &vals[i + 6], &state.form, vals[i + 5], vals[i + 6]);
             i += 7;
             break;
         case (int)(PathCommand.CLOSE):
@@ -908,9 +877,9 @@ fn void NvgContext.pathWindingCache(&self, int winding) {
     path.winding = winding;
 }
 
-fn float nvgGetAverageScale(float* t) @local {
-    float sx = math::sqrt(t[0] * t[0] + t[2] * t[2]);
-    float sy = math::sqrt(t[1] * t[1] + t[3] * t[3]);
+fn float nvgGetAverageScale(Mat2x3* t) @local {
+    float sx = math::sqrt(t.linear.x * t.linear.x + t.linear.z * t.linear.z);
+    float sy = math::sqrt(t.linear.y * t.linear.y + t.linear.w * t.linear.w);
     return (sx + sy) * 0.5f;
 }
 
@@ -1047,10 +1016,10 @@ fn void NvgContext.flattenPaths(&self) {
         }
     }
 
-    cache.bounds[0] = 1e6f;
-    cache.bounds[1] = 1e6f;
-    cache.bounds[2] = -1e6f;
-    cache.bounds[3] = -1e6f;
+    cache.bounds.x = 1e6f;
+    cache.bounds.y = 1e6f;
+    cache.bounds.z = -1e6f;
+    cache.bounds.w = -1e6f;
 
     for (int j = 0; j < cache.npaths; j++) {
         NvgPath* path = &cache.paths[j];
@@ -1078,10 +1047,10 @@ fn void NvgContext.flattenPaths(&self) {
             p0.dx = p1.x - p0.x;
             p0.dy = p1.y - p0.y;
             p0.len = nvgNormalize(&p0.dx, &p0.dy);
-            cache.bounds[0] = math::min(cache.bounds[0], p0.x);
-            cache.bounds[1] = math::min(cache.bounds[1], p0.y);
-            cache.bounds[2] = math::max(cache.bounds[2], p0.x);
-            cache.bounds[3] = math::max(cache.bounds[3], p0.y);
+            cache.bounds.x = math::min(cache.bounds.x, p0.x);
+            cache.bounds.y = math::min(cache.bounds.y, p0.y);
+            cache.bounds.z = math::max(cache.bounds.z, p0.x);
+            cache.bounds.w = math::max(cache.bounds.w, p0.y);
             p0 = p1;
             p1++;
         }
@@ -1850,7 +1819,7 @@ fn void NvgContext.fill(&self) {
 
 fn void NvgContext.stroke(&self) {
     NvgState* state = self.getState();
-    float scale = nvgGetAverageScale(&state.xform[0]);
+    float scale = nvgGetAverageScale(&state.form);
     float strokeWidth = math::clamp(state.strokeWidth * scale, 0.0f, 200.0f);
     NvgPaint strokePaint = state.stroke;
 

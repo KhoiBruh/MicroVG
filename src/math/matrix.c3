@@ -46,6 +46,39 @@ fn void Mat2x3.rotate(&self, float rad) {
     self.linear.w = ly * -s + lw * c;
 }
 
+fn Mat2x3 Mat2x3.multiply(self, Mat2x3 other) @operator(*) => {
+	{
+		self.linear.x * other.linear.x + self.linear.z * other.linear.y,
+		self.linear.y * other.linear.x + self.linear.w * other.linear.y,
+		self.linear.x * other.linear.z + self.linear.z * other.linear.w,
+		self.linear.y * other.linear.z + self.linear.w * other.linear.w
+	},
+	{
+		self.linear.x * other.trans.x + self.linear.z * other.trans.y + self.trans.x,
+		self.linear.y * other.trans.x + self.linear.w * other.trans.y + self.trans.y
+	}
+};
+
+fn Mat2x3 Mat2x3.inverse(self) {
+	float det = self.linear.x * self.linear.w - self.linear.z * self.linear.y;
+	if (det > -1e-6f && det < 1e-6f) {
+		return IDENTITY_2X3;
+	}
+	float invdet = 1.0f / det;
+	return {
+		{
+			 self.linear.w * invdet,
+			-self.linear.y * invdet,
+			-self.linear.z * invdet,
+			 self.linear.x * invdet
+		},
+		{
+			(self.linear.z * self.trans.y - self.linear.w * self.trans.x) * invdet,
+			(self.linear.y * self.trans.x - self.linear.x * self.trans.y) * invdet
+		}
+	};
+}
+
 fn Mat4 Mat2x3.to4x4(&self) {
 	Mat4 matrix = IDENTITY_4X4;
 

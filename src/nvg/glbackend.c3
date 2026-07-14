@@ -65,9 +65,9 @@ struct GlFragUniforms {
     float[12] paintMat;
     NvgColor  innerCol;
     NvgColor  outerCol;
-    float[2]  scissorExt;
-    float[2]  scissorScale;
-    float[2]  extent;
+    microvg::Vec2 scissorExt;
+    microvg::Vec2 scissorScale;
+    microvg::Vec2 extent;
     float     radius;
     float     feather;
     float     strokeMult;
@@ -79,7 +79,7 @@ struct GlFragUniforms {
 struct GlContext {
     GlShader      shader;
     GlTexture*    textures;
-    float[2]      view;
+    microvg::Vec2 view;
     int           ntextures;
     int           ctextures;
     int           textureId;
@@ -289,17 +289,17 @@ fn void glnvgGetUniforms(GlShader* shader) @local {
     shader.loc[(int)(GlNvgLoc.FRAG)]     = (int)gl::getUniformBlockIndex(shader.prog, "frag");
 }
 
-fn void glnvgXformToMat3x4(float* m3, float* t) @local {
-    m3[0]  = t[0];
-    m3[1]  = t[1];
+fn void glnvgXformToMat3x4(float* m3, Mat2x3* t) @local {
+    m3[0]  = t.linear.x;
+    m3[1]  = t.linear.y;
     m3[2]  = 0.0f;
     m3[3]  = 0.0f;
-    m3[4]  = t[2];
-    m3[5]  = t[3];
+    m3[4]  = t.linear.z;
+    m3[5]  = t.linear.w;
     m3[6]  = 0.0f;
     m3[7]  = 0.0f;
-    m3[8]  = t[4];
-    m3[9]  = t[5];
+    m3[8]  = t.trans.x;
+    m3[9]  = t.trans.y;
     m3[10] = 1.0f;
     m3[11] = 0.0f;
 }
@@ -313,26 +313,26 @@ fn NvgColor glnvgPremulColor(NvgColor c) @local {
 
 fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, NvgPaint* paint, NvgScissor* scissor, float width, float fringe, float strokeThr) @local {
     GlTexture* tex = null;
-    float[6] invxform;
+    Mat2x3 invxform;
 
     mem::clear(frag, GlFragUniforms::size);
 
     frag.innerCol = glnvgPremulColor(paint.innerColor);
     frag.outerCol = glnvgPremulColor(paint.outerColor);
 
-    if (scissor.extent[0] < -0.5f || scissor.extent[1] < -0.5f) {
+    if (scissor.extent.x < -0.5f || scissor.extent.y < -0.5f) {
         mem::clear(&frag.scissorMat[0], 12 * float::size);
-        frag.scissorExt[0]   = 1.0f;
-        frag.scissorExt[1]   = 1.0f;
-        frag.scissorScale[0] = 1.0f;
-        frag.scissorScale[1] = 1.0f;
+        frag.scissorExt.x = 1.0f;
+        frag.scissorExt.y = 1.0f;
+        frag.scissorScale.x = 1.0f;
+        frag.scissorScale.y = 1.0f;
     } else {
-        microvg::nvgTransformInverse(&invxform[0], &scissor.xform[0]);
-        glnvgXformToMat3x4(&frag.scissorMat[0], &invxform[0]);
-        frag.scissorExt[0]   = scissor.extent[0];
-        frag.scissorExt[1]   = scissor.extent[1];
-        frag.scissorScale[0] = math::sqrt(scissor.xform[0] * scissor.xform[0] + scissor.xform[2] * scissor.xform[2]) / fringe;
-        frag.scissorScale[1] = math::sqrt(scissor.xform[1] * scissor.xform[1] + scissor.xform[3] * scissor.xform[3]) / fringe;
+        microvg::nvgTransformInverse(&invxform, &scissor.form);
+        glnvgXformToMat3x4(&frag.scissorMat[0], &invxform);
+        frag.scissorExt.x = scissor.extent.x;
+        frag.scissorExt.y = scissor.extent.y;
+        frag.scissorScale.x = math::sqrt(scissor.form.linear.x * scissor.form.linear.x + scissor.form.linear.z * scissor.form.linear.z) / fringe;
+        frag.scissorScale.y = math::sqrt(scissor.form.linear.y * scissor.form.linear.y + scissor.form.linear.w * scissor.form.linear.w) / fringe;
     }
 
     mem::copy(&frag.extent[0], &paint.extent[0], 2 * float::size);
@@ -343,17 +343,17 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, NvgPaint* paint, N
         tex = glnvgFindTexture(gl, paint.image);
         if (tex == null) return 0;
         if ((tex.flags & microvg::IMAGE_FLIPY) != 0) {
-            float[6] m1;
-            float[6] m2;
-            microvg::nvgTransformTranslate(&m1[0], 0.0f, frag.extent[1] * 0.5f);
-            microvg::nvgTransformMultiply(&m1[0], &paint.xform[0]);
-            microvg::nvgTransformScale(&m2[0], 1.0f, -1.0f);
-            microvg::nvgTransformMultiply(&m2[0], &m1[0]);
-            microvg::nvgTransformTranslate(&m1[0], 0.0f, -frag.extent[1] * 0.5f);
-            microvg::nvgTransformMultiply(&m1[0], &m2[0]);
-            microvg::nvgTransformInverse(&invxform[0], &m1[0]);
+            Mat2x3 m1;
+            Mat2x3 m2;
+            microvg::nvgTransformTranslate(&m1, 0.0f, frag.extent.y * 0.5f);
+            microvg::nvgTransformMultiply(&m1, &paint.form);
+            microvg::nvgTransformScale(&m2, 1.0f, -1.0f);
+            microvg::nvgTransformMultiply(&m2, &m1);
+            microvg::nvgTransformTranslate(&m1, 0.0f, -frag.extent.y * 0.5f);
+            microvg::nvgTransformMultiply(&m1, &m2);
+            microvg::nvgTransformInverse(&invxform, &m1);
         } else {
-            microvg::nvgTransformInverse(&invxform[0], &paint.xform[0]);
+            microvg::nvgTransformInverse(&invxform, &paint.form);
         }
         frag.type = (int)(NsvgShader.FILLIMG);
         if (tex.type == (int)TextureType.RGBA) {
@@ -366,10 +366,10 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, NvgPaint* paint, N
         frag.type   = (int)(NsvgShader.FILLGRAD);
         frag.radius = paint.radius;
         frag.feather = paint.feather;
-        microvg::nvgTransformInverse(&invxform[0], &paint.xform[0]);
+        microvg::nvgTransformInverse(&invxform, &paint.form);
     }
 
-    glnvgXformToMat3x4(&frag.paintMat[0], &invxform[0]);
+    glnvgXformToMat3x4(&frag.paintMat[0], &invxform);
 
     return 1;
 }
@@ -902,8 +902,8 @@ fn int glnvgRenderGetTextureSize(void* up, int image, int* w, int* h) @local {
 
 fn void glnvgRenderViewport(void* up, float width, float height, float devicePixelRatio) @local {
     GlContext* gl = (GlContext*)up;
-    gl.view[0] = width;
-    gl.view[1] = height;
+    gl.view.x = width;
+    gl.view.y = height;
 }
 
 fn void glnvgRenderFlush(void* up) @local {

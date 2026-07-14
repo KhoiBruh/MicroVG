@@ -12,8 +12,8 @@ struct NvgColor {
 }
 
 struct NvgPaint {
-    float[6]  xform;
-    float[2]  extent;
+    Mat2x3    form;
+    Vec2      extent;
     float     radius;
     float     feather;
     NvgColor  innerColor;
@@ -77,8 +77,8 @@ bitstruct PathPointFlags : char {
 }
 
 struct NvgScissor {
-    float[6] xform;
-    float[2] extent;
+    Mat2x3 form;
+    Vec2   extent;
 }
 
 struct NvgVertex {

@@ -142,7 +142,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     vg.fill();
 
     microvg::NvgPaint bg = vg.boxGradient(300.0f, 200.0f, 140.0f, 100.0f, 20.0f, 30.0f,
-        microvg::nvgRgba(0, 0, 0, 160), microvg::nvgRgba(0, 0, 0, 0));
+        microvg::nvgRgba(255, 0, 0, 160), microvg::nvgRgba(0, 0, 0, 0));
     vg.beginPath();
     vg.rect(280.0f, 180.0f, 200.0f, 160.0f);
     vg.fillPaint(bg);
