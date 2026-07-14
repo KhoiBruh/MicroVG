@@ -1277,7 +1277,7 @@ fn NvgVertex* nvgRoundCapEnd(NvgVertex* dst, NvgPoint* p,
     return dst;
 }
 
-fn void NvgContext.calculateJoins(&self, float w, int lineJoin, float miterLimit) {
+fn void NvgContext.calculateJoins(&self, float w, LineJoin lineJoin, float miterLimit) {
     NvgPathCache* cache = self.cache;
     float iw = 0.0f;
 
@@ -1325,7 +1325,7 @@ fn void NvgContext.calculateJoins(&self, float w, int lineJoin, float miterLimit
             }
 
             if (p1.flags.corner) {
-                if ((dmr2 * miterLimit * miterLimit) < 1.0f || lineJoin == (int)LineJoin.BEVEL || lineJoin == (int)LineJoin.ROUND) {
+                if ((dmr2 * miterLimit * miterLimit) < 1.0f || lineJoin == LineJoin.BEVEL || lineJoin == LineJoin.ROUND) {
                     p1.flags.bevel = true;
                 }
             }
@@ -1342,7 +1342,7 @@ fn void NvgContext.calculateJoins(&self, float w, int lineJoin, float miterLimit
     }
 }
 
-fn int NvgContext.expandStroke(&self, float w, float fringe, int lineCap, int lineJoin, float miterLimit) {
+fn int NvgContext.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJoin lineJoin, float miterLimit) {
     NvgPathCache* cache = self.cache;
     float aa = fringe;
     float u0 = 0.0f;
@@ -1362,14 +1362,14 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, int lineCap, int li
     for (int i = 0; i < cache.npaths; i++) {
         NvgPath* path = &cache.paths[i];
         int loop = (path.closed == 0) ? 0 : 1;
-        if (lineJoin == (int)LineJoin.ROUND) {
+        if (lineJoin == LineJoin.ROUND) {
             cverts += (path.count + path.nbevel * (ncap + 2) + 1) * 2;
         }
         else {
             cverts += (path.count + path.nbevel * 5 + 1) * 2;
         }
         if (loop == 0) {
-            if (lineCap == (int)(LineCap.ROUND)) {
+            if (lineCap == LineCap.ROUND) {
                 cverts += (ncap * 2 + 2) * 2;
             } else {
                 cverts += (3 + 3) * 2;
@@ -1411,20 +1411,20 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, int lineCap, int li
             dx = p1.x - p0.x;
             dy = p1.y - p0.y;
             nvgNormalize(&dx, &dy);
-            if (lineCap == (int)(LineCap.BUTT)) {
+            if (lineCap == LineCap.BUTT) {
                 dst = nvgButtCapStart(dst, p0, dx, dy, w, -aa * 0.5f, aa, u0, u1);
             }
-            else if (lineCap == (int)(LineCap.SQUARE)) {
+            else if (lineCap == LineCap.SQUARE) {
                 dst = nvgButtCapStart(dst, p0, dx, dy, w, w - aa, aa, u0, u1);
             }
-            else if (lineCap == (int)(LineCap.ROUND)) {
+            else if (lineCap == LineCap.ROUND) {
                 dst = nvgRoundCapStart(dst, p0, dx, dy, w, ncap, aa, u0, u1);
             }
         }
 
         for (int j = s; j < e; j++) {
             if ((p1.flags.bevel || p1.flags.innerBevel)) {
-                if (lineJoin == (int)LineJoin.ROUND) {
+                if (lineJoin == LineJoin.ROUND) {
                     dst = nvgRoundJoin(dst, p0, p1, w, w, u0, u1, ncap, aa);
                 } else {
                     dst = nvgBevelJoin(dst, p0, p1, w, w, u0, u1, aa);
@@ -1444,13 +1444,14 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, int lineCap, int li
             dx = p1.x - p0.x;
             dy = p1.y - p0.y;
             nvgNormalize(&dx, &dy);
-            if (lineCap == (int)(LineCap.BUTT)) {
+
+            if (lineCap == LineCap.BUTT) {
                 dst = nvgButtCapEnd(dst, p1, dx, dy, w, -aa * 0.5f, aa, u0, u1);
             }
-            else if (lineCap == (int)(LineCap.SQUARE)) {
+            else if (lineCap == LineCap.SQUARE) {
                 dst = nvgButtCapEnd(dst, p1, dx, dy, w, w - aa, aa, u0, u1);
             }
-            else if (lineCap == (int)(LineCap.ROUND)) {
+            else if (lineCap == LineCap.ROUND) {
                 dst = nvgRoundCapEnd(dst, p1, dx, dy, w, ncap, aa, u0, u1);
             }
         }
@@ -1463,7 +1464,7 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, int lineCap, int li
     return 1;
 }
 
-fn int NvgContext.expandFill(&self, float w, int lineJoin, float miterLimit) {
+fn int NvgContext.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
     NvgPathCache* cache = self.cache;
     float aa = self.fringeWidth;
     int fringe = (int)(w > 0.0f);
@@ -1797,10 +1798,10 @@ fn void NvgContext.fill(&self) {
 
     self.flattenPaths();
     if (self.params.edgeAntiAlias && state.shapeAntiAlias) {
-        self.expandFill(self.fringeWidth, (int)LineJoin.MITER, 2.4f);
+        self.expandFill(self.fringeWidth, LineJoin.MITER, 2.4f);
     }
     else {
-        self.expandFill(0.0f, (int)LineJoin.MITER, 2.4f);
+        self.expandFill(0.0f, LineJoin.MITER, 2.4f);
     }
 
     fillPaint.innerColor.a *= state.alpha;
@@ -1836,10 +1837,10 @@ fn void NvgContext.stroke(&self) {
     self.flattenPaths();
 
     if (self.params.edgeAntiAlias && state.shapeAntiAlias) {
-        self.expandStroke(strokeWidth * 0.5f, self.fringeWidth, state.lineCap.ordinal, (int)state.lineJoin, state.miterLimit);
+        self.expandStroke(strokeWidth * 0.5f, self.fringeWidth, state.lineCap, state.lineJoin, state.miterLimit);
     }
     else {
-        self.expandStroke(strokeWidth * 0.5f, 0.0f, state.lineCap.ordinal, (int)state.lineJoin, state.miterLimit);
+        self.expandStroke(strokeWidth * 0.5f, 0.0f, state.lineCap, state.lineJoin, state.miterLimit);
     }
 
     self.params.renderStroke(self.params.userPtr, &strokePaint, state.compositeOperation, &state.scissor,
