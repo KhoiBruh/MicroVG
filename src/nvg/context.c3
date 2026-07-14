@@ -76,26 +76,10 @@ struct NvgContext {
     int textTriCount;
 }
 
-fn float nvgSqrtf(float a) @local { return math::sqrt(a); }
-fn float nvgModf(float a, float b) @local { return fmodf(a, b); }
-fn float nvgSinf(float a) @local { return math::sin(a); }
-fn float nvgCosf(float a) @local { return math::cos(a); }
-fn float nvgTanf(float a) @local { return math::tan(a); }
-fn float nvgAtan2f(float a, float b) @local { return math::atan2(a, b); }
-fn float nvgAcosf(float a) @local { return math::acos(a); }
-
-fn int nvgMini(int a, int b) @local { return a < b ? a : b; }
-fn int nvgMaxi(int a, int b) @local { return a > b ? a : b; }
-fn int nvgClampi(int a, int mn, int mx) @local { return a < mn ? mn : (a > mx ? mx : a); }
-fn float nvgMinf(float a, float b) @local { return a < b ? a : b; }
-fn float nvgMaxf(float a, float b) @local { return a > b ? a : b; }
-fn float nvgAbsf(float a) @local { return a >= 0.0f ? a : -a; }
-fn float nvgSignf(float a) @local { return a >= 0.0f ? 1.0f : -1.0f; }
-fn float nvgClampf(float a, float mn, float mx) @local { return a < mn ? mn : (a > mx ? mx : a); }
 fn float nvgCross(float dx0, float dy0, float dx1, float dy1) @local { return dx1 * dy0 - dx0 * dy1; }
 
 fn float nvgNormalize(float* x, float* y) @local {
-    float d = nvgSqrtf(x[0] * x[0] + y[0] * y[0]);
+    float d = math::sqrt(x[0] * x[0] + y[0] * y[0]);
     if (d > 1e-6f) {
         float id = 1.0f / d;
         x[0] *= id;
@@ -323,7 +307,7 @@ fn NvgColor nvgTransRgbaf(NvgColor c, float a) {
 fn NvgColor nvgLerpRgba(NvgColor c0, NvgColor c1, float u) {
     NvgColor cint;
     mem::clear(&cint, NvgColor::size);
-    u = nvgClampf(u, 0.0f, 1.0f);
+    u = math::clamp(u, 0.0f, 1.0f);
     float oneminu = 1.0f - u;
     for (int i = 0; i < 4; i++) {
         cint.rgba[i] = c0.rgba[i] * oneminu + c1.rgba[i] * u;
@@ -337,15 +321,15 @@ fn NvgColor nvgHsl(float h, float s, float l) {
 
 fn NvgColor nvgHsla(float h, float s, float l, char a) {
     NvgColor col;
-    h = nvgModf(h, 1.0f);
+    h = fmodf(h, 1.0f);
     if (h < 0.0f) h += 1.0f;
-    s = nvgClampf(s, 0.0f, 1.0f);
-    l = nvgClampf(l, 0.0f, 1.0f);
+    s = math::clamp(s, 0.0f, 1.0f);
+    l = math::clamp(l, 0.0f, 1.0f);
     float m2 = l <= 0.5f ? (l * (1 + s)) : (l + s - l * s);
     float m1 = 2 * l - m2;
-    col.r = nvgClampf(nvgHue(h + 1.0f / 3.0f, m1, m2), 0.0f, 1.0f);
-    col.g = nvgClampf(nvgHue(h, m1, m2), 0.0f, 1.0f);
-    col.b = nvgClampf(nvgHue(h - 1.0f / 3.0f, m1, m2), 0.0f, 1.0f);
+    col.r = math::clamp(nvgHue(h + 1.0f / 3.0f, m1, m2), 0.0f, 1.0f);
+    col.g = math::clamp(nvgHue(h, m1, m2), 0.0f, 1.0f);
+    col.b = math::clamp(nvgHue(h - 1.0f / 3.0f, m1, m2), 0.0f, 1.0f);
     col.a = a / 255.0f;
     return col;
 }
@@ -369,8 +353,8 @@ fn void nvgTransformScale(float* t, float sx, float sy) {
 }
 
 fn void nvgTransformRotate(float* t, float a) {
-    float cs = nvgCosf(a);
-    float sn = nvgSinf(a);
+    float cs = math::cos(a);
+    float sn = math::sin(a);
     t[0] = cs;  t[1] = sn;
     t[2] = -sn; t[3] = cs;
     t[4] = 0.0f; t[5] = 0.0f;
@@ -378,12 +362,12 @@ fn void nvgTransformRotate(float* t, float a) {
 
 fn void nvgTransformSkewX(float* t, float a) {
     t[0] = 1.0f; t[1] = 0.0f;
-    t[2] = nvgTanf(a); t[3] = 1.0f;
+    t[2] = math::tan(a); t[3] = 1.0f;
     t[4] = 0.0f; t[5] = 0.0f;
 }
 
 fn void nvgTransformSkewY(float* t, float a) {
-    t[0] = 1.0f; t[1] = nvgTanf(a);
+    t[0] = 1.0f; t[1] = math::tan(a);
     t[2] = 0.0f; t[3] = 1.0f;
     t[4] = 0.0f; t[5] = 0.0f;
 }
@@ -602,7 +586,7 @@ fn NvgPaint NvgContext.linearGradient(&self, float sx, float sy, float ex, float
 
     float dx = ex - sx;
     float dy = ey - sy;
-    float d = nvgSqrtf(dx * dx + dy * dy);
+    float d = math::sqrt(dx * dx + dy * dy);
     if (d > 0.0001f) {
         dx /= d;
         dy /= d;
@@ -620,7 +604,7 @@ fn NvgPaint NvgContext.linearGradient(&self, float sx, float sy, float ex, float
 
     p.radius = 0.0f;
 
-    p.feather = nvgMaxf(1.0f, d);
+    p.feather = math::max(1.0f, d);
 
     p.innerColor = icol;
     p.outerColor = ocol;
@@ -644,7 +628,7 @@ fn NvgPaint NvgContext.radialGradient(&self, float cx, float cy, float inr, floa
 
     p.radius = r;
 
-    p.feather = nvgMaxf(1.0f, f);
+    p.feather = math::max(1.0f, f);
 
     p.innerColor = icol;
     p.outerColor = ocol;
@@ -666,7 +650,7 @@ fn NvgPaint NvgContext.boxGradient(&self, float x, float y, float w, float h, fl
 
     p.radius = r;
 
-    p.feather = nvgMaxf(1.0f, f);
+    p.feather = math::max(1.0f, f);
 
     p.innerColor = icol;
     p.outerColor = ocol;
@@ -697,8 +681,8 @@ fn NvgPaint NvgContext.imagePattern(&self, float cx, float cy, float w, float h,
 fn void NvgContext.scissor(&self, float x, float y, float w, float h) {
     NvgState* state = self.getState();
 
-    w = nvgMaxf(0.0f, w);
-    h = nvgMaxf(0.0f, h);
+    w = math::max(0.0f, w);
+    h = math::max(0.0f, h);
 
     nvgTransformIdentity(&state.scissor.xform[0]);
     state.scissor.xform[4] = x + w * 0.5f;
@@ -711,14 +695,14 @@ fn void NvgContext.scissor(&self, float x, float y, float w, float h) {
 
 fn void nvgIsectRects(float* dst, float ax, float ay, float aw, float ah,
                        float bx, float by, float bw, float bh) @local {
-    float minx = nvgMaxf(ax, bx);
-    float miny = nvgMaxf(ay, by);
-    float maxx = nvgMinf(ax + aw, bx + bw);
-    float maxy = nvgMinf(ay + ah, by + bh);
+    float minx = math::max(ax, bx);
+    float miny = math::max(ay, by);
+    float maxx = math::min(ax + aw, bx + bw);
+    float maxy = math::min(ay + ah, by + bh);
     dst[0] = minx;
     dst[1] = miny;
-    dst[2] = nvgMaxf(0.0f, maxx - minx);
-    dst[3] = nvgMaxf(0.0f, maxy - miny);
+    dst[2] = math::max(0.0f, maxx - minx);
+    dst[3] = math::max(0.0f, maxy - miny);
 }
 
 fn void NvgContext.intersectScissor(&self, float x, float y, float w, float h) {
@@ -737,8 +721,8 @@ fn void NvgContext.intersectScissor(&self, float x, float y, float w, float h) {
     float ey = state.scissor.extent[1];
     nvgTransformInverse(&invxorm[0], &state.xform[0]);
     nvgTransformMultiply(&pxform[0], &invxorm[0]);
-    float tex = ex * nvgAbsf(pxform[0]) + ey * nvgAbsf(pxform[2]);
-    float tey = ex * nvgAbsf(pxform[1]) + ey * nvgAbsf(pxform[3]);
+    float tex = ex * math::abs(pxform[0]) + ey * math::abs(pxform[2]);
+    float tey = ex * math::abs(pxform[1]) + ey * math::abs(pxform[3]);
 
     nvgIsectRects(&rect[0], pxform[4] - tex, pxform[5] - tey, tex * 2, tey * 2, x, y, w, h);
 
@@ -925,8 +909,8 @@ fn void NvgContext.pathWindingCache(&self, int winding) {
 }
 
 fn float nvgGetAverageScale(float* t) @local {
-    float sx = nvgSqrtf(t[0] * t[0] + t[2] * t[2]);
-    float sy = nvgSqrtf(t[1] * t[1] + t[3] * t[3]);
+    float sx = math::sqrt(t[0] * t[0] + t[2] * t[2]);
+    float sy = math::sqrt(t[1] * t[1] + t[3] * t[3]);
     return (sx + sy) * 0.5f;
 }
 
@@ -998,8 +982,8 @@ fn void NvgContext.tesselateBezier(&self,
 
     float dx = x4 - x1;
     float dy = y4 - y1;
-    float d2 = nvgAbsf(((x2 - x4) * dy - (y2 - y4) * dx));
-    float d3 = nvgAbsf(((x3 - x4) * dy - (y3 - y4) * dx));
+    float d2 = math::abs(((x2 - x4) * dy - (y2 - y4) * dx));
+    float d3 = math::abs(((x3 - x4) * dy - (y3 - y4) * dx));
 
     if ((d2 + d3) * (d2 + d3) < self.tessTol * (dx * dx + dy * dy)) {
         self.addPoint(x4, y4, type);
@@ -1094,10 +1078,10 @@ fn void NvgContext.flattenPaths(&self) {
             p0.dx = p1.x - p0.x;
             p0.dy = p1.y - p0.y;
             p0.len = nvgNormalize(&p0.dx, &p0.dy);
-            cache.bounds[0] = nvgMinf(cache.bounds[0], p0.x);
-            cache.bounds[1] = nvgMinf(cache.bounds[1], p0.y);
-            cache.bounds[2] = nvgMaxf(cache.bounds[2], p0.x);
-            cache.bounds[3] = nvgMaxf(cache.bounds[3], p0.y);
+            cache.bounds[0] = math::min(cache.bounds[0], p0.x);
+            cache.bounds[1] = math::min(cache.bounds[1], p0.y);
+            cache.bounds[2] = math::max(cache.bounds[2], p0.x);
+            cache.bounds[3] = math::max(cache.bounds[3], p0.y);
             p0 = p1;
             p1++;
         }
@@ -1105,8 +1089,8 @@ fn void NvgContext.flattenPaths(&self) {
 }
 
 fn int nvgCurveDivs(float r, float arc, float tol) @local {
-    float da = nvgAcosf(r / (r + tol)) * 2.0f;
-    return nvgMaxi(2, (int)math::ceil(arc / da));
+    float da = math::acos(r / (r + tol)) * 2.0f;
+    return math::max(2, (int)math::ceil(arc / da));
 }
 
 fn void nvgChooseBevel(int bevel, NvgPoint* p0, NvgPoint* p1, float w,
@@ -1135,19 +1119,19 @@ fn NvgVertex* nvgRoundJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
     if (p1.flags.left) {
         float lx0, ly0, lx1, ly1;
         nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
-        float a0 = nvgAtan2f(-dly0, -dlx0);
-        float a1 = nvgAtan2f(-dly1, -dlx1);
+        float a0 = math::atan2(-dly0, -dlx0);
+        float a1 = math::atan2(-dly1, -dlx1);
         if (a1 > a0) a1 -= PI * 2;
 
         nvgVset(dst, lx0, ly0, lu, 1); dst++;
         nvgVset(dst, p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1); dst++;
 
-        int n = nvgClampi((int)math::ceil(((a0 - a1) / PI) * ncap), 2, ncap);
+        int n = math::clamp((int)math::ceil(((a0 - a1) / PI) * ncap), 2, ncap);
         for (int i = 0; i < n; i++) {
             float u = i / (float)(n - 1);
             float a = a0 + u * (a1 - a0);
-            float rx = p1.x + nvgCosf(a) * rw;
-            float ry = p1.y + nvgSinf(a) * rw;
+            float rx = p1.x + math::cos(a) * rw;
+            float ry = p1.y + math::sin(a) * rw;
             nvgVset(dst, p1.x, p1.y, 0.5f, 1); dst++;
             nvgVset(dst, rx, ry, ru, 1); dst++;
         }
@@ -1158,19 +1142,19 @@ fn NvgVertex* nvgRoundJoin(NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
     } else {
         float rx0, ry0, rx1, ry1;
         nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
-        float a0 = nvgAtan2f(dly0, dlx0);
-        float a1 = nvgAtan2f(dly1, dlx1);
+        float a0 = math::atan2(dly0, dlx0);
+        float a1 = math::atan2(dly1, dlx1);
         if (a1 < a0) a1 += PI * 2;
 
         nvgVset(dst, p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1); dst++;
         nvgVset(dst, rx0, ry0, ru, 1); dst++;
 
-        int n = nvgClampi((int)math::ceil(((a1 - a0) / PI) * ncap), 2, ncap);
+        int n = math::clamp((int)math::ceil(((a1 - a0) / PI) * ncap), 2, ncap);
         for (int i = 0; i < n; i++) {
             float u = i / (float)(n - 1);
             float a = a0 + u * (a1 - a0);
-            float lx = p1.x + nvgCosf(a) * lw;
-            float ly = p1.y + nvgSinf(a) * lw;
+            float lx = p1.x + math::cos(a) * lw;
+            float ly = p1.y + math::sin(a) * lw;
             nvgVset(dst, lx, ly, lu, 1); dst++;
             nvgVset(dst, p1.x, p1.y, 0.5f, 1); dst++;
         }
@@ -1294,8 +1278,8 @@ fn NvgVertex* nvgRoundCapStart(NvgVertex* dst, NvgPoint* p,
     float dly = -dx;
     for (int i = 0; i < ncap; i++) {
         float a = i / (float)(ncap - 1) * PI;
-        float ax = nvgCosf(a) * w;
-        float ay = nvgSinf(a) * w;
+        float ax = math::cos(a) * w;
+        float ay = math::sin(a) * w;
         nvgVset(dst, px - dlx * ax - dx * ay, py - dly * ax - dy * ay, u0, 1); dst++;
         nvgVset(dst, px, py, 0.5f, 1); dst++;
     }
@@ -1316,8 +1300,8 @@ fn NvgVertex* nvgRoundCapEnd(NvgVertex* dst, NvgPoint* p,
     nvgVset(dst, px - dlx * w, py - dly * w, u1, 1); dst++;
     for (int i = 0; i < ncap; i++) {
         float a = i / (float)(ncap - 1) * PI;
-        float ax = nvgCosf(a) * w;
-        float ay = nvgSinf(a) * w;
+        float ax = math::cos(a) * w;
+        float ay = math::sin(a) * w;
         nvgVset(dst, px, py, 0.5f, 1); dst++;
         nvgVset(dst, px - dlx * ax + dx * ay, py - dly * ax + dy * ay, u0, 1); dst++;
     }
@@ -1366,7 +1350,7 @@ fn void NvgContext.calculateJoins(&self, float w, int lineJoin, float miterLimit
                 p1.flags.left = true;
             }
 
-            float limit = nvgMaxf(1.01f, nvgMinf(p0.len, p1.len) * iw);
+            float limit = math::max(1.01f, math::min(p0.len, p1.len) * iw);
             if ((dmr2 * limit * limit) < 1.0f) {
                 p1.flags.innerBevel = true;
             }
@@ -1675,8 +1659,8 @@ fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float ra
     float dy1 = y2 - y1;
     nvgNormalize(&dx0, &dy0);
     nvgNormalize(&dx1, &dy1);
-    float a = nvgAcosf(dx0 * dx1 + dy0 * dy1);
-    float d = radius / nvgTanf(a / 2.0f);
+    float a = math::acos(dx0 * dx1 + dy0 * dy1);
+    float d = radius / math::tan(a / 2.0f);
 
     if (d > 10000.0f) {
         self.lineTo(x1, y1);
@@ -1688,14 +1672,14 @@ fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float ra
     if (nvgCross(dx0, dy0, dx1, dy1) > 0.0f) {
         cx = x1 + dx0 * d + dy0 * radius;
         cy = y1 + dy0 * d + -dx0 * radius;
-        a0 = nvgAtan2f(dx0, -dy0);
-        a1 = nvgAtan2f(-dx1, dy1);
+        a0 = math::atan2(dx0, -dy0);
+        a1 = math::atan2(-dx1, dy1);
         dir = (int)Winding.CW;
     } else {
         cx = x1 + dx0 * d + -dy0 * radius;
         cy = y1 + dy0 * d + dx0 * radius;
-        a0 = nvgAtan2f(-dx0, dy0);
-        a1 = nvgAtan2f(dx1, -dy1);
+        a0 = math::atan2(-dx0, dy0);
+        a1 = math::atan2(dx1, -dy1);
         dir = (int)Winding.CCW;
     }
 
@@ -1722,22 +1706,22 @@ fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, i
 
     da = a1 - a0;
     if (dir == (int)Winding.CW) {
-        if (nvgAbsf(da) >= PI * 2) {
+        if (math::abs(da) >= PI * 2) {
             da = PI * 2;
         } else {
             while (da < 0.0f) da += PI * 2;
         }
     } else {
-        if (nvgAbsf(da) >= PI * 2) {
+        if (math::abs(da) >= PI * 2) {
             da = -PI * 2;
         } else {
             while (da > 0.0f) da -= PI * 2;
         }
     }
 
-    ndivs = nvgMaxi(1, nvgMini((int)(nvgAbsf(da) / (PI * 0.5f) + 0.5f), 5));
+    ndivs = math::max(1, math::min((int)(math::abs(da) / (PI * 0.5f) + 0.5f), 5));
     hda = (da / (float)ndivs) / 2.0f;
-    kappa = nvgAbsf(4.0f / 3.0f * (1.0f - nvgCosf(hda)) / nvgSinf(hda));
+    kappa = math::abs(4.0f / 3.0f * (1.0f - math::cos(hda)) / math::sin(hda));
 
     if (dir == (int)Winding.CCW) {
         kappa = -kappa;
@@ -1746,8 +1730,8 @@ fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, i
     nvals = 0;
     for (int i = 0; i <= ndivs; i++) {
         a = a0 + da * (i / (float)ndivs);
-        dx = nvgCosf(a);
-        dy = nvgSinf(a);
+        dx = math::cos(a);
+        dy = math::sin(a);
         x = cx + dx * r;
         y = cy + dy * r;
         tanx = -dy * r * kappa;
@@ -1797,16 +1781,16 @@ fn void NvgContext.roundedRectVarying(&self, float x, float y, float w, float h,
         self.rect(x, y, w, h);
         return;
     }
-    float halfw = nvgAbsf(w) * 0.5f;
-    float halfh = nvgAbsf(h) * 0.5f;
-    float rxBL = nvgMinf(radBottomLeft, halfw) * nvgSignf(w);
-    float ryBL = nvgMinf(radBottomLeft, halfh) * nvgSignf(h);
-    float rxBR = nvgMinf(radBottomRight, halfw) * nvgSignf(w);
-    float ryBR = nvgMinf(radBottomRight, halfh) * nvgSignf(h);
-    float rxTR = nvgMinf(radTopRight, halfw) * nvgSignf(w);
-    float ryTR = nvgMinf(radTopRight, halfh) * nvgSignf(h);
-    float rxTL = nvgMinf(radTopLeft, halfw) * nvgSignf(w);
-    float ryTL = nvgMinf(radTopLeft, halfh) * nvgSignf(h);
+    float halfw = math::abs(w) * 0.5f;
+    float halfh = math::abs(h) * 0.5f;
+    float rxBL = math::min(radBottomLeft, halfw) * ((w) >= 0.0f ? 1.0f : -1.0f);
+    float ryBL = math::min(radBottomLeft, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
+    float rxBR = math::min(radBottomRight, halfw) * ((w) >= 0.0f ? 1.0f : -1.0f);
+    float ryBR = math::min(radBottomRight, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
+    float rxTR = math::min(radTopRight, halfw) * ((w) >= 0.0f ? 1.0f : -1.0f);
+    float ryTR = math::min(radTopRight, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
+    float rxTL = math::min(radTopLeft, halfw) * ((w) >= 0.0f ? 1.0f : -1.0f);
+    float ryTL = math::min(radTopLeft, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
     float[*] vals = {
         (float)(int)(PathCommand.MOVETO), x, y + ryTL,
         (float)(int)(PathCommand.LINETO), x, y + h - ryBL,
@@ -1867,11 +1851,11 @@ fn void NvgContext.fill(&self) {
 fn void NvgContext.stroke(&self) {
     NvgState* state = self.getState();
     float scale = nvgGetAverageScale(&state.xform[0]);
-    float strokeWidth = nvgClampf(state.strokeWidth * scale, 0.0f, 200.0f);
+    float strokeWidth = math::clamp(state.strokeWidth * scale, 0.0f, 200.0f);
     NvgPaint strokePaint = state.stroke;
 
     if (strokeWidth < self.fringeWidth) {
-        float alpha = nvgClampf(strokeWidth / self.fringeWidth, 0.0f, 1.0f);
+        float alpha = math::clamp(strokeWidth / self.fringeWidth, 0.0f, 1.0f);
         strokePaint.innerColor.a *= alpha * alpha;
         strokePaint.outerColor.a *= alpha * alpha;
         strokeWidth = self.fringeWidth;
