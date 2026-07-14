@@ -2,7 +2,7 @@ module microvg::glbackend;
 
 import microvg;
 import opengl::gl;
-import libc;
+import std::core::mem;
 import std::math;
 
 extern fn int printf(char* fmt, ...);
@@ -171,14 +171,14 @@ fn GlTexture* glnvgAllocTexture(GlContext* gl) @local {
     if (tex == null) {
         if (gl.ntextures + 1 > gl.ctextures) {
             int ctextures = glnvgMaxi(gl.ntextures + 1, 4) + gl.ctextures / 2;
-            GlTexture* textures = (GlTexture*)libc::realloc(gl.textures, (GlTexture::size * (usz)ctextures));
+            GlTexture* textures = mem::realloc(gl.textures, (GlTexture::size * ctextures));
             if (textures == null) return null;
             gl.textures  = textures;
             gl.ctextures = ctextures;
         }
         tex = &gl.textures[gl.ntextures++];
     }
-    libc::memset(tex, 0, GlTexture::size);
+    mem::clear(tex, GlTexture::size);
     tex.id = ++gl.textureId;
     return tex;
 }
@@ -198,7 +198,7 @@ fn int glnvgDeleteTexture(GlContext* gl, int id) @local {
             if (gl.textures[i].tex != 0 && (gl.textures[i].flags & NVG_IMAGE_NODELETE) == 0) {
                 gl::deleteTextures(1, &gl.textures[i].tex);
             }
-            libc::memset(&gl.textures[i], 0, GlTexture::size);
+            mem::clear(&gl.textures[i], GlTexture::size);
             return 1;
         }
     }
@@ -237,7 +237,7 @@ fn int glnvgCreateShader(GlShader* shader, char* name, char* header, char* opts,
     char*[3] str;
     str[0] = header;
     str[1] = opts != null ? opts : "";
-    libc::memset(shader, 0, GlShader::size);
+    mem::clear(shader, GlShader::size);
 
     prog = gl::createProgram();
     vert = gl::createShader(gl::GL_VERTEX_SHADER);
@@ -325,13 +325,13 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, NvgPaint* paint, N
     GlTexture* tex = null;
     float[6] invxform;
 
-    libc::memset(frag, 0, GlFragUniforms::size);
+    mem::clear(frag, GlFragUniforms::size);
 
     frag.innerCol = glnvgPremulColor(paint.innerColor);
     frag.outerCol = glnvgPremulColor(paint.outerColor);
 
     if (scissor.extent[0] < -0.5f || scissor.extent[1] < -0.5f) {
-        libc::memset(&frag.scissorMat[0], 0, 12 * float::size);
+        mem::clear(&frag.scissorMat[0], 12 * float::size);
         frag.scissorExt[0]   = 1.0f;
         frag.scissorExt[1]   = 1.0f;
         frag.scissorScale[0] = 1.0f;
@@ -345,7 +345,7 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, NvgPaint* paint, N
         frag.scissorScale[1] = math::sqrt(scissor.xform[1] * scissor.xform[1] + scissor.xform[3] * scissor.xform[3]) / fringe;
     }
 
-    libc::memcpy(&frag.extent[0], &paint.extent[0], 2 * float::size);
+    mem::copy(&frag.extent[0], &paint.extent[0], 2 * float::size);
     frag.strokeMult = (width * 0.5f + fringe * 0.5f) / fringe;
     frag.strokeThr  = strokeThr;
 
@@ -556,20 +556,20 @@ fn int glnvgMaxVertCount(NvgPath* paths, int npaths) @local {
 fn GlCall* glnvgAllocCall(GlContext* gl) @local {
     if (gl.ncalls + 1 > gl.ccalls) {
         int ccalls = glnvgMaxi(gl.ncalls + 1, 128) + gl.ccalls / 2;
-        GlCall* calls = (GlCall*)libc::realloc(gl.calls, GlCall::size * (usz)ccalls);
+        GlCall* calls = mem::realloc(gl.calls, GlCall::size * ccalls);
         if (calls == null) return null;
         gl.calls  = calls;
         gl.ccalls = ccalls;
     }
     GlCall* ret = &gl.calls[gl.ncalls++];
-    libc::memset(ret, 0, GlCall::size);
+    mem::clear(ret, GlCall::size);
     return ret;
 }
 
 fn int glnvgAllocPaths(GlContext* gl, int n) @local {
     if (gl.npaths + n > gl.cpaths) {
         int cpaths = glnvgMaxi(gl.npaths + n, 128) + gl.cpaths / 2;
-        GlPath* paths = (GlPath*)libc::realloc(gl.paths, GlPath::size * (usz)cpaths);
+        GlPath* paths = mem::realloc(gl.paths, GlPath::size * cpaths);
         if (paths == null) return -1;
         gl.paths  = paths;
         gl.cpaths = cpaths;
@@ -582,7 +582,7 @@ fn int glnvgAllocPaths(GlContext* gl, int n) @local {
 fn int glnvgAllocVerts(GlContext* gl, int n) @local {
     if (gl.nverts + n > gl.cverts) {
         int cverts = glnvgMaxi(gl.nverts + n, 4096) + gl.cverts / 2;
-        NvgVertex* verts = (NvgVertex*)libc::realloc(gl.verts, NvgVertex::size * (usz)cverts);
+        NvgVertex* verts = mem::realloc(gl.verts, NvgVertex::size * cverts);
         if (verts == null) return -1;
         gl.verts  = verts;
         gl.cverts = cverts;
@@ -596,7 +596,7 @@ fn int glnvgAllocFragUniforms(GlContext* gl, int n) @local {
     int structSize = gl.fragSize;
     if (gl.nuniforms + n > gl.cuniforms) {
         int cuniforms = glnvgMaxi(gl.nuniforms + n, 128) + gl.cuniforms / 2;
-        char* uniforms = (char*)libc::realloc(gl.uniforms, (usz)structSize * (usz)cuniforms);
+        char* uniforms = mem::realloc(gl.uniforms, (sz)structSize * cuniforms);
         if (uniforms == null) return -1;
         gl.uniforms  = uniforms;
         gl.cuniforms = cuniforms;
@@ -1022,17 +1022,17 @@ fn void glnvgRenderFill(void* up, NvgPaint* paint, NvgCompositeOperationState co
     for (int i = 0; i < npaths; i++) {
         GlPath* copy     = &gl.paths[call.pathOffset + i];
         NvgPath* path    = &paths[i];
-        libc::memset(copy, 0, GlPath::size);
+        mem::clear(copy, GlPath::size);
         if (path.nfill > 0) {
             copy.fillOffset = offset;
             copy.fillCount  = path.nfill;
-            libc::memcpy(&gl.verts[offset], path.fill, NvgVertex::size * (usz)path.nfill);
+            mem::copy(&gl.verts[offset], path.fill, NvgVertex::size * path.nfill);
             offset += path.nfill;
         }
         if (path.nstroke > 0) {
             copy.strokeOffset = offset;
             copy.strokeCount  = path.nstroke;
-            libc::memcpy(&gl.verts[offset], path.stroke, NvgVertex::size * (usz)path.nstroke);
+            mem::copy(&gl.verts[offset], path.stroke, NvgVertex::size * path.nstroke);
             offset += path.nstroke;
         }
     }
@@ -1048,7 +1048,7 @@ fn void glnvgRenderFill(void* up, NvgPaint* paint, NvgCompositeOperationState co
         call.uniformOffset = glnvgAllocFragUniforms(gl, 2);
         if (call.uniformOffset == -1) { if (gl.ncalls > 0) gl.ncalls--; return; }
         frag = glnvgFragUniformPtr(gl, call.uniformOffset);
-        libc::memset(frag, 0, GlFragUniforms::size);
+        mem::clear(frag, GlFragUniforms::size);
         frag.strokeThr = -1.0f;
         frag.type      = NSVG_SHADER_SIMPLE;
         glnvgConvertPaint(gl, glnvgFragUniformPtr(gl, call.uniformOffset + gl.fragSize), paint, scissor, fringe, fringe, -1.0f);
@@ -1080,11 +1080,11 @@ fn void glnvgRenderStroke(void* up, NvgPaint* paint, NvgCompositeOperationState 
     for (int i = 0; i < npaths; i++) {
         GlPath* copy  = &gl.paths[call.pathOffset + i];
         NvgPath* path = &paths[i];
-        libc::memset(copy, 0, GlPath::size);
+        mem::clear(copy, GlPath::size);
         if (path.nstroke) {
             copy.strokeOffset = offset;
             copy.strokeCount  = path.nstroke;
-            libc::memcpy(&gl.verts[offset], path.stroke, NvgVertex::size * (usz)path.nstroke);
+            mem::copy(&gl.verts[offset], path.stroke, NvgVertex::size * path.nstroke);
             offset += path.nstroke;
         }
     }
@@ -1117,7 +1117,7 @@ fn void glnvgRenderTriangles(void* up, NvgPaint* paint, NvgCompositeOperationSta
     if (call.triangleOffset == -1) { if (gl.ncalls > 0) gl.ncalls--; return; }
     call.triangleCount = nverts;
 
-    libc::memcpy(&gl.verts[call.triangleOffset], verts, NvgVertex::size * (usz)nverts);
+    mem::copy(&gl.verts[call.triangleOffset], verts, NvgVertex::size * nverts);
 
     call.uniformOffset = glnvgAllocFragUniforms(gl, 1);
     if (call.uniformOffset == -1) { if (gl.ncalls > 0) gl.ncalls--; return; }
@@ -1147,24 +1147,24 @@ fn void glnvgRenderDelete(void* up) @local {
             gl::deleteTextures(1, &gl.textures[i].tex);
         }
     }
-    libc::free(gl.textures);
+    mem::free(gl.textures);
 
-    libc::free(gl.paths);
-    libc::free(gl.verts);
-    libc::free(gl.uniforms);
-    libc::free(gl.calls);
+    mem::free(gl.paths);
+    mem::free(gl.verts);
+    mem::free(gl.uniforms);
+    mem::free(gl.calls);
 
-    libc::free(gl);
+    mem::free(gl);
 }
 
 fn NvgContext* nvgCreateGl3(int flags) {
     NvgParams params;
     NvgContext* ctx = null;
-    GlContext* gl = (GlContext*)libc::malloc(GlContext::size);
+    GlContext* gl = mem::malloc(GlContext::size);
     if (gl == null) return null;
-    libc::memset(gl, 0, GlContext::size);
+    mem::clear(gl, GlContext::size);
 
-    libc::memset(&params, 0, NvgParams::size);
+    mem::clear(&params, NvgParams::size);
     params.renderCreate        = &glnvgRenderCreate;
     params.renderCreateTexture = &glnvgRenderCreateTexture;
     params.renderDeleteTexture = &glnvgRenderDeleteTexture;

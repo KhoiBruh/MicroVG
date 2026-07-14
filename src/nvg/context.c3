@@ -1,6 +1,6 @@
 module microvg;
 
-import libc;
+import std::core::mem;
 import std::math;
 
 extern fn float fmodf(float a, float b);
@@ -110,28 +110,28 @@ fn float nvgNormalize(float* x, float* y) @local {
 
 fn void nvgDeletePathCache(NvgPathCache* c) @local {
     if (c == null) return;
-    if (c.points != null) libc::free(c.points);
-    if (c.paths  != null) libc::free(c.paths);
-    if (c.verts  != null) libc::free(c.verts);
-    libc::free(c);
+    if (c.points != null) mem::free(c.points);
+    if (c.paths  != null) mem::free(c.paths);
+    if (c.verts  != null) mem::free(c.verts);
+    mem::free(c);
 }
 
 fn NvgPathCache* nvgAllocPathCache() @local {
-    NvgPathCache* c = (NvgPathCache*)libc::malloc(NvgPathCache::size);
+    NvgPathCache* c = mem::malloc(NvgPathCache::size);
     if (c == null) return null;
-    libc::memset(c, 0, NvgPathCache::size);
+    mem::clear(c, NvgPathCache::size);
 
-    c.points = (NvgPoint*)libc::malloc(NvgPoint::size * (usz)NVG_INIT_POINTS_SIZE);
+    c.points = mem::malloc(NvgPoint::size * NVG_INIT_POINTS_SIZE);
     if (c.points == null) { nvgDeletePathCache(c); return null; }
     c.npoints = 0;
     c.cpoints = NVG_INIT_POINTS_SIZE;
 
-    c.paths = (NvgPath*)libc::malloc(NvgPath::size * (usz)NVG_INIT_PATHS_SIZE);
+    c.paths = mem::malloc(NvgPath::size * NVG_INIT_PATHS_SIZE);
     if (c.paths == null) { nvgDeletePathCache(c); return null; }
     c.npaths = 0;
     c.cpaths = NVG_INIT_PATHS_SIZE;
 
-    c.verts = (NvgVertex*)libc::malloc(NvgVertex::size * (usz)NVG_INIT_VERTS_SIZE);
+    c.verts = mem::malloc(NvgVertex::size * NVG_INIT_VERTS_SIZE);
     if (c.verts == null) { nvgDeletePathCache(c); return null; }
     c.nverts = 0;
     c.cverts = NVG_INIT_VERTS_SIZE;
@@ -201,7 +201,7 @@ fn NvgState* nvgGetState(NvgContext* ctx) @local {
 }
 
 fn void nvgSetPaintColor(NvgPaint* p, NvgColor color) @local {
-    libc::memset(p, 0, NvgPaint::size);
+    mem::clear(p, NvgPaint::size);
     nvgTransformIdentity(&p.xform[0]);
     p.radius = 0.0f;
     p.feather = 1.0f;
@@ -225,13 +225,13 @@ fn float nvgHue(float h, float m1, float m2) @local {
 }
 
 fn NvgContext* nvgCreateInternal(NvgParams* params) {
-    NvgContext* ctx = (NvgContext*)libc::malloc(NvgContext::size);
+    NvgContext* ctx = mem::malloc(NvgContext::size);
     if (ctx == null) return null;
-    libc::memset(ctx, 0, NvgContext::size);
+    mem::clear(ctx, NvgContext::size);
 
     ctx.params = params[0];
 
-    ctx.commands = (float*)libc::malloc(float::size * (usz)NVG_INIT_COMMANDS_SIZE);
+    ctx.commands = mem::malloc(float::size * NVG_INIT_COMMANDS_SIZE);
     if (ctx.commands == null) { nvgDeleteInternal(ctx); return null; }
     ctx.ncommands = 0;
     ctx.ccommands = NVG_INIT_COMMANDS_SIZE;
@@ -255,14 +255,14 @@ fn NvgParams* nvgInternalParams(NvgContext* ctx) {
 
 fn void nvgDeleteInternal(NvgContext* ctx) {
     if (ctx == null) return;
-    if (ctx.commands != null) libc::free(ctx.commands);
+    if (ctx.commands != null) mem::free(ctx.commands);
     if (ctx.cache != null) nvgDeletePathCache(ctx.cache);
 
     if (ctx.params.renderDelete != null) {
         ctx.params.renderDelete(ctx.params.userPtr);
     }
 
-    libc::free(ctx);
+    mem::free(ctx);
 }
 
 fn void nvgBeginFrame(NvgContext* ctx, float windowWidth, float windowHeight, float devicePixelRatio) {
@@ -326,7 +326,7 @@ fn NvgColor nvgTransRgbaf(NvgColor c, float a) {
 
 fn NvgColor nvgLerpRgba(NvgColor c0, NvgColor c1, float u) {
     NvgColor cint;
-    libc::memset(&cint, 0, NvgColor::size);
+    mem::clear(&cint, NvgColor::size);
     u = nvgClampf(u, 0.0f, 1.0f);
     float oneminu = 1.0f - u;
     for (int i = 0; i < 4; i++) {
@@ -406,9 +406,9 @@ fn void nvgTransformMultiply(float* t, float* s) {
 
 fn void nvgTransformPremultiply(float* t, float* s) {
     float[6] s2;
-    libc::memcpy(&s2[0], s, float::size * 6);
+    mem::copy(&s2[0], s, float::size * 6);
     nvgTransformMultiply(&s2[0], t);
-    libc::memcpy(t, &s2[0], float::size * 6);
+    mem::copy(t, &s2[0], float::size * 6);
 }
 
 fn int nvgTransformInverse(float* inv, float* t) {
@@ -445,7 +445,7 @@ fn void nvgSave(NvgContext* ctx) {
         return;
     }
     if (ctx.nstates > 0) {
-        libc::memcpy(&ctx.states[ctx.nstates], &ctx.states[ctx.nstates - 1], NvgState::size);
+        mem::copy(&ctx.states[ctx.nstates], &ctx.states[ctx.nstates - 1], NvgState::size);
     }
     ctx.nstates++;
 }
@@ -459,7 +459,7 @@ fn void nvgRestore(NvgContext* ctx) {
 
 fn void nvgReset(NvgContext* ctx) {
     NvgState* state = nvgGetState(ctx);
-    libc::memset(state, 0, NvgState::size);
+    mem::clear(state, NvgState::size);
 
     nvgSetPaintColor(&state.fill, nvgRgba(255, 255, 255, 255));
     nvgSetPaintColor(&state.stroke, nvgRgba(0, 0, 0, 255));
@@ -555,7 +555,7 @@ fn void nvgScale(NvgContext* ctx, float x, float y) {
 fn void nvgCurrentTransform(NvgContext* ctx, float* xform) {
     NvgState* state = nvgGetState(ctx);
     if (xform == null) return;
-    libc::memcpy(xform, &state.xform[0], float::size * 6);
+    mem::copy(xform, &state.xform[0], float::size * 6);
 }
 
 fn void nvgStrokeColor(NvgContext* ctx, NvgColor color) {
@@ -602,7 +602,7 @@ fn NvgPaint nvgLinearGradient(NvgContext* ctx, float sx, float sy, float ex, flo
                                 NvgColor icol, NvgColor ocol) {
     NvgPaint p;
     float large = 1e5f;
-    libc::memset(&p, 0, NvgPaint::size);
+    mem::clear(&p, NvgPaint::size);
 
     float dx = ex - sx;
     float dy = ey - sy;
@@ -637,7 +637,7 @@ fn NvgPaint nvgRadialGradient(NvgContext* ctx, float cx, float cy, float inr, fl
     NvgPaint p;
     float r = (inr + outr) * 0.5f;
     float f = (outr - inr);
-    libc::memset(&p, 0, NvgPaint::size);
+    mem::clear(&p, NvgPaint::size);
 
     nvgTransformIdentity(&p.xform[0]);
     p.xform[4] = cx;
@@ -659,7 +659,7 @@ fn NvgPaint nvgRadialGradient(NvgContext* ctx, float cx, float cy, float inr, fl
 fn NvgPaint nvgBoxGradient(NvgContext* ctx, float x, float y, float w, float h, float r, float f,
                             NvgColor icol, NvgColor ocol) {
     NvgPaint p;
-    libc::memset(&p, 0, NvgPaint::size);
+    mem::clear(&p, NvgPaint::size);
 
     nvgTransformIdentity(&p.xform[0]);
     p.xform[4] = x + w * 0.5f;
@@ -681,7 +681,7 @@ fn NvgPaint nvgBoxGradient(NvgContext* ctx, float x, float y, float w, float h, 
 fn NvgPaint nvgImagePattern(NvgContext* ctx, float cx, float cy, float w, float h, float angle,
                              int image, float alpha) {
     NvgPaint p;
-    libc::memset(&p, 0, NvgPaint::size);
+    mem::clear(&p, NvgPaint::size);
 
     nvgTransformRotate(&p.xform[0], angle);
     p.xform[4] = cx;
@@ -736,7 +736,7 @@ fn void nvgIntersectScissor(NvgContext* ctx, float x, float y, float w, float h)
         return;
     }
 
-    libc::memcpy(&pxform[0], &state.scissor.xform[0], float::size * 6);
+    mem::copy(&pxform[0], &state.scissor.xform[0], float::size * 6);
     float ex = state.scissor.extent[0];
     float ey = state.scissor.extent[1];
     nvgTransformInverse(&invxorm[0], &state.xform[0]);
@@ -751,7 +751,7 @@ fn void nvgIntersectScissor(NvgContext* ctx, float x, float y, float w, float h)
 
 fn void nvgResetScissor(NvgContext* ctx) {
     NvgState* state = nvgGetState(ctx);
-    libc::memset(&state.scissor.xform[0], 0, float::size * 6);
+    mem::clear(&state.scissor.xform[0], float::size * 6);
     state.scissor.extent[0] = -1.0f;
     state.scissor.extent[1] = -1.0f;
 }
@@ -806,7 +806,7 @@ fn void nvgAppendCommands(NvgContext* ctx, float* vals, int nvals) @local {
 
     if (ctx.ncommands + nvals > ctx.ccommands) {
         int ccommands = ctx.ncommands + nvals + ctx.ccommands / 2;
-        float* commands = (float*)libc::realloc(ctx.commands, float::size * (usz)ccommands);
+        float* commands = mem::realloc(ctx.commands, float::size * ccommands);
         if (commands == null) return;
         ctx.commands = commands;
         ctx.ccommands = ccommands;
@@ -846,7 +846,7 @@ fn void nvgAppendCommands(NvgContext* ctx, float* vals, int nvals) @local {
         }
     }
 
-    libc::memcpy(&ctx.commands[ctx.ncommands], vals, (usz)nvals * float::size);
+    mem::copy(&ctx.commands[ctx.ncommands], vals, nvals * float::size);
 
     ctx.ncommands += nvals;
 }
@@ -866,13 +866,13 @@ fn NvgPath* nvgLastPath(NvgContext* ctx) @local {
 fn void nvgAddPath(NvgContext* ctx) @local {
     if (ctx.cache.npaths + 1 > ctx.cache.cpaths) {
         int cpaths = ctx.cache.npaths + 1 + ctx.cache.cpaths / 2;
-        NvgPath* paths = (NvgPath*)libc::realloc(ctx.cache.paths, NvgPath::size * (usz)cpaths);
+        NvgPath* paths = mem::realloc(ctx.cache.paths, NvgPath::size * cpaths);
         if (paths == null) return;
         ctx.cache.paths = paths;
         ctx.cache.cpaths = cpaths;
     }
     NvgPath* path = &ctx.cache.paths[ctx.cache.npaths];
-    libc::memset(path, 0, NvgPath::size);
+    mem::clear(path, NvgPath::size);
     path.first = ctx.cache.npoints;
     path.winding = WINDING_CCW;
 
@@ -900,14 +900,14 @@ fn void nvgAddPoint(NvgContext* ctx, float x, float y, int flags) @local {
 
     if (ctx.cache.npoints + 1 > ctx.cache.cpoints) {
         int cpoints = ctx.cache.npoints + 1 + ctx.cache.cpoints / 2;
-        NvgPoint* points = (NvgPoint*)libc::realloc(ctx.cache.points, NvgPoint::size * (usz)cpoints);
+        NvgPoint* points = mem::realloc(ctx.cache.points, NvgPoint::size * cpoints);
         if (points == null) return;
         ctx.cache.points = points;
         ctx.cache.cpoints = cpoints;
     }
 
     NvgPoint* pt = &ctx.cache.points[ctx.cache.npoints];
-    libc::memset(pt, 0, NvgPoint::size);
+    mem::clear(pt, NvgPoint::size);
     pt.x = x;
     pt.y = y;
     pt.flags = (char)flags;
@@ -937,7 +937,7 @@ fn float nvgGetAverageScale(float* t) @local {
 fn NvgVertex* nvgAllocTempVerts(NvgContext* ctx, int nverts) @local {
     if (nverts > ctx.cache.cverts) {
         int cverts = (nverts + 0xff) & ~0xff;
-        NvgVertex* verts = (NvgVertex*)libc::realloc(ctx.cache.verts, NvgVertex::size * (usz)cverts);
+        NvgVertex* verts = mem::realloc(ctx.cache.verts, NvgVertex::size * cverts);
         if (verts == null) return null;
         ctx.cache.verts = verts;
         ctx.cache.cverts = cverts;

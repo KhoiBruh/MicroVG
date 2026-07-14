@@ -3,7 +3,7 @@ import microvg::glbackend;
 import glfw34;
 import opengl;
 import opengl::gl;
-import libc;
+import std::core::mem;
 import std::io;
 import std::math;
 
@@ -95,19 +95,19 @@ fn void main(String[] args) {
 
 fn void saveScreenshot(char* path, int w, int h) {
     if (w <= 0 || h <= 0) return;
-    usz size = (usz)(w * h * 4);
-    char* pixels = (char*)libc::malloc(size);
+    sz size = (sz)(w * h * 4);
+    char* pixels = mem::malloc(size);
     if (pixels == null) return;
-    defer libc::free(pixels);
+    defer mem::free(pixels);
 
     gl::readPixels(0, 0, w, h, gl::GL_RGBA, gl::GL_UNSIGNED_BYTE, pixels);
 
-    char* flipped = (char*)libc::malloc(size);
+    char* flipped = mem::malloc(size);
     if (flipped == null) return;
-    defer libc::free(flipped);
+    defer mem::free(flipped);
     int stride = w * 4;
     for (int y = 0; y < h; y++) {
-        libc::memcpy(&flipped[y * stride], &pixels[(h - 1 - y) * stride], (usz)stride);
+        mem::copy(&flipped[y * stride], &pixels[(h - 1 - y) * stride], stride);
     }
 
     int ok = stbi_write_png(path, w, h, 4, flipped, stride);
