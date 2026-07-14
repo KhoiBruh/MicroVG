@@ -135,11 +135,11 @@ fn NvgPathCache* nvgAllocPathCache() @local {
     return c;
 }
 
-fn void nvgSetDevicePixelRatio(NvgContext* ctx, float ratio) @local {
-    ctx.tessTol = 0.25f / ratio;
-    ctx.distTol = 0.01f / ratio;
-    ctx.fringeWidth = 1.0f / ratio;
-    ctx.devicePxRatio = ratio;
+fn void NvgContext.setDevicePixelRatio(&self, float ratio) {
+    self.tessTol = 0.25f / ratio;
+    self.distTol = 0.01f / ratio;
+    self.fringeWidth = 1.0f / ratio;
+    self.devicePxRatio = ratio;
 }
 
 fn NvgCompositeOperationState nvgCompositeOpState(int op) @local {
@@ -192,8 +192,8 @@ fn NvgCompositeOperationState nvgCompositeOpState(int op) @local {
     return state;
 }
 
-fn NvgState* nvgGetState(NvgContext* ctx) @local {
-    return &ctx.states[ctx.nstates - 1];
+fn NvgState* NvgContext.getState(&self) {
+    return &self.states[self.nstates - 1];
 }
 
 fn void nvgSetPaintColor(NvgPaint* p, NvgColor color) @local {
@@ -221,67 +221,67 @@ fn float nvgHue(float h, float m1, float m2) @local {
 }
 
 fn NvgContext* nvgCreateInternal(NvgParams* params) {
-    NvgContext* ctx = mem::malloc(NvgContext::size);
-    if (ctx == null) return null;
-    mem::clear(ctx, NvgContext::size);
+    NvgContext* vg = mem::malloc(NvgContext::size);
+    if (vg == null) return null;
+    mem::clear(vg, NvgContext::size);
 
-    ctx.params = params[0];
+    vg.params = params[0];
 
-    ctx.commands = mem::malloc(float::size * NVG_INIT_COMMANDS_SIZE);
-    if (ctx.commands == null) { nvgDeleteInternal(ctx); return null; }
-    ctx.ncommands = 0;
-    ctx.ccommands = NVG_INIT_COMMANDS_SIZE;
+    vg.commands = mem::malloc(float::size * NVG_INIT_COMMANDS_SIZE);
+    if (vg.commands == null) { vg.destroy(); return null; }
+    vg.ncommands = 0;
+    vg.ccommands = NVG_INIT_COMMANDS_SIZE;
 
-    ctx.cache = nvgAllocPathCache();
-    if (ctx.cache == null) { nvgDeleteInternal(ctx); return null; }
+    vg.cache = nvgAllocPathCache();
+    if (vg.cache == null) { vg.destroy(); return null; }
 
-    nvgSave(ctx);
-    nvgReset(ctx);
+    vg.save();
+    vg.reset();
 
-    nvgSetDevicePixelRatio(ctx, 1.0f);
+    vg.setDevicePixelRatio(1.0f);
 
-    if (ctx.params.renderCreate(ctx.params.userPtr) == 0) { nvgDeleteInternal(ctx); return null; }
+    if (vg.params.renderCreate(vg.params.userPtr) == 0) { vg.destroy(); return null; }
 
-    return ctx;
+    return vg;
 }
 
-fn NvgParams* nvgInternalParams(NvgContext* ctx) {
-    return &ctx.params;
+fn NvgParams* NvgContext.internalParams(&self) {
+    return &self.params;
 }
 
-fn void nvgDeleteInternal(NvgContext* ctx) {
-    if (ctx == null) return;
-    if (ctx.commands != null) mem::free(ctx.commands);
-    if (ctx.cache != null) nvgDeletePathCache(ctx.cache);
+fn void NvgContext.destroy(&self) {
+    if (self == null) return;
+    if (self.commands != null) mem::free(self.commands);
+    if (self.cache != null) nvgDeletePathCache(self.cache);
 
-    if (ctx.params.renderDelete != null) {
-        ctx.params.renderDelete(ctx.params.userPtr);
+    if (self.params.renderDelete != null) {
+        self.params.renderDelete(self.params.userPtr);
     }
 
-    mem::free(ctx);
+    mem::free(self);
 }
 
-fn void nvgBeginFrame(NvgContext* ctx, float windowWidth, float windowHeight, float devicePixelRatio) {
-    ctx.nstates = 0;
-    nvgSave(ctx);
-    nvgReset(ctx);
+fn void NvgContext.beginFrame(&self, float windowWidth, float windowHeight, float devicePixelRatio) {
+    self.nstates = 0;
+    self.save();
+    self.reset();
 
-    nvgSetDevicePixelRatio(ctx, devicePixelRatio);
+    self.setDevicePixelRatio(devicePixelRatio);
 
-    ctx.params.renderViewport(ctx.params.userPtr, windowWidth, windowHeight, devicePixelRatio);
+    self.params.renderViewport(self.params.userPtr, windowWidth, windowHeight, devicePixelRatio);
 
-    ctx.drawCallCount  = 0;
-    ctx.fillTriCount   = 0;
-    ctx.strokeTriCount = 0;
-    ctx.textTriCount   = 0;
+    self.drawCallCount  = 0;
+    self.fillTriCount   = 0;
+    self.strokeTriCount = 0;
+    self.textTriCount   = 0;
 }
 
-fn void nvgCancelFrame(NvgContext* ctx) {
-    ctx.params.renderCancel(ctx.params.userPtr);
+fn void NvgContext.cancelFrame(&self) {
+    self.params.renderCancel(self.params.userPtr);
 }
 
-fn void nvgEndFrame(NvgContext* ctx) {
-    ctx.params.renderFlush(ctx.params.userPtr);
+fn void NvgContext.endFrame(&self) {
+    self.params.renderFlush(self.params.userPtr);
 }
 
 fn NvgColor nvgRgb(char r, char g, char b) {
@@ -436,25 +436,25 @@ fn float nvgRadToDeg(float rad) {
     return rad / PI * 180.0f;
 }
 
-fn void nvgSave(NvgContext* ctx) {
-    if (ctx.nstates >= NVG_MAX_STATES) {
+fn void NvgContext.save(&self) {
+    if (self.nstates >= NVG_MAX_STATES) {
         return;
     }
-    if (ctx.nstates > 0) {
-        mem::copy(&ctx.states[ctx.nstates], &ctx.states[ctx.nstates - 1], NvgState::size);
+    if (self.nstates > 0) {
+        mem::copy(&self.states[self.nstates], &self.states[self.nstates - 1], NvgState::size);
     }
-    ctx.nstates++;
+    self.nstates++;
 }
 
-fn void nvgRestore(NvgContext* ctx) {
-    if (ctx.nstates <= 1) {
+fn void NvgContext.restore(&self) {
+    if (self.nstates <= 1) {
         return;
     }
-    ctx.nstates--;
+    self.nstates--;
 }
 
-fn void nvgReset(NvgContext* ctx) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.reset(&self) {
+    NvgState* state = self.getState();
     mem::clear(state, NvgState::size);
 
     nvgSetPaintColor(&state.fill, nvgRgba(255, 255, 255, 255));
@@ -472,129 +472,129 @@ fn void nvgReset(NvgContext* ctx) {
     state.scissor.extent[1] = -1.0f;
 }
 
-fn void nvgShapeAntiAlias(NvgContext* ctx, int enabled) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.shapeAntiAlias(&self, int enabled) {
+    NvgState* state = self.getState();
     state.shapeAntiAlias = enabled;
 }
 
-fn void nvgStrokeWidth(NvgContext* ctx, float width) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.strokeWidth(&self, float width) {
+    NvgState* state = self.getState();
     state.strokeWidth = width;
 }
 
-fn void nvgMiterLimit(NvgContext* ctx, float limit) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.miterLimit(&self, float limit) {
+    NvgState* state = self.getState();
     state.miterLimit = limit;
 }
 
-fn void nvgLineCap(NvgContext* ctx, LineCap cap) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.lineCap(&self, LineCap cap) {
+    NvgState* state = self.getState();
     state.lineCap = cap;
 }
 
-fn void nvgLineJoin(NvgContext* ctx, LineJoin join) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.lineJoin(&self, LineJoin join) {
+    NvgState* state = self.getState();
     state.lineJoin = join;
 }
 
-fn void nvgGlobalAlpha(NvgContext* ctx, float alpha) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.globalAlpha(&self, float alpha) {
+    NvgState* state = self.getState();
     state.alpha = alpha;
 }
 
-fn void nvgTransform(NvgContext* ctx, float a, float b, float c, float d, float e, float f) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.transform(&self, float a, float b, float c, float d, float e, float f) {
+    NvgState* state = self.getState();
     float[6] t = { a, b, c, d, e, f };
     nvgTransformPremultiply(&state.xform[0], &t[0]);
 }
 
-fn void nvgResetTransform(NvgContext* ctx) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.resetTransform(&self) {
+    NvgState* state = self.getState();
     nvgTransformIdentity(&state.xform[0]);
 }
 
-fn void nvgTranslate(NvgContext* ctx, float x, float y) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.translate(&self, float x, float y) {
+    NvgState* state = self.getState();
     float[6] t;
     nvgTransformTranslate(&t[0], x, y);
     nvgTransformPremultiply(&state.xform[0], &t[0]);
 }
 
-fn void nvgRotate(NvgContext* ctx, float angle) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.rotate(&self, float angle) {
+    NvgState* state = self.getState();
     float[6] t;
     nvgTransformRotate(&t[0], angle);
     nvgTransformPremultiply(&state.xform[0], &t[0]);
 }
 
-fn void nvgSkewX(NvgContext* ctx, float angle) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.skewX(&self, float angle) {
+    NvgState* state = self.getState();
     float[6] t;
     nvgTransformSkewX(&t[0], angle);
     nvgTransformPremultiply(&state.xform[0], &t[0]);
 }
 
-fn void nvgSkewY(NvgContext* ctx, float angle) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.skewY(&self, float angle) {
+    NvgState* state = self.getState();
     float[6] t;
     nvgTransformSkewY(&t[0], angle);
     nvgTransformPremultiply(&state.xform[0], &t[0]);
 }
 
-fn void nvgScale(NvgContext* ctx, float x, float y) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.scale(&self, float x, float y) {
+    NvgState* state = self.getState();
     float[6] t;
     nvgTransformScale(&t[0], x, y);
     nvgTransformPremultiply(&state.xform[0], &t[0]);
 }
 
-fn void nvgCurrentTransform(NvgContext* ctx, float* xform) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.currentTransform(&self, float* xform) {
+    NvgState* state = self.getState();
     if (xform == null) return;
     mem::copy(xform, &state.xform[0], float::size * 6);
 }
 
-fn void nvgStrokeColor(NvgContext* ctx, NvgColor color) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.strokeColor(&self, NvgColor color) {
+    NvgState* state = self.getState();
     nvgSetPaintColor(&state.stroke, color);
 }
 
-fn void nvgStrokePaint(NvgContext* ctx, NvgPaint paint) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.strokePaint(&self, NvgPaint paint) {
+    NvgState* state = self.getState();
     state.stroke = paint;
     nvgTransformMultiply(&state.stroke.xform[0], &state.xform[0]);
 }
 
-fn void nvgFillColor(NvgContext* ctx, NvgColor color) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.fillColor(&self, NvgColor color) {
+    NvgState* state = self.getState();
     nvgSetPaintColor(&state.fill, color);
 }
 
-fn void nvgFillPaint(NvgContext* ctx, NvgPaint paint) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.fillPaint(&self, NvgPaint paint) {
+    NvgState* state = self.getState();
     state.fill = paint;
     nvgTransformMultiply(&state.fill.xform[0], &state.xform[0]);
 }
 
-fn int nvgCreateImageRgba(NvgContext* ctx, int w, int h, int imageFlags, char* data) {
-    return ctx.params.renderCreateTexture(ctx.params.userPtr, (int)TextureType.RGBA, w, h, imageFlags, data);
+fn int NvgContext.createImageRgba(&self, int w, int h, int imageFlags, char* data) {
+    return self.params.renderCreateTexture(self.params.userPtr, (int)TextureType.RGBA, w, h, imageFlags, data);
 }
 
-fn void nvgUpdateImage(NvgContext* ctx, int image, char* data) {
+fn void NvgContext.updateImage(&self, int image, char* data) {
     int w, h;
-    ctx.params.renderGetTextureSize(ctx.params.userPtr, image, &w, &h);
-    ctx.params.renderUpdateTexture(ctx.params.userPtr, image, 0, 0, w, h, data);
+    self.params.renderGetTextureSize(self.params.userPtr, image, &w, &h);
+    self.params.renderUpdateTexture(self.params.userPtr, image, 0, 0, w, h, data);
 }
 
-fn void nvgImageSize(NvgContext* ctx, int image, int* w, int* h) {
-    ctx.params.renderGetTextureSize(ctx.params.userPtr, image, w, h);
+fn void NvgContext.imageSize(&self, int image, int* w, int* h) {
+    self.params.renderGetTextureSize(self.params.userPtr, image, w, h);
 }
 
-fn void nvgDeleteImage(NvgContext* ctx, int image) {
-    ctx.params.renderDeleteTexture(ctx.params.userPtr, image);
+fn void NvgContext.deleteImage(&self, int image) {
+    self.params.renderDeleteTexture(self.params.userPtr, image);
 }
 
-fn NvgPaint nvgLinearGradient(NvgContext* ctx, float sx, float sy, float ex, float ey,
+fn NvgPaint NvgContext.linearGradient(&self, float sx, float sy, float ex, float ey,
                                 NvgColor icol, NvgColor ocol) {
     NvgPaint p;
     float large = 1e5f;
@@ -628,7 +628,7 @@ fn NvgPaint nvgLinearGradient(NvgContext* ctx, float sx, float sy, float ex, flo
     return p;
 }
 
-fn NvgPaint nvgRadialGradient(NvgContext* ctx, float cx, float cy, float inr, float outr,
+fn NvgPaint NvgContext.radialGradient(&self, float cx, float cy, float inr, float outr,
                                NvgColor icol, NvgColor ocol) {
     NvgPaint p;
     float r = (inr + outr) * 0.5f;
@@ -652,7 +652,7 @@ fn NvgPaint nvgRadialGradient(NvgContext* ctx, float cx, float cy, float inr, fl
     return p;
 }
 
-fn NvgPaint nvgBoxGradient(NvgContext* ctx, float x, float y, float w, float h, float r, float f,
+fn NvgPaint NvgContext.boxGradient(&self, float x, float y, float w, float h, float r, float f,
                             NvgColor icol, NvgColor ocol) {
     NvgPaint p;
     mem::clear(&p, NvgPaint::size);
@@ -674,7 +674,7 @@ fn NvgPaint nvgBoxGradient(NvgContext* ctx, float x, float y, float w, float h, 
     return p;
 }
 
-fn NvgPaint nvgImagePattern(NvgContext* ctx, float cx, float cy, float w, float h, float angle,
+fn NvgPaint NvgContext.imagePattern(&self, float cx, float cy, float w, float h, float angle,
                              int image, float alpha) {
     NvgPaint p;
     mem::clear(&p, NvgPaint::size);
@@ -694,8 +694,8 @@ fn NvgPaint nvgImagePattern(NvgContext* ctx, float cx, float cy, float w, float 
     return p;
 }
 
-fn void nvgScissor(NvgContext* ctx, float x, float y, float w, float h) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.scissor(&self, float x, float y, float w, float h) {
+    NvgState* state = self.getState();
 
     w = nvgMaxf(0.0f, w);
     h = nvgMaxf(0.0f, h);
@@ -721,14 +721,14 @@ fn void nvgIsectRects(float* dst, float ax, float ay, float aw, float ah,
     dst[3] = nvgMaxf(0.0f, maxy - miny);
 }
 
-fn void nvgIntersectScissor(NvgContext* ctx, float x, float y, float w, float h) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.intersectScissor(&self, float x, float y, float w, float h) {
+    NvgState* state = self.getState();
     float[6] pxform;
     float[6] invxorm;
     float[4] rect;
 
     if (state.scissor.extent[0] < 0) {
-        nvgScissor(ctx, x, y, w, h);
+        self.scissor(x, y, w, h);
         return;
     }
 
@@ -742,26 +742,26 @@ fn void nvgIntersectScissor(NvgContext* ctx, float x, float y, float w, float h)
 
     nvgIsectRects(&rect[0], pxform[4] - tex, pxform[5] - tey, tex * 2, tey * 2, x, y, w, h);
 
-    nvgScissor(ctx, rect[0], rect[1], rect[2], rect[3]);
+    self.scissor(rect[0], rect[1], rect[2], rect[3]);
 }
 
-fn void nvgResetScissor(NvgContext* ctx) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.resetScissor(&self) {
+    NvgState* state = self.getState();
     mem::clear(&state.scissor.xform[0], float::size * 6);
     state.scissor.extent[0] = -1.0f;
     state.scissor.extent[1] = -1.0f;
 }
 
-fn void nvgGlobalCompositeOperation(NvgContext* ctx, int op) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.globalCompositeOperation(&self, int op) {
+    NvgState* state = self.getState();
     state.compositeOperation = nvgCompositeOpState(op);
 }
 
-fn void nvgGlobalCompositeBlendFunc(NvgContext* ctx, int sfactor, int dfactor) {
-    nvgGlobalCompositeBlendFuncSeparate(ctx, sfactor, dfactor, sfactor, dfactor);
+fn void NvgContext.globalCompositeBlendFunc(&self, int sfactor, int dfactor) {
+    self.globalCompositeBlendFuncSeparate(sfactor, dfactor, sfactor, dfactor);
 }
 
-fn void nvgGlobalCompositeBlendFuncSeparate(NvgContext* ctx, int srcRGB, int dstRGB,
+fn void NvgContext.globalCompositeBlendFuncSeparate(&self, int srcRGB, int dstRGB,
                                               int srcAlpha, int dstAlpha) {
     NvgCompositeOperationState op;
     op.srcRGB   = srcRGB;
@@ -769,7 +769,7 @@ fn void nvgGlobalCompositeBlendFuncSeparate(NvgContext* ctx, int srcRGB, int dst
     op.srcAlpha = srcAlpha;
     op.dstAlpha = dstAlpha;
 
-    NvgState* state = nvgGetState(ctx);
+    NvgState* state = self.getState();
     state.compositeOperation = op;
 }
 
@@ -797,20 +797,20 @@ fn float nvgDistPtSeg(float x, float y, float px, float py, float qx, float qy) 
     return ddx * ddx + ddy * ddy;
 }
 
-fn void nvgAppendCommands(NvgContext* ctx, float* vals, int nvals) @local {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.appendCommands(&self, float* vals, int nvals) {
+    NvgState* state = self.getState();
 
-    if (ctx.ncommands + nvals > ctx.ccommands) {
-        int ccommands = ctx.ncommands + nvals + ctx.ccommands / 2;
-        float* commands = mem::realloc(ctx.commands, float::size * ccommands);
+    if (self.ncommands + nvals > self.ccommands) {
+        int ccommands = self.ncommands + nvals + self.ccommands / 2;
+        float* commands = mem::realloc(self.commands, float::size * ccommands);
         if (commands == null) return;
-        ctx.commands = commands;
-        ctx.ccommands = ccommands;
+        self.commands = commands;
+        self.ccommands = ccommands;
     }
 
     if ((int)vals[0] != (int)(PathCommand.CLOSE) && (int)vals[0] != (int)(PathCommand.WINDING)) {
-        ctx.commandx = vals[nvals - 2];
-        ctx.commandy = vals[nvals - 1];
+        self.commandx = vals[nvals - 2];
+        self.commandy = vals[nvals - 1];
     }
 
     int i = 0;
@@ -842,84 +842,84 @@ fn void nvgAppendCommands(NvgContext* ctx, float* vals, int nvals) @local {
         }
     }
 
-    mem::copy(&ctx.commands[ctx.ncommands], vals, nvals * float::size);
+    mem::copy(&self.commands[self.ncommands], vals, nvals * float::size);
 
-    ctx.ncommands += nvals;
+    self.ncommands += nvals;
 }
 
-fn void nvgClearPathCache(NvgContext* ctx) @local {
-    ctx.cache.npoints = 0;
-    ctx.cache.npaths = 0;
+fn void NvgContext.clearPathCache(&self) {
+    self.cache.npoints = 0;
+    self.cache.npaths = 0;
 }
 
-fn NvgPath* nvgLastPath(NvgContext* ctx) @local {
-    if (ctx.cache.npaths > 0) {
-        return &ctx.cache.paths[ctx.cache.npaths - 1];
+fn NvgPath* NvgContext.lastPath(&self) {
+    if (self.cache.npaths > 0) {
+        return &self.cache.paths[self.cache.npaths - 1];
     }
     return null;
 }
 
-fn void nvgAddPath(NvgContext* ctx) @local {
-    if (ctx.cache.npaths + 1 > ctx.cache.cpaths) {
-        int cpaths = ctx.cache.npaths + 1 + ctx.cache.cpaths / 2;
-        NvgPath* paths = mem::realloc(ctx.cache.paths, NvgPath::size * cpaths);
+fn void NvgContext.addPath(&self) {
+    if (self.cache.npaths + 1 > self.cache.cpaths) {
+        int cpaths = self.cache.npaths + 1 + self.cache.cpaths / 2;
+        NvgPath* paths = mem::realloc(self.cache.paths, NvgPath::size * cpaths);
         if (paths == null) return;
-        ctx.cache.paths = paths;
-        ctx.cache.cpaths = cpaths;
+        self.cache.paths = paths;
+        self.cache.cpaths = cpaths;
     }
-    NvgPath* path = &ctx.cache.paths[ctx.cache.npaths];
+    NvgPath* path = &self.cache.paths[self.cache.npaths];
     mem::clear(path, NvgPath::size);
-    path.first = ctx.cache.npoints;
+    path.first = self.cache.npoints;
     path.winding = (int)Winding.CCW;
 
-    ctx.cache.npaths++;
+    self.cache.npaths++;
 }
 
-fn NvgPoint* nvgLastPoint(NvgContext* ctx) @local {
-    if (ctx.cache.npoints > 0) {
-        return &ctx.cache.points[ctx.cache.npoints - 1];
+fn NvgPoint* NvgContext.lastPoint(&self) {
+    if (self.cache.npoints > 0) {
+        return &self.cache.points[self.cache.npoints - 1];
     }
     return null;
 }
 
-fn void nvgAddPoint(NvgContext* ctx, float x, float y, int flags) @local {
-    NvgPath* path = nvgLastPath(ctx);
+fn void NvgContext.addPoint(&self, float x, float y, int flags) {
+    NvgPath* path = self.lastPath();
     if (path == null) return;
 
-    if (path.count > 0 && ctx.cache.npoints > 0) {
-        NvgPoint* pt = nvgLastPoint(ctx);
-        if (nvgPtEquals(pt.x, pt.y, x, y, ctx.distTol)) {
+    if (path.count > 0 && self.cache.npoints > 0) {
+        NvgPoint* pt = self.lastPoint();
+        if (nvgPtEquals(pt.x, pt.y, x, y, self.distTol)) {
             pt.flags = (PathPointFlags)(char)((int)pt.flags | flags);
             return;
         }
     }
 
-    if (ctx.cache.npoints + 1 > ctx.cache.cpoints) {
-        int cpoints = ctx.cache.npoints + 1 + ctx.cache.cpoints / 2;
-        NvgPoint* points = mem::realloc(ctx.cache.points, NvgPoint::size * cpoints);
+    if (self.cache.npoints + 1 > self.cache.cpoints) {
+        int cpoints = self.cache.npoints + 1 + self.cache.cpoints / 2;
+        NvgPoint* points = mem::realloc(self.cache.points, NvgPoint::size * cpoints);
         if (points == null) return;
-        ctx.cache.points = points;
-        ctx.cache.cpoints = cpoints;
+        self.cache.points = points;
+        self.cache.cpoints = cpoints;
     }
 
-    NvgPoint* pt = &ctx.cache.points[ctx.cache.npoints];
+    NvgPoint* pt = &self.cache.points[self.cache.npoints];
     mem::clear(pt, NvgPoint::size);
     pt.x = x;
     pt.y = y;
     pt.flags = (PathPointFlags)(char)flags;
 
-    ctx.cache.npoints++;
+    self.cache.npoints++;
     path.count++;
 }
 
-fn void nvgClosePathCache(NvgContext* ctx) @local {
-    NvgPath* path = nvgLastPath(ctx);
+fn void NvgContext.closePathCache(&self) {
+    NvgPath* path = self.lastPath();
     if (path == null) return;
     path.closed = 1;
 }
 
-fn void nvgPathWindingCache(NvgContext* ctx, int winding) @local {
-    NvgPath* path = nvgLastPath(ctx);
+fn void NvgContext.pathWindingCache(&self, int winding) {
+    NvgPath* path = self.lastPath();
     if (path == null) return;
     path.winding = winding;
 }
@@ -930,16 +930,16 @@ fn float nvgGetAverageScale(float* t) @local {
     return (sx + sy) * 0.5f;
 }
 
-fn NvgVertex* nvgAllocTempVerts(NvgContext* ctx, int nverts) @local {
-    if (nverts > ctx.cache.cverts) {
+fn NvgVertex* NvgContext.allocTempVerts(&self, int nverts) {
+    if (nverts > self.cache.cverts) {
         int cverts = (nverts + 0xff) & ~0xff;
-        NvgVertex* verts = mem::realloc(ctx.cache.verts, NvgVertex::size * cverts);
+        NvgVertex* verts = mem::realloc(self.cache.verts, NvgVertex::size * cverts);
         if (verts == null) return null;
-        ctx.cache.verts = verts;
-        ctx.cache.cverts = cverts;
+        self.cache.verts = verts;
+        self.cache.cverts = cverts;
     }
 
-    return ctx.cache.verts;
+    return self.cache.verts;
 }
 
 fn float nvgTriarea2(float ax, float ay, float bx, float by, float cx, float cy) @local {
@@ -980,10 +980,10 @@ fn void nvgVset(NvgVertex* vtx, float x, float y, float u, float v) @local {
     vtx.v = v;
 }
 
-fn void nvgTesselateBezier(NvgContext* ctx,
+fn void NvgContext.tesselateBezier(&self,
     float x1, float y1, float x2, float y2,
     float x3, float y3, float x4, float y4,
-    int level, int type) @local
+    int level, int type)
 {
     if (level > 10) return;
 
@@ -1001,8 +1001,8 @@ fn void nvgTesselateBezier(NvgContext* ctx,
     float d2 = nvgAbsf(((x2 - x4) * dy - (y2 - y4) * dx));
     float d3 = nvgAbsf(((x3 - x4) * dy - (y3 - y4) * dx));
 
-    if ((d2 + d3) * (d2 + d3) < ctx.tessTol * (dx * dx + dy * dy)) {
-        nvgAddPoint(ctx, x4, y4, type);
+    if ((d2 + d3) * (d2 + d3) < self.tessTol * (dx * dx + dy * dy)) {
+        self.addPoint(x4, y4, type);
         return;
     }
 
@@ -1011,51 +1011,51 @@ fn void nvgTesselateBezier(NvgContext* ctx,
     float x1234 = (x123 + x234) * 0.5f;
     float y1234 = (y123 + y234) * 0.5f;
 
-    nvgTesselateBezier(ctx, x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1, 0);
-    nvgTesselateBezier(ctx, x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1, type);
+    self.tesselateBezier(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1, 0);
+    self.tesselateBezier(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1, type);
 }
 
-fn void nvgFlattenPaths(NvgContext* ctx) @local {
-    NvgPathCache* cache = ctx.cache;
+fn void NvgContext.flattenPaths(&self) {
+    NvgPathCache* cache = self.cache;
 
     if (cache.npaths > 0) {
         return;
     }
 
     int i = 0;
-    while (i < ctx.ncommands) {
-        int cmd = (int)(ctx.commands)[i];
+    while (i < self.ncommands) {
+        int cmd = (int)(self.commands)[i];
         switch (cmd) {
         case (int)(PathCommand.MOVETO): {
-            nvgAddPath(ctx);
-            float* p = &ctx.commands[i + 1];
-            nvgAddPoint(ctx, p[0], p[1], NVG_PT_CORNER);
+            self.addPath();
+            float* p = &self.commands[i + 1];
+            self.addPoint(p[0], p[1], NVG_PT_CORNER);
             i += 3;
             break;
         }
         case (int)(PathCommand.LINETO): {
-            float* p = &ctx.commands[i + 1];
-            nvgAddPoint(ctx, p[0], p[1], NVG_PT_CORNER);
+            float* p = &self.commands[i + 1];
+            self.addPoint(p[0], p[1], NVG_PT_CORNER);
             i += 3;
             break;
         }
         case (int)(PathCommand.BEZIERTO): {
-            NvgPoint* last = nvgLastPoint(ctx);
+            NvgPoint* last = self.lastPoint();
             if (last != null) {
-                float* cp1 = &ctx.commands[i + 1];
-                float* cp2 = &ctx.commands[i + 3];
-                float* p   = &ctx.commands[i + 5];
-                nvgTesselateBezier(ctx, last.x, last.y, cp1[0], cp1[1], cp2[0], cp2[1], p[0], p[1], 0, NVG_PT_CORNER);
+                float* cp1 = &self.commands[i + 1];
+                float* cp2 = &self.commands[i + 3];
+                float* p   = &self.commands[i + 5];
+                self.tesselateBezier(last.x, last.y, cp1[0], cp1[1], cp2[0], cp2[1], p[0], p[1], 0, NVG_PT_CORNER);
             }
             i += 7;
             break;
         }
         case (int)(PathCommand.CLOSE):
-            nvgClosePathCache(ctx);
+            self.closePathCache();
             i++;
             break;
         case (int)(PathCommand.WINDING):
-            nvgPathWindingCache(ctx, (int)(ctx.commands)[i + 1]);
+            self.pathWindingCache((int)(self.commands)[i + 1]);
             i += 2;
             break;
         default:
@@ -1074,7 +1074,7 @@ fn void nvgFlattenPaths(NvgContext* ctx) @local {
 
         NvgPoint* p0 = &pts[path.count - 1];
         NvgPoint* p1 = &pts[0];
-        if (nvgPtEquals(p0.x, p0.y, p1.x, p1.y, ctx.distTol)) {
+        if (nvgPtEquals(p0.x, p0.y, p1.x, p1.y, self.distTol)) {
             path.count--;
             p0 = &pts[path.count - 1];
             path.closed = 1;
@@ -1324,8 +1324,8 @@ fn NvgVertex* nvgRoundCapEnd(NvgVertex* dst, NvgPoint* p,
     return dst;
 }
 
-fn void nvgCalculateJoins(NvgContext* ctx, float w, int lineJoin, float miterLimit) @local {
-    NvgPathCache* cache = ctx.cache;
+fn void NvgContext.calculateJoins(&self, float w, int lineJoin, float miterLimit) {
+    NvgPathCache* cache = self.cache;
     float iw = 0.0f;
 
     if (w > 0.0f) iw = 1.0f / w;
@@ -1389,12 +1389,12 @@ fn void nvgCalculateJoins(NvgContext* ctx, float w, int lineJoin, float miterLim
     }
 }
 
-fn int nvgExpandStroke(NvgContext* ctx, float w, float fringe, int lineCap, int lineJoin, float miterLimit) @local {
-    NvgPathCache* cache = ctx.cache;
+fn int NvgContext.expandStroke(&self, float w, float fringe, int lineCap, int lineJoin, float miterLimit) {
+    NvgPathCache* cache = self.cache;
     float aa = fringe;
     float u0 = 0.0f;
     float u1 = 1.0f;
-    int ncap = nvgCurveDivs(w, PI, ctx.tessTol);
+    int ncap = nvgCurveDivs(w, PI, self.tessTol);
 
     w += aa * 0.5f;
 
@@ -1403,7 +1403,7 @@ fn int nvgExpandStroke(NvgContext* ctx, float w, float fringe, int lineCap, int 
         u1 = 0.5f;
     }
 
-    nvgCalculateJoins(ctx, w, lineJoin, miterLimit);
+    self.calculateJoins(w, lineJoin, miterLimit);
 
     int cverts = 0;
     for (int i = 0; i < cache.npaths; i++) {
@@ -1424,7 +1424,7 @@ fn int nvgExpandStroke(NvgContext* ctx, float w, float fringe, int lineCap, int 
         }
     }
 
-    NvgVertex* verts = nvgAllocTempVerts(ctx, cverts);
+    NvgVertex* verts = self.allocTempVerts(cverts);
     if (verts == null) return 0;
 
     for (int i = 0; i < cache.npaths; i++) {
@@ -1510,12 +1510,12 @@ fn int nvgExpandStroke(NvgContext* ctx, float w, float fringe, int lineCap, int 
     return 1;
 }
 
-fn int nvgExpandFill(NvgContext* ctx, float w, int lineJoin, float miterLimit) @local {
-    NvgPathCache* cache = ctx.cache;
-    float aa = ctx.fringeWidth;
+fn int NvgContext.expandFill(&self, float w, int lineJoin, float miterLimit) {
+    NvgPathCache* cache = self.cache;
+    float aa = self.fringeWidth;
     int fringe = (int)(w > 0.0f);
 
-    nvgCalculateJoins(ctx, w, lineJoin, miterLimit);
+    self.calculateJoins(w, lineJoin, miterLimit);
 
     int cverts = 0;
     for (int i = 0; i < cache.npaths; i++) {
@@ -1526,7 +1526,7 @@ fn int nvgExpandFill(NvgContext* ctx, float w, int lineJoin, float miterLimit) @
         }
     }
 
-    NvgVertex* verts = nvgAllocTempVerts(ctx, cverts);
+    NvgVertex* verts = self.allocTempVerts(cverts);
     if (verts == null) return 0;
 
     int convex = (int)(cache.npaths == 1 && cache.paths[0].convex != 0);
@@ -1598,7 +1598,7 @@ fn int nvgExpandFill(NvgContext* ctx, float w, int lineJoin, float miterLimit) @
 
             for (int j = 0; j < path.count; j++) {
                 if ((p1.flags.bevel || p1.flags.innerBevel)) {
-                    dst = nvgBevelJoin(dst, p0, p1, lw, rw, lu, ru, ctx.fringeWidth);
+                    dst = nvgBevelJoin(dst, p0, p1, lw, rw, lu, ru, self.fringeWidth);
                 } else {
                     nvgVset(dst, p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1); dst++;
                     nvgVset(dst, p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1); dst++;
@@ -1621,51 +1621,51 @@ fn int nvgExpandFill(NvgContext* ctx, float w, int lineJoin, float miterLimit) @
     return 1;
 }
 
-fn void nvgBeginPath(NvgContext* ctx) {
-    ctx.ncommands = 0;
-    nvgClearPathCache(ctx);
+fn void NvgContext.beginPath(&self) {
+    self.ncommands = 0;
+    self.clearPathCache();
 }
 
-fn void nvgMoveTo(NvgContext* ctx, float x, float y) {
+fn void NvgContext.moveTo(&self, float x, float y) {
     float[*] vals = { (float)(int)(PathCommand.MOVETO), x, y };
-    nvgAppendCommands(ctx, &vals[0], vals.len);
+    self.appendCommands(&vals[0], vals.len);
 }
 
-fn void nvgLineTo(NvgContext* ctx, float x, float y) {
+fn void NvgContext.lineTo(&self, float x, float y) {
     float[*] vals = { (float)(int)(PathCommand.LINETO), x, y };
-    nvgAppendCommands(ctx, &vals[0], vals.len);
+    self.appendCommands(&vals[0], vals.len);
 }
 
-fn void nvgBezierTo(NvgContext* ctx, float c1x, float c1y, float c2x, float c2y, float x, float y) {
+fn void NvgContext.bezierTo(&self, float c1x, float c1y, float c2x, float c2y, float x, float y) {
     float[*] vals = { (float)(int)(PathCommand.BEZIERTO), c1x, c1y, c2x, c2y, x, y };
-    nvgAppendCommands(ctx, &vals[0], vals.len);
+    self.appendCommands(&vals[0], vals.len);
 }
 
-fn void nvgQuadTo(NvgContext* ctx, float cx, float cy, float x, float y) {
-    float x0 = ctx.commandx;
-    float y0 = ctx.commandy;
+fn void NvgContext.quadTo(&self, float cx, float cy, float x, float y) {
+    float x0 = self.commandx;
+    float y0 = self.commandy;
     float[*] vals = {
         (float)(int)(PathCommand.BEZIERTO),
         x0 + 2.0f / 3.0f * (cx - x0), y0 + 2.0f / 3.0f * (cy - y0),
         x  + 2.0f / 3.0f * (cx - x),  y  + 2.0f / 3.0f * (cy - y),
         x, y
     };
-    nvgAppendCommands(ctx, &vals[0], vals.len);
+    self.appendCommands(&vals[0], vals.len);
 }
 
-fn void nvgArcTo(NvgContext* ctx, float x1, float y1, float x2, float y2, float radius) {
-    float x0 = ctx.commandx;
-    float y0 = ctx.commandy;
+fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float radius) {
+    float x0 = self.commandx;
+    float y0 = self.commandy;
 
-    if (ctx.ncommands == 0) {
+    if (self.ncommands == 0) {
         return;
     }
 
-    if (nvgPtEquals(x0, y0, x1, y1, ctx.distTol) ||
-        nvgPtEquals(x1, y1, x2, y2, ctx.distTol) ||
-        nvgDistPtSeg(x1, y1, x0, y0, x2, y2) < ctx.distTol * ctx.distTol ||
-        radius < ctx.distTol) {
-        nvgLineTo(ctx, x1, y1);
+    if (nvgPtEquals(x0, y0, x1, y1, self.distTol) ||
+        nvgPtEquals(x1, y1, x2, y2, self.distTol) ||
+        nvgDistPtSeg(x1, y1, x0, y0, x2, y2) < self.distTol * self.distTol ||
+        radius < self.distTol) {
+        self.lineTo(x1, y1);
         return;
     }
 
@@ -1679,7 +1679,7 @@ fn void nvgArcTo(NvgContext* ctx, float x1, float y1, float x2, float y2, float 
     float d = radius / nvgTanf(a / 2.0f);
 
     if (d > 10000.0f) {
-        nvgLineTo(ctx, x1, y1);
+        self.lineTo(x1, y1);
         return;
     }
 
@@ -1699,26 +1699,26 @@ fn void nvgArcTo(NvgContext* ctx, float x1, float y1, float x2, float y2, float 
         dir = (int)Winding.CCW;
     }
 
-    nvgArc(ctx, cx, cy, radius, a0, a1, dir);
+    self.arc(cx, cy, radius, a0, a1, dir);
 }
 
-fn void nvgClosePath(NvgContext* ctx) {
+fn void NvgContext.closePath(&self) {
     float[*] vals = { (float)(int)(PathCommand.CLOSE) };
-    nvgAppendCommands(ctx, &vals[0], vals.len);
+    self.appendCommands(&vals[0], vals.len);
 }
 
-fn void nvgPathWinding(NvgContext* ctx, int dir) {
+fn void NvgContext.pathWinding(&self, int dir) {
     float[*] vals = { (float)(int)(PathCommand.WINDING), (float)dir };
-    nvgAppendCommands(ctx, &vals[0], vals.len);
+    self.appendCommands(&vals[0], vals.len);
 }
 
-fn void nvgArc(NvgContext* ctx, float cx, float cy, float r, float a0, float a1, int dir) {
+fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, int dir) {
     float a = 0; float da = 0; float hda = 0; float kappa = 0;
     float dx = 0; float dy = 0; float x = 0; float y = 0; float tanx = 0; float tany = 0;
     float px = 0; float py = 0; float ptanx = 0; float ptany = 0;
     float[3 + 5 * 7 + 100] vals;
     int ndivs, nvals;
-    int move = ctx.ncommands > 0 ? (int)(PathCommand.LINETO) : (int)(PathCommand.MOVETO);
+    int move = self.ncommands > 0 ? (int)(PathCommand.LINETO) : (int)(PathCommand.MOVETO);
 
     da = a1 - a0;
     if (dir == (int)Winding.CW) {
@@ -1772,10 +1772,10 @@ fn void nvgArc(NvgContext* ctx, float cx, float cy, float r, float a0, float a1,
         ptany = tany;
     }
 
-    nvgAppendCommands(ctx, &vals[0], nvals);
+    self.appendCommands(&vals[0], nvals);
 }
 
-fn void nvgRect(NvgContext* ctx, float x, float y, float w, float h) {
+fn void NvgContext.rect(&self, float x, float y, float w, float h) {
     float[*] vals = {
         (float)(int)(PathCommand.MOVETO), x, y,
         (float)(int)(PathCommand.LINETO), x, y + h,
@@ -1783,18 +1783,18 @@ fn void nvgRect(NvgContext* ctx, float x, float y, float w, float h) {
         (float)(int)(PathCommand.LINETO), x + w, y,
         (float)(int)(PathCommand.CLOSE)
     };
-    nvgAppendCommands(ctx, &vals[0], vals.len);
+    self.appendCommands(&vals[0], vals.len);
 }
 
-fn void nvgRoundedRect(NvgContext* ctx, float x, float y, float w, float h, float r) {
-    nvgRoundedRectVarying(ctx, x, y, w, h, r, r, r, r);
+fn void NvgContext.roundedRect(&self, float x, float y, float w, float h, float r) {
+    self.roundedRectVarying(x, y, w, h, r, r, r, r);
 }
 
-fn void nvgRoundedRectVarying(NvgContext* ctx, float x, float y, float w, float h,
+fn void NvgContext.roundedRectVarying(&self, float x, float y, float w, float h,
                                float radTopLeft, float radTopRight,
                                float radBottomRight, float radBottomLeft) {
     if (radTopLeft < 0.1f && radTopRight < 0.1f && radBottomRight < 0.1f && radBottomLeft < 0.1f) {
-        nvgRect(ctx, x, y, w, h);
+        self.rect(x, y, w, h);
         return;
     }
     float halfw = nvgAbsf(w) * 0.5f;
@@ -1819,10 +1819,10 @@ fn void nvgRoundedRectVarying(NvgContext* ctx, float x, float y, float w, float 
         (float)(int)(PathCommand.BEZIERTO), x + rxTL * (1 - NVG_KAPPA90), y, x, y + ryTL * (1 - NVG_KAPPA90), x, y + ryTL,
         (float)(int)(PathCommand.CLOSE)
     };
-    nvgAppendCommands(ctx, &vals[0], vals.len);
+    self.appendCommands(&vals[0], vals.len);
 }
 
-fn void nvgEllipse(NvgContext* ctx, float cx, float cy, float rx, float ry) {
+fn void NvgContext.ellipse(&self, float cx, float cy, float rx, float ry) {
     float[*] vals = {
         (float)(int)(PathCommand.MOVETO), cx - rx, cy,
         (float)(int)(PathCommand.BEZIERTO), cx - rx, cy + ry * NVG_KAPPA90, cx - rx * NVG_KAPPA90, cy + ry, cx, cy + ry,
@@ -1831,70 +1831,70 @@ fn void nvgEllipse(NvgContext* ctx, float cx, float cy, float rx, float ry) {
         (float)(int)(PathCommand.BEZIERTO), cx - rx * NVG_KAPPA90, cy - ry, cx - rx, cy - ry * NVG_KAPPA90, cx - rx, cy,
         (float)(int)(PathCommand.CLOSE)
     };
-    nvgAppendCommands(ctx, &vals[0], vals.len);
+    self.appendCommands(&vals[0], vals.len);
 }
 
-fn void nvgCircle(NvgContext* ctx, float cx, float cy, float r) {
-    nvgEllipse(ctx, cx, cy, r, r);
+fn void NvgContext.circle(&self, float cx, float cy, float r) {
+    self.ellipse(cx, cy, r, r);
 }
 
-fn void nvgFill(NvgContext* ctx) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.fill(&self) {
+    NvgState* state = self.getState();
     NvgPaint fillPaint = state.fill;
 
-    nvgFlattenPaths(ctx);
-    if (ctx.params.edgeAntiAlias && state.shapeAntiAlias) {
-        nvgExpandFill(ctx, ctx.fringeWidth, (int)LineJoin.MITER, 2.4f);
+    self.flattenPaths();
+    if (self.params.edgeAntiAlias && state.shapeAntiAlias) {
+        self.expandFill(self.fringeWidth, (int)LineJoin.MITER, 2.4f);
     }
     else {
-        nvgExpandFill(ctx, 0.0f, (int)LineJoin.MITER, 2.4f);
+        self.expandFill(0.0f, (int)LineJoin.MITER, 2.4f);
     }
 
     fillPaint.innerColor.a *= state.alpha;
     fillPaint.outerColor.a *= state.alpha;
 
-    ctx.params.renderFill(ctx.params.userPtr, &fillPaint, state.compositeOperation, &state.scissor,
-        ctx.fringeWidth, &ctx.cache.bounds[0], ctx.cache.paths, ctx.cache.npaths);
+    self.params.renderFill(self.params.userPtr, &fillPaint, state.compositeOperation, &state.scissor,
+        self.fringeWidth, &self.cache.bounds[0], self.cache.paths, self.cache.npaths);
 
-    for (int i = 0; i < ctx.cache.npaths; i++) {
-        NvgPath* path = &ctx.cache.paths[i];
-        ctx.fillTriCount += path.nfill - 2;
-        ctx.fillTriCount += path.nstroke - 2;
-        ctx.drawCallCount += 2;
+    for (int i = 0; i < self.cache.npaths; i++) {
+        NvgPath* path = &self.cache.paths[i];
+        self.fillTriCount += path.nfill - 2;
+        self.fillTriCount += path.nstroke - 2;
+        self.drawCallCount += 2;
     }
 }
 
-fn void nvgStroke(NvgContext* ctx) {
-    NvgState* state = nvgGetState(ctx);
+fn void NvgContext.stroke(&self) {
+    NvgState* state = self.getState();
     float scale = nvgGetAverageScale(&state.xform[0]);
     float strokeWidth = nvgClampf(state.strokeWidth * scale, 0.0f, 200.0f);
     NvgPaint strokePaint = state.stroke;
 
-    if (strokeWidth < ctx.fringeWidth) {
-        float alpha = nvgClampf(strokeWidth / ctx.fringeWidth, 0.0f, 1.0f);
+    if (strokeWidth < self.fringeWidth) {
+        float alpha = nvgClampf(strokeWidth / self.fringeWidth, 0.0f, 1.0f);
         strokePaint.innerColor.a *= alpha * alpha;
         strokePaint.outerColor.a *= alpha * alpha;
-        strokeWidth = ctx.fringeWidth;
+        strokeWidth = self.fringeWidth;
     }
 
     strokePaint.innerColor.a *= state.alpha;
     strokePaint.outerColor.a *= state.alpha;
 
-    nvgFlattenPaths(ctx);
+    self.flattenPaths();
 
-    if (ctx.params.edgeAntiAlias && state.shapeAntiAlias) {
-        nvgExpandStroke(ctx, strokeWidth * 0.5f, ctx.fringeWidth, state.lineCap.ordinal, (int)state.lineJoin, state.miterLimit);
+    if (self.params.edgeAntiAlias && state.shapeAntiAlias) {
+        self.expandStroke(strokeWidth * 0.5f, self.fringeWidth, state.lineCap.ordinal, (int)state.lineJoin, state.miterLimit);
     }
     else {
-        nvgExpandStroke(ctx, strokeWidth * 0.5f, 0.0f, state.lineCap.ordinal, (int)state.lineJoin, state.miterLimit);
+        self.expandStroke(strokeWidth * 0.5f, 0.0f, state.lineCap.ordinal, (int)state.lineJoin, state.miterLimit);
     }
 
-    ctx.params.renderStroke(ctx.params.userPtr, &strokePaint, state.compositeOperation, &state.scissor,
-        ctx.fringeWidth, strokeWidth, ctx.cache.paths, ctx.cache.npaths);
+    self.params.renderStroke(self.params.userPtr, &strokePaint, state.compositeOperation, &state.scissor,
+        self.fringeWidth, strokeWidth, self.cache.paths, self.cache.npaths);
 
-    for (int i = 0; i < ctx.cache.npaths; i++) {
-        NvgPath* path = &ctx.cache.paths[i];
-        ctx.strokeTriCount += path.nstroke - 2;
-        ctx.drawCallCount++;
+    for (int i = 0; i < self.cache.npaths; i++) {
+        NvgPath* path = &self.cache.paths[i];
+        self.strokeTriCount += path.nstroke - 2;
+        self.drawCallCount++;
     }
 }

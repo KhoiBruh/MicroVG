@@ -1181,5 +1181,5 @@ fn NvgContext* nvgCreateGl3(int flags) {
 }
 
 fn void nvgDeleteGl3(NvgContext* ctx) {
-    microvg::nvgDeleteInternal(ctx);
+    ctx.destroy();
 }

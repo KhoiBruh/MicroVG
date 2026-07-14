@@ -74,9 +74,9 @@ fn void main(String[] args) {
 
         double t = screenshot ? 1.0 : glfw34::getTime();
 
-        microvg::nvgBeginFrame(vg, (float)winW, (float)winH, pxRatio);
+        vg.beginFrame((float)winW, (float)winH, pxRatio);
         drawScene(vg, (float)winW, (float)winH, (float)t);
-        microvg::nvgEndFrame(vg);
+        vg.endFrame();
 
         frame++;
         if (screenshot && frame >= 3) {
@@ -119,153 +119,153 @@ fn void saveScreenshot(char* path, int w, int h) {
 }
 
 fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
-    microvg::nvgBeginPath(vg);
-    microvg::nvgRoundedRect(vg, 40.0f, 40.0f, 200.0f, 120.0f, 12.0f);
-    microvg::nvgFillColor(vg, microvg::nvgRgba(70, 130, 220, 255));
-    microvg::nvgFill(vg);
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(255, 255, 255, 200));
-    microvg::nvgStrokeWidth(vg, 2.0f);
-    microvg::nvgStroke(vg);
+    vg.beginPath();
+    vg.roundedRect(40.0f, 40.0f, 200.0f, 120.0f, 12.0f);
+    vg.fillColor(microvg::nvgRgba(70, 130, 220, 255));
+    vg.fill();
+    vg.strokeColor(microvg::nvgRgba(255, 255, 255, 200));
+    vg.strokeWidth(2.0f);
+    vg.stroke();
 
-    microvg::NvgPaint lg = microvg::nvgLinearGradient(vg, 40.0f, 200.0f, 240.0f, 320.0f,
+    microvg::NvgPaint lg = vg.linearGradient(40.0f, 200.0f, 240.0f, 320.0f,
         microvg::nvgRgba(255, 160, 0, 255), microvg::nvgRgba(255, 32, 120, 255));
-    microvg::nvgBeginPath(vg);
-    microvg::nvgRoundedRect(vg, 40.0f, 200.0f, 200.0f, 120.0f, 12.0f);
-    microvg::nvgFillPaint(vg, lg);
-    microvg::nvgFill(vg);
+    vg.beginPath();
+    vg.roundedRect(40.0f, 200.0f, 200.0f, 120.0f, 12.0f);
+    vg.fillPaint(lg);
+    vg.fill();
 
-    microvg::NvgPaint rg = microvg::nvgRadialGradient(vg, 360.0f, 100.0f, 10.0f, 60.0f,
+    microvg::NvgPaint rg = vg.radialGradient(360.0f, 100.0f, 10.0f, 60.0f,
         microvg::nvgRgba(255, 255, 255, 255), microvg::nvgRgba(40, 200, 160, 255));
-    microvg::nvgBeginPath(vg);
-    microvg::nvgCircle(vg, 360.0f, 100.0f, 60.0f);
-    microvg::nvgFillPaint(vg, rg);
-    microvg::nvgFill(vg);
+    vg.beginPath();
+    vg.circle(360.0f, 100.0f, 60.0f);
+    vg.fillPaint(rg);
+    vg.fill();
 
-    microvg::NvgPaint bg = microvg::nvgBoxGradient(vg, 300.0f, 200.0f, 140.0f, 100.0f, 20.0f, 30.0f,
+    microvg::NvgPaint bg = vg.boxGradient(300.0f, 200.0f, 140.0f, 100.0f, 20.0f, 30.0f,
         microvg::nvgRgba(0, 0, 0, 160), microvg::nvgRgba(0, 0, 0, 0));
-    microvg::nvgBeginPath(vg);
-    microvg::nvgRect(vg, 280.0f, 180.0f, 200.0f, 160.0f);
-    microvg::nvgFillPaint(vg, bg);
-    microvg::nvgFill(vg);
-    microvg::nvgBeginPath(vg);
-    microvg::nvgRoundedRect(vg, 300.0f, 200.0f, 140.0f, 100.0f, 10.0f);
-    microvg::nvgFillColor(vg, microvg::nvgRgba(90, 90, 110, 255));
-    microvg::nvgFill(vg);
+    vg.beginPath();
+    vg.rect(280.0f, 180.0f, 200.0f, 160.0f);
+    vg.fillPaint(bg);
+    vg.fill();
+    vg.beginPath();
+    vg.roundedRect(300.0f, 200.0f, 140.0f, 100.0f, 10.0f);
+    vg.fillColor(microvg::nvgRgba(90, 90, 110, 255));
+    vg.fill();
 
-    microvg::nvgSave(vg);
-    microvg::nvgBeginPath(vg);
-    microvg::nvgMoveTo(vg, 540.0f, 120.0f);
+    vg.save();
+    vg.beginPath();
+    vg.moveTo(540.0f, 120.0f);
     for (int i = 0; i < 6; i++) {
         float fx = 540.0f + (float)i * 60.0f;
         float fy = 120.0f + math::sin(t * 2.0f + (float)i * 0.7f) * 50.0f;
-        microvg::nvgLineTo(vg, fx, fy);
+        vg.lineTo(fx, fy);
     }
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(0, 220, 255, 255));
-    microvg::nvgStrokeWidth(vg, 6.0f);
-    microvg::nvgLineCap(vg, LineCap.ROUND);
-    microvg::nvgLineJoin(vg, LineJoin.ROUND);
-    microvg::nvgStroke(vg);
-    microvg::nvgRestore(vg);
+    vg.strokeColor(microvg::nvgRgba(0, 220, 255, 255));
+    vg.strokeWidth(6.0f);
+    vg.lineCap(LineCap.ROUND);
+    vg.lineJoin(LineJoin.ROUND);
+    vg.stroke();
+    vg.restore();
 
-    microvg::nvgSave(vg);
-    microvg::nvgTranslate(vg, 620.0f, 340.0f);
-    microvg::nvgRotate(vg, t);
-    microvg::nvgBeginPath(vg);
-    microvg::nvgRect(vg, -40.0f, -40.0f, 80.0f, 80.0f);
-    microvg::nvgFillColor(vg, microvg::nvgRgba(230, 90, 60, 230));
-    microvg::nvgFill(vg);
-    microvg::nvgRestore(vg);
+    vg.save();
+    vg.translate(620.0f, 340.0f);
+    vg.rotate(t);
+    vg.beginPath();
+    vg.rect(-40.0f, -40.0f, 80.0f, 80.0f);
+    vg.fillColor(microvg::nvgRgba(230, 90, 60, 230));
+    vg.fill();
+    vg.restore();
 
-    microvg::nvgSave(vg);
-    microvg::nvgScissor(vg, 720.0f, 260.0f, 120.0f, 80.0f);
-    microvg::nvgBeginPath(vg);
-    microvg::nvgCircle(vg, 780.0f, 320.0f, 70.0f);
-    microvg::nvgFillColor(vg, microvg::nvgRgba(255, 220, 60, 255));
-    microvg::nvgFill(vg);
-    microvg::nvgRestore(vg);
+    vg.save();
+    vg.scissor(720.0f, 260.0f, 120.0f, 80.0f);
+    vg.beginPath();
+    vg.circle(780.0f, 320.0f, 70.0f);
+    vg.fillColor(microvg::nvgRgba(255, 220, 60, 255));
+    vg.fill();
+    vg.restore();
 
-    microvg::NvgPaint eg = microvg::nvgLinearGradient(vg, 720.0f, 40.0f, 960.0f, 200.0f,
+    microvg::NvgPaint eg = vg.linearGradient(720.0f, 40.0f, 960.0f, 200.0f,
         microvg::nvgRgba(100, 200, 255, 255), microvg::nvgRgba(200, 100, 255, 255));
-    microvg::nvgBeginPath(vg);
-    microvg::nvgEllipse(vg, 840.0f, 120.0f, 100.0f, 60.0f);
-    microvg::nvgFillPaint(vg, eg);
-    microvg::nvgFill(vg);
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(255, 255, 255, 180));
-    microvg::nvgStrokeWidth(vg, 3.0f);
-    microvg::nvgStroke(vg);
+    vg.beginPath();
+    vg.ellipse(840.0f, 120.0f, 100.0f, 60.0f);
+    vg.fillPaint(eg);
+    vg.fill();
+    vg.strokeColor(microvg::nvgRgba(255, 255, 255, 180));
+    vg.strokeWidth(3.0f);
+    vg.stroke();
 
-    microvg::nvgBeginPath(vg);
-    microvg::nvgArc(vg, 160.0f, 440.0f, 50.0f, microvg::nvgDegToRad(0.0f), microvg::nvgDegToRad(270.0f), (int)Winding.CW);
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(255, 128, 0, 255));
-    microvg::nvgStrokeWidth(vg, 4.0f);
-    microvg::nvgLineCap(vg, LineCap.ROUND);
-    microvg::nvgStroke(vg);
+    vg.beginPath();
+    vg.arc(160.0f, 440.0f, 50.0f, microvg::nvgDegToRad(0.0f), microvg::nvgDegToRad(270.0f), (int)Winding.CW);
+    vg.strokeColor(microvg::nvgRgba(255, 128, 0, 255));
+    vg.strokeWidth(4.0f);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
 
-    microvg::nvgSave(vg);
-    microvg::nvgBeginPath(vg);
-    microvg::nvgMoveTo(vg, 300.0f, 400.0f);
-    microvg::nvgLineTo(vg, 400.0f, 400.0f);
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(255, 80, 80, 255));
-    microvg::nvgStrokeWidth(vg, 6.0f);
-    microvg::nvgLineCap(vg, LineCap.BUTT);
-    microvg::nvgStroke(vg);
+    vg.save();
+    vg.beginPath();
+    vg.moveTo(300.0f, 400.0f);
+    vg.lineTo(400.0f, 400.0f);
+    vg.strokeColor(microvg::nvgRgba(255, 80, 80, 255));
+    vg.strokeWidth(6.0f);
+    vg.lineCap(LineCap.BUTT);
+    vg.stroke();
 
-    microvg::nvgBeginPath(vg);
-    microvg::nvgMoveTo(vg, 300.0f, 430.0f);
-    microvg::nvgLineTo(vg, 400.0f, 430.0f);
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(80, 255, 80, 255));
-    microvg::nvgStrokeWidth(vg, 6.0f);
-    microvg::nvgLineCap(vg, LineCap.ROUND);
-    microvg::nvgStroke(vg);
+    vg.beginPath();
+    vg.moveTo(300.0f, 430.0f);
+    vg.lineTo(400.0f, 430.0f);
+    vg.strokeColor(microvg::nvgRgba(80, 255, 80, 255));
+    vg.strokeWidth(6.0f);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
 
-    microvg::nvgBeginPath(vg);
-    microvg::nvgMoveTo(vg, 300.0f, 460.0f);
-    microvg::nvgLineTo(vg, 400.0f, 460.0f);
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(80, 80, 255, 255));
-    microvg::nvgStrokeWidth(vg, 6.0f);
-    microvg::nvgLineCap(vg, LineCap.SQUARE);
-    microvg::nvgStroke(vg);
-    microvg::nvgRestore(vg);
+    vg.beginPath();
+    vg.moveTo(300.0f, 460.0f);
+    vg.lineTo(400.0f, 460.0f);
+    vg.strokeColor(microvg::nvgRgba(80, 80, 255, 255));
+    vg.strokeWidth(6.0f);
+    vg.lineCap(LineCap.SQUARE);
+    vg.stroke();
+    vg.restore();
 
-    microvg::nvgSave(vg);
-    microvg::nvgBeginPath(vg);
-    microvg::nvgMoveTo(vg, 500.0f, 400.0f);
-    microvg::nvgLineTo(vg, 560.0f, 440.0f);
-    microvg::nvgLineTo(vg, 620.0f, 400.0f);
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(255, 200, 0, 255));
-    microvg::nvgStrokeWidth(vg, 5.0f);
-    microvg::nvgLineJoin(vg, LineJoin.BEVEL);
-    microvg::nvgLineCap(vg, LineCap.ROUND);
-    microvg::nvgStroke(vg);
+    vg.save();
+    vg.beginPath();
+    vg.moveTo(500.0f, 400.0f);
+    vg.lineTo(560.0f, 440.0f);
+    vg.lineTo(620.0f, 400.0f);
+    vg.strokeColor(microvg::nvgRgba(255, 200, 0, 255));
+    vg.strokeWidth(5.0f);
+    vg.lineJoin(LineJoin.BEVEL);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
 
-    microvg::nvgBeginPath(vg);
-    microvg::nvgMoveTo(vg, 500.0f, 460.0f);
-    microvg::nvgLineTo(vg, 560.0f, 500.0f);
-    microvg::nvgLineTo(vg, 620.0f, 460.0f);
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(0, 255, 200, 255));
-    microvg::nvgStrokeWidth(vg, 5.0f);
-    microvg::nvgLineJoin(vg, LineJoin.ROUND);
-    microvg::nvgLineCap(vg, LineCap.ROUND);
-    microvg::nvgStroke(vg);
+    vg.beginPath();
+    vg.moveTo(500.0f, 460.0f);
+    vg.lineTo(560.0f, 500.0f);
+    vg.lineTo(620.0f, 460.0f);
+    vg.strokeColor(microvg::nvgRgba(0, 255, 200, 255));
+    vg.strokeWidth(5.0f);
+    vg.lineJoin(LineJoin.ROUND);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
 
-    microvg::nvgBeginPath(vg);
-    microvg::nvgMoveTo(vg, 500.0f, 520.0f);
-    microvg::nvgLineTo(vg, 560.0f, 560.0f);
-    microvg::nvgLineTo(vg, 620.0f, 520.0f);
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(200, 0, 255, 255));
-    microvg::nvgStrokeWidth(vg, 5.0f);
-    microvg::nvgLineJoin(vg, LineJoin.MITER);
-    microvg::nvgLineCap(vg, LineCap.ROUND);
-    microvg::nvgStroke(vg);
-    microvg::nvgRestore(vg);
+    vg.beginPath();
+    vg.moveTo(500.0f, 520.0f);
+    vg.lineTo(560.0f, 560.0f);
+    vg.lineTo(620.0f, 520.0f);
+    vg.strokeColor(microvg::nvgRgba(200, 0, 255, 255));
+    vg.strokeWidth(5.0f);
+    vg.lineJoin(LineJoin.MITER);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
+    vg.restore();
 
-    microvg::nvgBeginPath(vg);
-    microvg::nvgRoundedRectVarying(vg, 700.0f, 400.0f, 200.0f, 100.0f, 20.0f, 5.0f, 30.0f, 10.0f);
-    microvg::NvgPaint rrg = microvg::nvgRadialGradient(vg, 800.0f, 450.0f, 10.0f, 80.0f,
+    vg.beginPath();
+    vg.roundedRectVarying(700.0f, 400.0f, 200.0f, 100.0f, 20.0f, 5.0f, 30.0f, 10.0f);
+    microvg::NvgPaint rrg = vg.radialGradient(800.0f, 450.0f, 10.0f, 80.0f,
         microvg::nvgRgba(255, 100, 100, 255), microvg::nvgRgba(100, 100, 255, 255));
-    microvg::nvgFillPaint(vg, rrg);
-    microvg::nvgFill(vg);
-    microvg::nvgStrokeColor(vg, microvg::nvgRgba(255, 255, 255, 150));
-    microvg::nvgStrokeWidth(vg, 2.0f);
-    microvg::nvgStroke(vg);
+    vg.fillPaint(rrg);
+    vg.fill();
+    vg.strokeColor(microvg::nvgRgba(255, 255, 255, 150));
+    vg.strokeWidth(2.0f);
+    vg.stroke();
 }
