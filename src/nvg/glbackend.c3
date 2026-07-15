@@ -4,8 +4,7 @@ import microvg;
 import opengl::gl;
 import std::core::mem;
 import std::math;
-
-extern fn int printf(char* fmt, ...);
+import std::io;
 
 const int NVG_ANTIALIAS = 1 << 0;
 const int NVG_STENCIL_STROKES = 1 << 1;
@@ -212,7 +211,7 @@ fn void glnvgDumpShaderError(uint shader, char* name, char* type) @local {
 	gl::getShaderInfoLog(shader, 512, &len, &str[0]);
 	if (len > 512) len = 512;
 	str[len] = 0;
-	printf("Shader %s/%s error:\n%s\n", name, type, &str[0]);
+	io::eprintfn("Shader %s/%s error:\n%s", ((ZString)name).str_view(), ((ZString)type).str_view(), ((ZString)&str[0]).str_view());
 }
 
 fn void glnvgDumpProgramError(uint prog, char* name) @local {
@@ -221,13 +220,13 @@ fn void glnvgDumpProgramError(uint prog, char* name) @local {
 	gl::getProgramInfoLog(prog, 512, &len, &str[0]);
 	if (len > 512) len = 512;
 	str[len] = 0;
-	printf("Program %s error:\n%s\n", name, &str[0]);
+	io::eprintfn("Program %s error:\n%s", ((ZString)name).str_view(), ((ZString)&str[0]).str_view());
 }
 
 fn void glnvgCheckError(GlContext* gl, char* str) @local {
 	if ((gl.flags & NVG_DEBUG) == 0) return;
 	GLenum err = gl::getError();
-	if (err != gl::GL_NO_ERROR) printf("Error %08x after %s\n", err, str);
+	if (err != gl::GL_NO_ERROR) io::eprintfn("Error %08x after %s", err, ((ZString)str).str_view());
 }
 
 fn int glnvgCreateShader(GlShader* shader, char* name, char* header, char* opts, char* vshader, char* fshader) @local {

@@ -3,8 +3,6 @@ module microvg;
 import std::core::mem;
 import std::math;
 
-extern fn int printf(char* fmt, ...);
-
 const int NVG_PT_CORNER = 0x01;
 const int NVG_PT_LEFT = 0x02;
 const int NVG_PT_BEVEL = 0x04;
@@ -320,13 +318,8 @@ fn NvgColor nvgTransRgbaf(NvgColor c, float a) {
 }
 
 fn NvgColor nvgLerpRgba(NvgColor c0, NvgColor c1, float u) {
-	NvgColor cint;
-	mem::clear(&cint, NvgColor::size);
 	u = math::clamp(u, 0.0f, 1.0f);
-	float oneminu = 1.0f - u;
-
-	for (int i = 0; i < 4; i++) cint.rgba[i] = c0.rgba[i] * oneminu + c1.rgba[i] * u;
-	return cint;
+	return c0.lerp(c1, u);
 }
 
 fn NvgColor nvgHsl(float h, float s, float l) => nvgHsla(h, s, l, 255);
