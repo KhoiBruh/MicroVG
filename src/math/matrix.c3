@@ -15,8 +15,8 @@ const Mat2x3 IDENTITY_2X3 = {
 fn Vec2 Mat2x3.transform(self, Vec2 v) => self * v;
 
 fn Vec2 Mat2x3.apply(self, Vec2 v) @operator(*) => {
-    self.linear.x * v.x + self.linear.z * v.y + self.trans.x,
-    self.linear.y * v.x + self.linear.w * v.y + self.trans.y
+	self.linear.x * v.x + self.linear.z * v.y + self.trans.x,
+	self.linear.y * v.x + self.linear.w * v.y + self.trans.y
 };
 
 fn void Mat2x3.translate(&self, float x, float y) {
@@ -36,20 +36,20 @@ fn void Mat2x3.rotate(&self, float rad) {
 	float s = math::sin(rad);
 
 	float lx = self.linear.x;
-    float ly = self.linear.y;
-    float lz = self.linear.z;
-    float lw = self.linear.w;
+	float ly = self.linear.y;
+	float lz = self.linear.z;
+	float lw = self.linear.w;
 
-    self.linear.x = lx * c + lz * s;
-    self.linear.y = ly * c + lw * s;
-    self.linear.z = lx * -s + lz * c;
-    self.linear.w = ly * -s + lw * c;
+	self.linear.x = lx * c + lz * s;
+	self.linear.y = ly * c + lw * s;
+	self.linear.z = lx * -s + lz * c;
+	self.linear.w = ly * -s + lw * c;
 }
 
 fn float Mat2x3.averageScale(self) {
-    float sx = math::sqrt(self.linear.x * self.linear.x + self.linear.z * self.linear.z);
-    float sy = math::sqrt(self.linear.y * self.linear.y + self.linear.w * self.linear.w);
-    return (sx + sy) * 0.5f;
+	float sx = math::sqrt(self.linear.x * self.linear.x + self.linear.z * self.linear.z);
+	float sy = math::sqrt(self.linear.y * self.linear.y + self.linear.w * self.linear.w);
+	return (sx + sy) * 0.5f;
 }
 
 fn Mat2x3 Mat2x3.multiply(self, Mat2x3 other) @operator(*) => {
@@ -73,10 +73,10 @@ fn Mat2x3 Mat2x3.inverse(self) {
 	float invdet = 1.0f / det;
 	return {
 		{
-			 self.linear.w * invdet,
+			self.linear.w * invdet,
 			-self.linear.y * invdet,
 			-self.linear.z * invdet,
-			 self.linear.x * invdet
+			self.linear.x * invdet
 		},
 		{
 			(self.linear.z * self.trans.y - self.linear.w * self.trans.x) * invdet,

@@ -619,149 +619,151 @@ fn int glnvgRenderCreate(void* up) @local {
 	GlContext* gl = (GlContext*)up;
 	int align = 4;
 
-	char* shaderHeader =
-	"#version 150 core\n"
-	"#define NANOVG_GL3 1\n"
-	"#define USE_UNIFORMBUFFER 1\n"
-	"\n";
+	char* shaderHeader = `
+		#version 150 core
+		#define NANOVG_GL3 1
+		#define USE_UNIFORMBUFFER 1
+	`;
 
-	char* fillVertShader =
-	"#ifdef NANOVG_GL3\n"
-	"	uniform vec2 viewSize;\n"
-	"	in vec2 vertex;\n"
-	"	in vec2 tcoord;\n"
-	"	out vec2 ftcoord;\n"
-	"	out vec2 fpos;\n"
-	"#else\n"
-	"	uniform vec2 viewSize;\n"
-	"	attribute vec2 vertex;\n"
-	"	attribute vec2 tcoord;\n"
-	"	varying vec2 ftcoord;\n"
-	"	varying vec2 fpos;\n"
-	"#endif\n"
-	"void main(void) {\n"
-	"	ftcoord = tcoord;\n"
-	"	fpos = vertex;\n"
-	"	gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);\n"
-	"}\n";
+	char* fillVertShader = `
+		#ifdef NANOVG_GL3
+			uniform vec2 viewSize;
+			in vec2 vertex;
+			in vec2 tcoord;
+			out vec2 ftcoord;
+			out vec2 fpos;
+		#else
+			uniform vec2 viewSize;
+			attribute vec2 vertex;
+			attribute vec2 tcoord;
+			varying vec2 ftcoord;
+			varying vec2 fpos;
+		#endif
+		void main(void) {
+			ftcoord = tcoord;
+			fpos = vertex;
+			gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);
+		}
+	`;
 
-	char* fillFragShader =
-	"#ifdef GL_ES\n"
-	"#if defined(GL_FRAGMENT_PRECISION_HIGH) || defined(NANOVG_GL3)\n"
-	" precision highp float;\n"
-	"#else\n"
-	" precision mediump float;\n"
-	"#endif\n"
-	"#endif\n"
-	"#ifdef NANOVG_GL3\n"
-	"#ifdef USE_UNIFORMBUFFER\n"
-	"	layout(std140) uniform frag {\n"
-	"		mat3 scissorMat;\n"
-	"		mat3 paintMat;\n"
-	"		vec4 innerCol;\n"
-	"		vec4 outerCol;\n"
-	"		vec2 scissorExt;\n"
-	"		vec2 scissorScale;\n"
-	"		vec2 extent;\n"
-	"		float radius;\n"
-	"		float feather;\n"
-	"		float strokeMult;\n"
-	"		float strokeThr;\n"
-	"		int texType;\n"
-	"		int type;\n"
-	"	};\n"
-	"#else\n"
-	"	uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
-	"#endif\n"
-	"	uniform sampler2D tex;\n"
-	"	in vec2 ftcoord;\n"
-	"	in vec2 fpos;\n"
-	"	out vec4 outColor;\n"
-	"#else\n"
-	"	uniform vec4 frag[UNIFORMARRAY_SIZE];\n"
-	"	uniform sampler2D tex;\n"
-	"	varying vec2 ftcoord;\n"
-	"	varying vec2 fpos;\n"
-	"#endif\n"
-	"#ifndef USE_UNIFORMBUFFER\n"
-	"	#define scissorMat mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)\n"
-	"	#define paintMat mat3(frag[3].xyz, frag[4].xyz, frag[5].xyz)\n"
-	"	#define innerCol frag[6]\n"
-	"	#define outerCol frag[7]\n"
-	"	#define scissorExt frag[8].xy\n"
-	"	#define scissorScale frag[8].zw\n"
-	"	#define extent frag[9].xy\n"
-	"	#define radius frag[9].z\n"
-	"	#define feather frag[9].w\n"
-	"	#define strokeMult frag[10].x\n"
-	"	#define strokeThr frag[10].y\n"
-	"	#define texType int(frag[10].z)\n"
-	"	#define type int(frag[10].w)\n"
-	"#endif\n"
-	"\n"
-	"float sdroundrect(vec2 pt, vec2 ext, float rad) {\n"
-	"	vec2 ext2 = ext - vec2(rad,rad);\n"
-	"	vec2 d = abs(pt) - ext2;\n"
-	"	return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - rad;\n"
-	"}\n"
-	"\n"
-	"float scissorMask(vec2 p) {\n"
-	"	vec2 sc = (abs((scissorMat * vec3(p,1.0)).xy) - scissorExt);\n"
-	"	sc = vec2(0.5,0.5) - sc * scissorScale;\n"
-	"	return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);\n"
-	"}\n"
-	"#ifdef EDGE_AA\n"
-	"float strokeMask() {\n"
-	"	return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y);\n"
-	"}\n"
-	"#endif\n"
-	"\n"
-	"void main(void) {\n"
-	"   vec4 result;\n"
-	"	float scissor = scissorMask(fpos);\n"
-	"#ifdef EDGE_AA\n"
-	"	float strokeAlpha = strokeMask();\n"
-	"	if (strokeAlpha < strokeThr) discard;\n"
-	"#else\n"
-	"	float strokeAlpha = 1.0;\n"
-	"#endif\n"
-	"	if (type == 0) {\n"
-	"		vec2 pt = (paintMat * vec3(fpos,1.0)).xy;\n"
-	"		float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);\n"
-	"		vec4 color = mix(innerCol,outerCol,d);\n"
-	"		color *= strokeAlpha * scissor;\n"
-	"		result = color;\n"
-	"	} else if (type == 1) {\n"
-	"		vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;\n"
-	"#ifdef NANOVG_GL3\n"
-	"		vec4 color = texture(tex, pt);\n"
-	"#else\n"
-	"		vec4 color = texture2D(tex, pt);\n"
-	"#endif\n"
-	"		if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
-	"		if (texType == 2) color = vec4(color.x);"
-	"		color *= innerCol;\n"
-	"		color *= strokeAlpha * scissor;\n"
-	"		result = color;\n"
-	"	} else if (type == 2) {\n"
-	"		result = vec4(1,1,1,1);\n"
-	"	} else if (type == 3) {\n"
-	"#ifdef NANOVG_GL3\n"
-	"		vec4 color = texture(tex, ftcoord);\n"
-	"#else\n"
-	"		vec4 color = texture2D(tex, ftcoord);\n"
-	"#endif\n"
-	"		if (texType == 1) color = vec4(color.xyz*color.w,color.w);"
-	"		if (texType == 2) color = vec4(color.x);"
-	"		color *= scissor;\n"
-	"		result = color * innerCol;\n"
-	"	}\n"
-	"#ifdef NANOVG_GL3\n"
-	"	outColor = result;\n"
-	"#else\n"
-	"	gl_FragColor = result;\n"
-	"#endif\n"
-	"}\n";
+	char* fillFragShader = `
+		#ifdef GL_ES
+		#if defined(GL_FRAGMENT_PRECISION_HIGH) || defined(NANOVG_GL3)
+		 precision highp float;
+		#else
+		 precision mediump float;
+		#endif
+		#endif
+		#ifdef NANOVG_GL3
+		#ifdef USE_UNIFORMBUFFER
+			layout(std140) uniform frag {
+				mat3 scissorMat;
+				mat3 paintMat;
+				vec4 innerCol;
+				vec4 outerCol;
+				vec2 scissorExt;
+				vec2 scissorScale;
+				vec2 extent;
+				float radius;
+				float feather;
+				float strokeMult;
+				float strokeThr;
+				int texType;
+				int type;
+			};
+		#else
+			uniform vec4 frag[UNIFORMARRAY_SIZE];
+		#endif
+			uniform sampler2D tex;
+			in vec2 ftcoord;
+			in vec2 fpos;
+			out vec4 outColor;
+		#else
+			uniform vec4 frag[UNIFORMARRAY_SIZE];
+			uniform sampler2D tex;
+			varying vec2 ftcoord;
+			varying vec2 fpos;
+		#endif
+		#ifndef USE_UNIFORMBUFFER
+			#define scissorMat mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)
+			#define paintMat mat3(frag[3].xyz, frag[4].xyz, frag[5].xyz)
+			#define innerCol frag[6]
+			#define outerCol frag[7]
+			#define scissorExt frag[8].xy
+			#define scissorScale frag[8].zw
+			#define extent frag[9].xy
+			#define radius frag[9].z
+			#define feather frag[9].w
+			#define strokeMult frag[10].x
+			#define strokeThr frag[10].y
+			#define texType int(frag[10].z)
+			#define type int(frag[10].w)
+		#endif
+
+		float sdroundrect(vec2 pt, vec2 ext, float rad) {
+			vec2 ext2 = ext - vec2(rad,rad);
+			vec2 d = abs(pt) - ext2;
+			return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - rad;
+		}
+
+		float scissorMask(vec2 p) {
+			vec2 sc = (abs((scissorMat * vec3(p,1.0)).xy) - scissorExt);
+			sc = vec2(0.5,0.5) - sc * scissorScale;
+			return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);
+		}
+		#ifdef EDGE_AA
+		float strokeMask() {
+			return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y);
+		}
+		#endif
+
+		void main(void) {
+			vec4 result;
+			float scissor = scissorMask(fpos);
+		#ifdef EDGE_AA
+			float strokeAlpha = strokeMask();
+			if (strokeAlpha < strokeThr) discard;
+		#else
+			float strokeAlpha = 1.0;
+		#endif
+			if (type == 0) {
+				vec2 pt = (paintMat * vec3(fpos,1.0)).xy;
+				float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);
+				vec4 color = mix(innerCol,outerCol,d);
+				color *= strokeAlpha * scissor;
+				result = color;
+			} else if (type == 1) {
+				vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;
+		#ifdef NANOVG_GL3
+				vec4 color = texture(tex, pt);
+		#else
+				vec4 color = texture2D(tex, pt);
+		#endif
+				if (texType == 1) color = vec4(color.xyz*color.w,color.w);
+				if (texType == 2) color = vec4(color.x);
+				color *= innerCol;
+				color *= strokeAlpha * scissor;
+				result = color;
+			} else if (type == 2) {
+				result = vec4(1,1,1,1);
+			} else if (type == 3) {
+		#ifdef NANOVG_GL3
+				vec4 color = texture(tex, ftcoord);
+		#else
+				vec4 color = texture2D(tex, ftcoord);
+		#endif
+				if (texType == 1) color = vec4(color.xyz*color.w,color.w);
+				if (texType == 2) color = vec4(color.x);
+				color *= scissor;
+				result = color * innerCol;
+			}
+		#ifdef NANOVG_GL3
+			outColor = result;
+		#else
+			gl_FragColor = result;
+		#endif
+		}
+	`;
 
 	glnvgCheckError(gl, "init");
 
@@ -847,13 +849,15 @@ fn int glnvgRenderCreateTexture(void* up, TextureType type, int w, int h, int im
 
 	if (imageFlags & microvg::IMAGE_REPEATX) {
 		gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_S, (GLint) gl::GL_REPEAT);
-	} else {
+	}
+	else {
 		gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_S, (GLint) gl::GL_CLAMP_TO_EDGE);
 	}
 
 	if (imageFlags & microvg::IMAGE_REPEATY) {
 		gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_T, (GLint) gl::GL_REPEAT);
-	} else {
+	}
+	else {
 		gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_T, (GLint) gl::GL_CLAMP_TO_EDGE);
 	}
 
@@ -889,7 +893,8 @@ fn int glnvgRenderUpdateTexture(void* up, int image, int x, int y, int w, int h,
 
 	if (tex.type == TextureType.RGBA) {
 		gl::texSubImage2D(gl::GL_TEXTURE_2D, 0, x, y, w, h, (GLint) gl::GL_RGBA, gl::GL_UNSIGNED_BYTE, data);
-	} else {
+	}
+	else {
 		gl::texSubImage2D(gl::GL_TEXTURE_2D, 0, x, y, w, h, (GLint) gl::GL_RED, gl::GL_UNSIGNED_BYTE, data);
 	}
 
