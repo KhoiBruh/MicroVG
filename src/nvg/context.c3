@@ -64,14 +64,12 @@ struct NvgContext {
 	float tessTol;
 	float distTol;
 	float fringeWidth;
-	float devicePxRatio;
+	float pxRatio;
 	int drawCallCount;
 	int fillTriCount;
 	int strokeTriCount;
 	int textTriCount;
 }
-
-fn float nvgCross(float dx0, float dy0, float dx1, float dy1) @local => dx1 * dy0 - dx0 * dy1;
 
 fn float nvgNormalize(float* x, float* y) @local {
 	float d = math::sqrt(x[0] * x[0] + y[0] * y[0]);
@@ -122,11 +120,11 @@ fn NvgPathCache* nvgAllocPathCache() @local {
 	return c;
 }
 
-fn void NvgContext.setDevicePixelRatio(&self, float ratio) {
+fn void NvgContext.setPxRatio(&self, float ratio) {
 	self.tessTol = 0.25f / ratio;
 	self.distTol = 0.01f / ratio;
 	self.fringeWidth = 1.0f / ratio;
-	self.devicePxRatio = ratio;
+	self.pxRatio = ratio;
 }
 
 fn NvgCompositeOperationState nvgCompositeOpState(CompositeOp op) @local {
@@ -196,7 +194,7 @@ fn NvgState* NvgContext.getState(&self) => &self.states[self.nstates - 1];
 
 fn void nvgSetPaintColor(NvgPaint* p, NvgColor color) @local {
 	mem::clear(p, NvgPaint::size);
-	nvgTransformIdentity(&p.form);
+	p.form.identity();
 	p.radius = 0.0f;
 	p.feather = 1.0f;
 	p.innerColor = color;
@@ -244,7 +242,7 @@ fn NvgContext* nvgCreateInternal(NvgParams* params) {
 	vg.save();
 	vg.reset();
 
-	vg.setDevicePixelRatio(1.0f);
+	vg.setPxRatio(1.0f);
 
 	if (vg.params.renderCreate(vg.params.userPtr) == 0) {
 		vg.destroy();
@@ -264,14 +262,14 @@ fn void NvgContext.destroy(&self) {
 	mem::free(self);
 }
 
-fn void NvgContext.beginFrame(&self, float windowWidth, float windowHeight, float devicePixelRatio) {
+fn void NvgContext.beginFrame(&self, float width, float height, float pxRatio) {
 	self.nstates = 0;
 	self.save();
 	self.reset();
 
-	self.setDevicePixelRatio(devicePixelRatio);
+	self.setPxRatio(pxRatio);
 
-	self.params.renderViewport(self.params.userPtr, windowWidth, windowHeight, devicePixelRatio);
+	self.params.renderViewport(self.params.userPtr, width, height, pxRatio);
 
 	self.drawCallCount = 0;
 	self.fillTriCount = 0;
@@ -323,10 +321,6 @@ fn NvgColor nvgHsla(float h, float s, float l, char a) {
 	return col;
 }
 
-fn void nvgTransformIdentity(Mat2x3* t) {
-	*t = IDENTITY_2X3;
-}
-
 fn void nvgTransformTranslate(Mat2x3* t, float tx, float ty) {
 	*t = { { 1, 0, 0, 1 }, { tx, ty } };
 }
@@ -339,14 +333,6 @@ fn void nvgTransformRotate(Mat2x3* t, float a) {
 	float cs = math::cos(a);
 	float sn = math::sin(a);
 	*t = { { cs, sn, -sn, cs }, { 0, 0 } };
-}
-
-fn void nvgTransformSkewX(Mat2x3* t, float a) {
-	*t = { { 1, 0, math::tan(a), 1 }, { 0, 0 } };
-}
-
-fn void nvgTransformSkewY(Mat2x3* t, float a) {
-	*t = { { 1, math::tan(a), 0, 1 }, { 0, 0 } };
 }
 
 fn void nvgTransformMultiply(Mat2x3* t, Mat2x3* s) {
@@ -392,7 +378,7 @@ fn void NvgContext.reset(&self) {
 	state.lineCap = LineCap.BUTT;
 	state.lineJoin = LineJoin.MITER;
 	state.alpha = 1.0f;
-	nvgTransformIdentity(&state.form);
+	state.form.identity();
 
 	state.scissor.extent.x = -1.0f;
 	state.scissor.extent.y = -1.0f;
@@ -436,7 +422,7 @@ fn void NvgContext.transform(&self, float a, float b, float c, float d, float e,
 
 fn void NvgContext.resetTransform(&self) {
 	NvgState* state = self.getState();
-	nvgTransformIdentity(&state.form);
+	state.form.identity();
 }
 
 fn void NvgContext.translate(&self, float x, float y) => self.getState().form.translate(x, y);
@@ -499,30 +485,18 @@ NvgColor icol, NvgColor ocol
 	NvgPaint p;
 	float large = 1e5f;
 
-	float dx = ex - sx;
-	float dy = ey - sy;
-	float d = math::sqrt(dx * dx + dy * dy);
-	if (d > 0.0001f) {
-		dx /= d;
-		dy /= d;
-	}
-	else {
-		dx = 0;
-		dy = 1;
-	}
+	Vec2 d = { ex - sx, ey - sy };
+	float len = d.length();
+	d = d.normalize();
 
-	p.form.linear.x = dy;
-	p.form.linear.y = -dx;
-	p.form.linear.z = dx;
-	p.form.linear.w = dy;
-	p.form.trans.x = sx - dx * large;
-	p.form.trans.y = sy - dy * large;
+	Vec2 s = { sx, sy };
 
-	p.extent.x = large;
-	p.extent.y = large + d * 0.5f;
+	p.form.linear = { d.y, -d.x, d.x, d.y };
+	p.form.trans = s - d * large;
+	p.extent = { large, large + len * 0.5f };
 
 	p.radius = 0.0f;
-	p.feather = math::max(1.0f, d);
+	p.feather = math::max(1.0f, len);
 	p.image = 0;
 
 	p.innerColor = icol;
@@ -537,14 +511,12 @@ NvgColor icol, NvgColor ocol
 ) {
 	NvgPaint p;
 	float r = (inr + outr) * 0.5f;
-	float f = (outr - inr);
+	float f = outr - inr;
 
-	nvgTransformIdentity(&p.form);
-	p.form.trans.x = cx;
-	p.form.trans.y = cy;
+	p.form.identity();
 
-	p.extent.x = r;
-	p.extent.y = r;
+	p.form.trans = { cx, cy };
+	p.extent = { r, r };
 
 	p.radius = r;
 	p.feather = math::max(1.0f, f);
@@ -562,12 +534,9 @@ NvgColor icol, NvgColor ocol
 ) {
 	NvgPaint p;
 
-	nvgTransformIdentity(&p.form);
-	p.form.trans.x = x + w * 0.5f;
-	p.form.trans.y = y + h * 0.5f;
-
-	p.extent.x = w * 0.5f;
-	p.extent.y = h * 0.5f;
+	p.form.identity();
+	p.form.trans = { x + w * 0.5f, y + h * 0.5f };
+	p.extent = { w * 0.5f, h * 0.5f };
 
 	p.radius = r;
 	p.feather = math::max(1.0f, f);
@@ -607,13 +576,11 @@ fn void NvgContext.scissor(&self, float x, float y, float w, float h) {
 	w = math::max(0.0f, w);
 	h = math::max(0.0f, h);
 
-	nvgTransformIdentity(&state.scissor.form);
-	state.scissor.form.trans.x = x + w * 0.5f;
-	state.scissor.form.trans.y = y + h * 0.5f;
+	state.scissor.form.identity();
+	state.scissor.form.trans = { x + w * 0.5f, y + h * 0.5f };
 	nvgTransformMultiply(&state.scissor.form, &state.form);
 
-	state.scissor.extent.x = w * 0.5f;
-	state.scissor.extent.y = h * 0.5f;
+	state.scissor.extent = { w * 0.5f, h * 0.5f };
 }
 
 fn Vec4 nvgIsectRect(
@@ -1648,7 +1615,9 @@ fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float ra
 	float cx, cy, a0, a1;
 	int dir;
 
-	if (nvgCross(dx0, dy0, dx1, dy1) > 0.0f) {
+	float[<2>] v0 = { dx0, dy0 };
+	float[<2>] v1 = { dx1, dy1 };
+	if (v1.cross(v0) > 0.0f) {
 		cx = x1 + dx0 * d + dy0 * radius;
 		cy = y1 + dy0 * d + -dx0 * radius;
 		a0 = math::atan2(dx0, -dy0);

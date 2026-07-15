@@ -6,14 +6,9 @@ alias Vec4 = float[<4>];
 
 macro Vec2 Vec2.normalize(self) {
 	float len = self.length();
-	if (len < 1e-8f) return { 1, 0 };
+	if (len < 0.0001f) return { 1, 0 };
 
 	return { self.x / len, self.y / len };
 }
-
-macro Vec2 Vec2.lerp(self, Vec2 b, float t) => {
-	self.x + (b.x - self.x) * t,
-	self.y + (b.y - self.y) * t
-};
 
 macro Vec2 Vec2.half(self, Vec2 other) => (self + other) * 0.5;

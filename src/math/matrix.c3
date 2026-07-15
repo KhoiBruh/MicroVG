@@ -19,6 +19,8 @@ fn Vec2 Mat2x3.apply(self, Vec2 v) @operator(*) => {
 	self.linear.y * v.x + self.linear.w * v.y + self.trans.y
 };
 
+fn void Mat2x3.identity(&self) => *self = IDENTITY_2X3;
+
 fn void Mat2x3.translate(&self, float x, float y) {
 	self.trans.x += self.linear.x * x + self.linear.z * y;
 	self.trans.y += self.linear.y * x + self.linear.w * y;
@@ -79,10 +81,9 @@ fn Mat2x3 Mat2x3.multiply(self, Mat2x3 other) @operator(*) => {
 
 fn Mat2x3 Mat2x3.inverse(self) {
 	float det = self.linear.x * self.linear.w - self.linear.z * self.linear.y;
-	if (det > -1e-6f && det < 1e-6f) {
-		return IDENTITY_2X3;
-	}
+	if (det > -1e-6f && det < 1e-6f) return IDENTITY_2X3;
 	float invdet = 1.0f / det;
+
 	return {
 		{
 			self.linear.w * invdet,
