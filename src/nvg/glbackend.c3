@@ -602,12 +602,7 @@ fn int glnvgAllocFragUniforms(GlContext* gl, int n) @local {
 	return ret;
 }
 
-fn void glnvgVset(NvgVertex* vtx, float x, float y, float u, float v) @local {
-	vtx.x = x;
-	vtx.y = y;
-	vtx.u = u;
-	vtx.v = v;
-}
+fn void glnvgVset(NvgVertex* vtx, float x, float y, float u, float v) @local => *vtx = { x, y, u, v };
 
 fn int glnvgRenderCreate(void* up) @local {
 	GlContext* gl = (GlContext*)up;

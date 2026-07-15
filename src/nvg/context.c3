@@ -3,10 +3,10 @@ module microvg;
 import std::core::mem;
 import std::math;
 
-const int NVG_PT_CORNER = 0x01;
-const int NVG_PT_LEFT = 0x02;
-const int NVG_PT_BEVEL = 0x04;
-const int NVG_PR_INNERBEVEL = 0x08;
+const PathPointFlags NVG_PT_CORNER = { .corner = true };
+const PathPointFlags NVG_PT_LEFT = { .left = true };
+const PathPointFlags NVG_PT_BEVEL = { .bevel = true };
+const PathPointFlags NVG_PR_INNERBEVEL = { .innerBevel = true };
 
 const int INIT_COMMANDS_SIZE = 256;
 const int INIT_POINTS_SIZE = 128;
@@ -817,14 +817,14 @@ fn NvgPoint* NvgContext.lastPoint(&self) {
 	return null;
 }
 
-fn void NvgContext.addPoint(&self, float x, float y, int flags) {
+fn void NvgContext.addPoint(&self, float x, float y, PathPointFlags flags) {
 	NvgPath* path = self.lastPath();
 	if (path == null) return;
 
 	if (path.count > 0 && self.cache.npoints > 0) {
 		NvgPoint* pt = self.lastPoint();
 		if (nvgPtEquals(pt.x, pt.y, x, y, self.distTol)) {
-			pt.flags = (PathPointFlags)(char)((int)pt.flags | flags);
+			pt.flags = pt.flags | flags;
 			return;
 		}
 	}
@@ -841,7 +841,7 @@ fn void NvgContext.addPoint(&self, float x, float y, int flags) {
 	mem::clear(pt, NvgPoint::size);
 	pt.x = x;
 	pt.y = y;
-	pt.flags = (PathPointFlags)(char)flags;
+	pt.flags = flags;
 
 	self.cache.npoints++;
 	path.count++;
@@ -904,17 +904,12 @@ fn void nvgPolyReverse(NvgPoint* pts, int npts) @local {
 	}
 }
 
-fn void nvgVset(NvgVertex* vtx, float x, float y, float u, float v) @local {
-	vtx.x = x;
-	vtx.y = y;
-	vtx.u = u;
-	vtx.v = v;
-}
+fn void nvgVset(NvgVertex* vtx, float x, float y, float u, float v) @local => *vtx = { x, y, u, v };
 
 fn void NvgContext.tesselateBezier(&self,
 float x1, float y1, float x2, float y2,
 float x3, float y3, float x4, float y4,
-int level, int type
+int level, PathPointFlags type
 ) {
 	if (level > 10) return;
 
@@ -942,7 +937,7 @@ int level, int type
 	float x1234 = (x123 + x234) * 0.5f;
 	float y1234 = (y123 + y234) * 0.5f;
 
-	self.tesselateBezier(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1, 0);
+	self.tesselateBezier(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1, (PathPointFlags)0);
 	self.tesselateBezier(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1, type);
 }
 
@@ -1023,7 +1018,7 @@ fn int nvgCurveDivs(float r, float arc, float tol) @local {
 }
 
 fn void nvgChooseBevel(
-int bevel, NvgPoint* p0, NvgPoint* p1, float w,
+bool bevel, NvgPoint* p0, NvgPoint* p1, float w,
 float* x0, float* y0, float* x1, float* y1
 ) @local {
 	if (bevel) {
@@ -1051,7 +1046,7 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 
 	if (p1.flags.left) {
 		float lx0, ly0, lx1, ly1;
-		nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
+		nvgChooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 		float a0 = math::atan2(-dly0, -dlx0);
 		float a1 = math::atan2(-dly1, -dlx1);
 		if (a1 > a0) a1 -= PI * 2;
@@ -1080,7 +1075,7 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
-		nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
+		nvgChooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 		float a0 = math::atan2(dly0, dlx0);
 		float a1 = math::atan2(dly1, dlx1);
 		if (a1 < a0) a1 += PI * 2;
@@ -1122,7 +1117,7 @@ float lw, float rw, float lu, float ru, float fringe
 
 	if (p1.flags.left) {
 		float lx0, ly0, lx1, ly1;
-		nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
+		nvgChooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 
 		nvgVset(dst, lx0, ly0, lu, 1);
 		dst++;
@@ -1167,7 +1162,7 @@ float lw, float rw, float lu, float ru, float fringe
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
-		nvgChooseBevel((int)p1.flags & NVG_PR_INNERBEVEL, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
+		nvgChooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 
 		nvgVset(dst, p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
 		dst++;

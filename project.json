@@ -1,5 +1,4 @@
 {
-  "warnings": [ " " ],
   "dependency-search-paths": [ "include" ],
   "dependencies": [ "opengl", "glfw34" ],
   "authors": [ "KhoiBruh <github.com/khoibruh>" ],
