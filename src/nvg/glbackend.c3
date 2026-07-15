@@ -170,7 +170,7 @@ fn GlTexture* glnvgAllocTexture(GlContext* gl) @local {
 	}
 	if (tex == null) {
 		if (gl.ntextures + 1 > gl.ctextures) {
-			int ctextures = math::max(gl.ntextures + 1, 4) + gl.ctextures / 2;
+			int ctextures = math::max(math::max(gl.ntextures + 1, 4), gl.ctextures + gl.ctextures / 2);
 			GlTexture* textures = mem::realloc(gl.textures, (GlTexture::size * ctextures));
 			if (textures == null) return null;
 			gl.textures = textures;
@@ -551,7 +551,7 @@ fn int glnvgMaxVertCount(NvgPath* paths, int npaths) @local {
 
 fn GlCall* glnvgAllocCall(GlContext* gl) @local {
 	if (gl.ncalls + 1 > gl.ccalls) {
-		int ccalls = math::max(gl.ncalls + 1, 128) + gl.ccalls / 2;
+		int ccalls = math::max(math::max(gl.ncalls + 1, 128), gl.ccalls + gl.ccalls / 2);
 		GlCall* calls = mem::realloc(gl.calls, GlCall::size * ccalls);
 		if (calls == null) return null;
 		gl.calls = calls;
@@ -564,7 +564,7 @@ fn GlCall* glnvgAllocCall(GlContext* gl) @local {
 
 fn int glnvgAllocPaths(GlContext* gl, int n) @local {
 	if (gl.npaths + n > gl.cpaths) {
-		int cpaths = math::max(gl.npaths + n, 128) + gl.cpaths / 2;
+		int cpaths = math::max(math::max(gl.npaths + n, 128), gl.cpaths + gl.cpaths / 2);
 		GlPath* paths = mem::realloc(gl.paths, GlPath::size * cpaths);
 		if (paths == null) return -1;
 		gl.paths = paths;
@@ -577,7 +577,7 @@ fn int glnvgAllocPaths(GlContext* gl, int n) @local {
 
 fn int glnvgAllocVerts(GlContext* gl, int n) @local {
 	if (gl.nverts + n > gl.cverts) {
-		int cverts = math::max(gl.nverts + n, 4096) + gl.cverts / 2;
+		int cverts = math::max(math::max(gl.nverts + n, 4096), gl.cverts + gl.cverts / 2);
 		NvgVertex* verts = mem::realloc(gl.verts, NvgVertex::size * cverts);
 		if (verts == null) return -1;
 		gl.verts = verts;
@@ -591,7 +591,7 @@ fn int glnvgAllocVerts(GlContext* gl, int n) @local {
 fn int glnvgAllocFragUniforms(GlContext* gl, int n) @local {
 	int structSize = gl.fragSize;
 	if (gl.nuniforms + n > gl.cuniforms) {
-		int cuniforms = math::max(gl.nuniforms + n, 128) + gl.cuniforms / 2;
+		int cuniforms = math::max(math::max(gl.nuniforms + n, 128), gl.cuniforms + gl.cuniforms / 2);
 		char* uniforms = mem::realloc(gl.uniforms, (sz)structSize * cuniforms);
 		if (uniforms == null) return -1;
 		gl.uniforms = uniforms;

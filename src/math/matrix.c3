@@ -31,6 +31,18 @@ fn void Mat2x3.scale(&self, float x, float y) {
 	self.linear.w *= y;
 }
 
+fn void Mat2x3.skewX(&self, float a) {
+	float ta = math::tan(a);
+	self.linear.z += self.linear.x * ta;
+	self.linear.w += self.linear.y * ta;
+}
+
+fn void Mat2x3.skewY(&self, float a) {
+	float ta = math::tan(a);
+	self.linear.x += self.linear.z * ta;
+	self.linear.y += self.linear.w * ta;
+}
+
 fn void Mat2x3.rotate(&self, float rad) {
 	float c = math::cos(rad);
 	float s = math::sin(rad);

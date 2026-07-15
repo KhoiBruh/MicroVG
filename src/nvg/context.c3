@@ -222,7 +222,7 @@ fn float nvgHue(float h, float m1, float m2) @local {
 }
 
 fn NvgContext* nvgCreateInternal(NvgParams* params) {
-	NvgContext* vg = mem::calloc(NvgContext::size);
+	NvgContext* vg = mem::malloc(NvgContext::size);
 	if (vg == null) return null;
 
 	vg.params = params[0];
@@ -253,8 +253,6 @@ fn NvgContext* nvgCreateInternal(NvgParams* params) {
 
 	return vg;
 }
-
-fn NvgParams* NvgContext.internalParams(&self) => &self.params;
 
 fn void NvgContext.destroy(&self) {
 	if (self == null) return;
@@ -289,23 +287,14 @@ fn NvgColor nvgRgb(char r, char g, char b) => nvgRgba(r, g, b, 255);
 
 fn NvgColor nvgRgbf(float r, float g, float b) => nvgRgbaf(r, g, b, 1.0f);
 
-fn NvgColor nvgRgba(char r, char g, char b, char a) {
-	NvgColor color;
-	color.r = r / 255.0f;
-	color.g = g / 255.0f;
-	color.b = b / 255.0f;
-	color.a = a / 255.0f;
-	return color;
-}
+fn NvgColor nvgRgba(char r, char g, char b, char a) => {
+	r / 255.0f,
+	g / 255.0f,
+	b / 255.0f,
+	a / 255.0f
+};
 
-fn NvgColor nvgRgbaf(float r, float g, float b, float a) {
-	NvgColor color;
-	color.r = r;
-	color.g = g;
-	color.b = b;
-	color.a = a;
-	return color;
-}
+fn NvgColor nvgRgbaf(float r, float g, float b, float a) => { r, g, b, a };
 
 fn NvgColor nvgTransRgba(NvgColor c, char a) {
 	c.a = a / 255.0f;
@@ -315,11 +304,6 @@ fn NvgColor nvgTransRgba(NvgColor c, char a) {
 fn NvgColor nvgTransRgbaf(NvgColor c, float a) {
 	c.a = a;
 	return c;
-}
-
-fn NvgColor nvgLerpRgba(NvgColor c0, NvgColor c1, float u) {
-	u = math::clamp(u, 0.0f, 1.0f);
-	return c0.lerp(c1, u);
 }
 
 fn NvgColor nvgHsl(float h, float s, float l) => nvgHsla(h, s, l, 255);
@@ -455,40 +439,15 @@ fn void NvgContext.resetTransform(&self) {
 	nvgTransformIdentity(&state.form);
 }
 
-fn void NvgContext.translate(&self, float x, float y) {
-	NvgState* state = self.getState();
-	Mat2x3 t;
-	nvgTransformTranslate(&t, x, y);
-	nvgTransformPremultiply(&state.form, &t);
-}
+fn void NvgContext.translate(&self, float x, float y) => self.getState().form.translate(x, y);
 
-fn void NvgContext.rotate(&self, float angle) {
-	NvgState* state = self.getState();
-	Mat2x3 t;
-	nvgTransformRotate(&t, angle);
-	nvgTransformPremultiply(&state.form, &t);
-}
+fn void NvgContext.rotate(&self, float angle) => self.getState().form.rotate(angle);
 
-fn void NvgContext.skewX(&self, float angle) {
-	NvgState* state = self.getState();
-	Mat2x3 t;
-	nvgTransformSkewX(&t, angle);
-	nvgTransformPremultiply(&state.form, &t);
-}
+fn void NvgContext.skewX(&self, float angle) => self.getState().form.skewX(angle);
 
-fn void NvgContext.skewY(&self, float angle) {
-	NvgState* state = self.getState();
-	Mat2x3 t;
-	nvgTransformSkewY(&t, angle);
-	nvgTransformPremultiply(&state.form, &t);
-}
+fn void NvgContext.skewY(&self, float angle) => self.getState().form.skewY(angle);
 
-fn void NvgContext.scale(&self, float x, float y) {
-	NvgState* state = self.getState();
-	Mat2x3 t;
-	nvgTransformScale(&t, x, y);
-	nvgTransformPremultiply(&state.form, &t);
-}
+fn void NvgContext.scale(&self, float x, float y) => self.getState().form.scale(x, y);
 
 fn void NvgContext.currentTransform(&self, float* form) {
 	NvgState* state = self.getState();
@@ -539,7 +498,6 @@ NvgColor icol, NvgColor ocol
 ) {
 	NvgPaint p;
 	float large = 1e5f;
-	mem::clear(&p, NvgPaint::size);
 
 	float dx = ex - sx;
 	float dy = ey - sy;
@@ -564,8 +522,8 @@ NvgColor icol, NvgColor ocol
 	p.extent.y = large + d * 0.5f;
 
 	p.radius = 0.0f;
-
 	p.feather = math::max(1.0f, d);
+	p.image = 0;
 
 	p.innerColor = icol;
 	p.outerColor = ocol;
@@ -580,7 +538,6 @@ NvgColor icol, NvgColor ocol
 	NvgPaint p;
 	float r = (inr + outr) * 0.5f;
 	float f = (outr - inr);
-	mem::clear(&p, NvgPaint::size);
 
 	nvgTransformIdentity(&p.form);
 	p.form.trans.x = cx;
@@ -590,8 +547,8 @@ NvgColor icol, NvgColor ocol
 	p.extent.y = r;
 
 	p.radius = r;
-
 	p.feather = math::max(1.0f, f);
+	p.image = 0;
 
 	p.innerColor = icol;
 	p.outerColor = ocol;
@@ -604,7 +561,6 @@ fn NvgPaint NvgContext.boxGradient(
 NvgColor icol, NvgColor ocol
 ) {
 	NvgPaint p;
-	mem::clear(&p, NvgPaint::size);
 
 	nvgTransformIdentity(&p.form);
 	p.form.trans.x = x + w * 0.5f;
@@ -614,8 +570,8 @@ NvgColor icol, NvgColor ocol
 	p.extent.y = h * 0.5f;
 
 	p.radius = r;
-
 	p.feather = math::max(1.0f, f);
+	p.image = 0;
 
 	p.innerColor = icol;
 	p.outerColor = ocol;
@@ -749,7 +705,7 @@ fn void NvgContext.appendCommands(&self, PathCmd* cmds, int ncmds) {
 	NvgState* state = self.getState();
 
 	if (self.ncommands + ncmds > self.ccommands) {
-		int ccommands = self.ncommands + ncmds + self.ccommands / 2;
+		int ccommands = math::max(self.ncommands + ncmds, self.ccommands + self.ccommands / 2);
 		PathCmd* commands = mem::realloc(self.commands, PathCmd::size * ccommands);
 		if (commands == null) return;
 		self.commands = commands;
@@ -798,7 +754,7 @@ fn NvgPath* NvgContext.lastPath(&self) {
 
 fn void NvgContext.addPath(&self) {
 	if (self.cache.npaths + 1 > self.cache.cpaths) {
-		int cpaths = self.cache.npaths + 1 + self.cache.cpaths / 2;
+		int cpaths = math::max(self.cache.npaths + 1, self.cache.cpaths + self.cache.cpaths / 2);
 		NvgPath* paths = mem::realloc(self.cache.paths, NvgPath::size * cpaths);
 		if (paths == null) return;
 		self.cache.paths = paths;
@@ -830,7 +786,7 @@ fn void NvgContext.addPoint(&self, float x, float y, PathPointFlags flags) {
 	}
 
 	if (self.cache.npoints + 1 > self.cache.cpoints) {
-		int cpoints = self.cache.npoints + 1 + self.cache.cpoints / 2;
+		int cpoints = math::max(self.cache.npoints + 1, self.cache.cpoints + self.cache.cpoints / 2);
 		NvgPoint* points = mem::realloc(self.cache.points, NvgPoint::size * cpoints);
 		if (points == null) return;
 		self.cache.points = points;
@@ -861,7 +817,7 @@ fn void NvgContext.pathWindingCache(&self, int winding) {
 
 fn NvgVertex* NvgContext.allocTempVerts(&self, int nverts) {
 	if (nverts > self.cache.cverts) {
-		int cverts = (nverts + 0xff) & ~0xff;
+		int cverts = math::max((nverts + 0xff) & ~0xff, self.cache.cverts + self.cache.cverts / 2);
 		NvgVertex* verts = mem::realloc(self.cache.verts, NvgVertex::size * cverts);
 		if (verts == null) return null;
 		self.cache.verts = verts;
