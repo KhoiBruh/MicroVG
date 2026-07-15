@@ -129,52 +129,52 @@ fn void NvgContext.setDevicePixelRatio(&self, float ratio) {
 	self.devicePxRatio = ratio;
 }
 
-fn NvgCompositeOperationState nvgCompositeOpState(int op) @local {
+fn NvgCompositeOperationState nvgCompositeOpState(CompositeOp op) @local {
 	int sfactor;
 	int dfactor;
 
 	switch (op) {
-		case(int)CompositeOp.SOURCE_OVER:
+		case CompositeOp.SOURCE_OVER:
 			sfactor = BLEND_ONE;
 			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
 
-		case(int)CompositeOp.SOURCE_IN:
+		case CompositeOp.SOURCE_IN:
 			sfactor = BLEND_DST_ALPHA;
 			dfactor = BLEND_ZERO;
 
-		case(int)CompositeOp.SOURCE_OUT:
+		case CompositeOp.SOURCE_OUT:
 			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
 			dfactor = BLEND_ZERO;
 
-		case(int)CompositeOp.ATOP:
+		case CompositeOp.ATOP:
 			sfactor = BLEND_DST_ALPHA;
 			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
 
-		case(int)CompositeOp.DESTINATION_OVER:
+		case CompositeOp.DESTINATION_OVER:
 			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
 			dfactor = BLEND_ONE;
 
-		case(int)CompositeOp.DESTINATION_IN:
+		case CompositeOp.DESTINATION_IN:
 			sfactor = BLEND_ZERO;
 			dfactor = BLEND_SRC_ALPHA;
 
-		case(int)CompositeOp.DESTINATION_OUT:
+		case CompositeOp.DESTINATION_OUT:
 			sfactor = BLEND_ZERO;
 			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
 
-		case(int)CompositeOp.DESTINATION_ATOP:
+		case CompositeOp.DESTINATION_ATOP:
 			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
 			dfactor = BLEND_SRC_ALPHA;
 
-		case(int)CompositeOp.LIGHTER:
+		case CompositeOp.LIGHTER:
 			sfactor = BLEND_ONE;
 			dfactor = BLEND_ONE;
 
-		case(int)CompositeOp.COPY:
+		case CompositeOp.COPY:
 			sfactor = BLEND_ONE;
 			dfactor = BLEND_ZERO;
 
-		case(int)CompositeOp.XOR:
+		case CompositeOp.XOR:
 			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
 			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
 
@@ -222,7 +222,7 @@ fn float nvgHue(float h, float m1, float m2) @local {
 }
 
 fn NvgContext* nvgCreateInternal(NvgParams* params) {
-	NvgContext* vg = mem::malloc(NvgContext::size);
+	NvgContext* vg = mem::calloc(NvgContext::size);
 	if (vg == null) return null;
 
 	vg.params = params[0];
@@ -385,7 +385,7 @@ fn void NvgContext.reset(&self) {
 
 	nvgSetPaintColor(&state.fill, nvgRgba(255, 255, 255, 255));
 	nvgSetPaintColor(&state.stroke, nvgRgba(0, 0, 0, 255));
-	state.compositeOperation = nvgCompositeOpState((int)CompositeOp.SOURCE_OVER);
+	state.compositeOperation = nvgCompositeOpState(CompositeOp.SOURCE_OVER);
 	state.shapeAntiAlias = 1;
 	state.strokeWidth = 1.0f;
 	state.miterLimit = 10.0f;
@@ -656,7 +656,7 @@ fn void NvgContext.resetScissor(&self) {
 
 fn void NvgContext.globalCompositeOperation(&self, int op) {
 	NvgState* state = self.getState();
-	state.compositeOperation = nvgCompositeOpState(op);
+	state.compositeOperation = nvgCompositeOpState((CompositeOp)op);
 }
 
 fn void NvgContext.globalCompositeBlendFunc(&self, int sfactor, int dfactor) =>
@@ -676,10 +676,10 @@ int srcAlpha, int dstAlpha
 	state.compositeOperation = op;
 }
 
-fn int nvgPtEquals(float x1, float y1, float x2, float y2, float tol) @local {
+fn bool nvgPtEquals(float x1, float y1, float x2, float y2, float tol) @local {
 	float dx = x2 - x1;
 	float dy = y2 - y1;
-	return (int)(dx * dx + dy * dy < tol * tol);
+	return dx * dx + dy * dy < tol * tol;
 }
 
 fn float nvgDistPtSeg(float x, float y, float px, float py, float qx, float qy) @local {
@@ -763,7 +763,7 @@ fn void NvgContext.addPath(&self) {
 	NvgPath* path = &self.cache.paths[self.cache.npaths];
 	mem::clear(path, NvgPath::size);
 	path.first = self.cache.npoints;
-	path.winding = (int)Winding.CCW;
+	path.winding = Winding.CCW;
 
 	self.cache.npaths++;
 }
@@ -812,7 +812,7 @@ fn void NvgContext.closePathCache(&self) {
 fn void NvgContext.pathWindingCache(&self, int winding) {
 	NvgPath* path = self.lastPath();
 	if (path == null) return;
-	path.winding = winding;
+	path.winding = (Winding)winding;
 }
 
 fn NvgVertex* NvgContext.allocTempVerts(&self, int nverts) {
@@ -950,8 +950,8 @@ fn void NvgContext.flattenPaths(&self) {
 
 		if (path.count > 2) {
 			float area = nvgPolyArea(pts, path.count);
-			if (path.winding == (int)Winding.CCW && area < 0.0f) nvgPolyReverse(pts, path.count);
-			if (path.winding == (int)Winding.CW && area > 0.0f) nvgPolyReverse(pts, path.count);
+			if (path.winding == Winding.CCW && area < 0.0f) nvgPolyReverse(pts, path.count);
+			if (path.winding == Winding.CW && area > 0.0f) nvgPolyReverse(pts, path.count);
 		}
 
 		for (int k = 0; k < path.count; k++) {
@@ -1321,7 +1321,7 @@ fn void NvgContext.calculateJoins(&self, float w, LineJoin lineJoin, float miter
 			p1++;
 		}
 
-		path.convex = (nleft == path.count) ? 1 : 0;
+		path.convex = nleft == path.count;
 	}
 }
 
@@ -1464,7 +1464,7 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, LineCap lineCap, Li
 fn int NvgContext.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 	NvgPathCache* cache = self.cache;
 	float aa = self.fringeWidth;
-	int fringe = (int)(w > 0.0f);
+	bool fringe = w > 0.0f;
 
 	self.calculateJoins(w, lineJoin, miterLimit);
 
@@ -1480,7 +1480,7 @@ fn int NvgContext.expandFill(&self, float w, LineJoin lineJoin, float miterLimit
 	NvgVertex* verts = self.allocTempVerts(cverts);
 	if (verts == null) return 0;
 
-	int convex = (int)(cache.npaths == 1 && cache.paths[0].convex != 0);
+	bool convex = cache.npaths == 1 && cache.paths[0].convex;
 
 	for (int i = 0; i < cache.npaths; i++) {
 		NvgPath* path = &cache.paths[i];

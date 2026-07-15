@@ -114,8 +114,8 @@ struct NvgPath {
 	int nfill;
 	NvgVertex* stroke;
 	int nstroke;
-	int winding;
-	int convex;
+	Winding winding;
+	bool convex;
 }
 
 alias RenderCreate = fn int(void*);
