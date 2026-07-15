@@ -128,11 +128,6 @@ struct GlContext {
 	int dummyTex;
 }
 
-fn int glnvgMaxi(int a, int b) @local {
-	if (a > b) return a;
-	return b;
-}
-
 fn void glnvgBindTexture(GlContext* gl, GLuint tex) @local {
 	if (gl.boundTexture != tex) {
 		gl.boundTexture = tex;
@@ -176,7 +171,7 @@ fn GlTexture* glnvgAllocTexture(GlContext* gl) @local {
 	}
 	if (tex == null) {
 		if (gl.ntextures + 1 > gl.ctextures) {
-			int ctextures = glnvgMaxi(gl.ntextures + 1, 4) + gl.ctextures / 2;
+			int ctextures = math::max(gl.ntextures + 1, 4) + gl.ctextures / 2;
 			GlTexture* textures = mem::realloc(gl.textures, (GlTexture::size * ctextures));
 			if (textures == null) return null;
 			gl.textures = textures;
@@ -557,7 +552,7 @@ fn int glnvgMaxVertCount(NvgPath* paths, int npaths) @local {
 
 fn GlCall* glnvgAllocCall(GlContext* gl) @local {
 	if (gl.ncalls + 1 > gl.ccalls) {
-		int ccalls = glnvgMaxi(gl.ncalls + 1, 128) + gl.ccalls / 2;
+		int ccalls = math::max(gl.ncalls + 1, 128) + gl.ccalls / 2;
 		GlCall* calls = mem::realloc(gl.calls, GlCall::size * ccalls);
 		if (calls == null) return null;
 		gl.calls = calls;
@@ -570,7 +565,7 @@ fn GlCall* glnvgAllocCall(GlContext* gl) @local {
 
 fn int glnvgAllocPaths(GlContext* gl, int n) @local {
 	if (gl.npaths + n > gl.cpaths) {
-		int cpaths = glnvgMaxi(gl.npaths + n, 128) + gl.cpaths / 2;
+		int cpaths = math::max(gl.npaths + n, 128) + gl.cpaths / 2;
 		GlPath* paths = mem::realloc(gl.paths, GlPath::size * cpaths);
 		if (paths == null) return -1;
 		gl.paths = paths;
@@ -583,7 +578,7 @@ fn int glnvgAllocPaths(GlContext* gl, int n) @local {
 
 fn int glnvgAllocVerts(GlContext* gl, int n) @local {
 	if (gl.nverts + n > gl.cverts) {
-		int cverts = glnvgMaxi(gl.nverts + n, 4096) + gl.cverts / 2;
+		int cverts = math::max(gl.nverts + n, 4096) + gl.cverts / 2;
 		NvgVertex* verts = mem::realloc(gl.verts, NvgVertex::size * cverts);
 		if (verts == null) return -1;
 		gl.verts = verts;
@@ -597,7 +592,7 @@ fn int glnvgAllocVerts(GlContext* gl, int n) @local {
 fn int glnvgAllocFragUniforms(GlContext* gl, int n) @local {
 	int structSize = gl.fragSize;
 	if (gl.nuniforms + n > gl.cuniforms) {
-		int cuniforms = glnvgMaxi(gl.nuniforms + n, 128) + gl.cuniforms / 2;
+		int cuniforms = math::max(gl.nuniforms + n, 128) + gl.cuniforms / 2;
 		char* uniforms = mem::realloc(gl.uniforms, (sz)structSize * cuniforms);
 		if (uniforms == null) return -1;
 		gl.uniforms = uniforms;
@@ -792,8 +787,6 @@ fn int glnvgRenderCreate(void* up) @local {
 	gl.dummyTex = glnvgRenderCreateTexture(gl, TextureType.ALPHA, 1, 1, 0, null);
 
 	glnvgCheckError(gl, "create done");
-
-	gl::finish();
 
 	return 1;
 }
@@ -1193,9 +1186,8 @@ fn void glnvgRenderDelete(void* up) @local {
 fn NvgContext* nvgCreateGl3(int flags) {
 	NvgParams params;
 	NvgContext* ctx = null;
-	GlContext* gl = mem::malloc(GlContext::size);
+	GlContext* gl = mem::calloc(GlContext::size);
 	if (gl == null) return null;
-	mem::clear(gl, GlContext::size);
 
 	mem::clear(&params, NvgParams::size);
 	params.renderCreate = &glnvgRenderCreate;

@@ -3,7 +3,6 @@ module microvg;
 import std::core::mem;
 import std::math;
 
-extern fn float fmodf(float a, float b);
 extern fn int printf(char* fmt, ...);
 
 const int NVG_PT_CORNER = 0x01;
@@ -22,7 +21,7 @@ const float KAPPA90 = 0.5522847493f;
 
 struct NvgState {
 	NvgCompositeOperationState compositeOperation;
-	int   shapeAntiAlias;
+	int shapeAntiAlias;
 	NvgPaint fill;
 	NvgPaint stroke;
 	float strokeWidth;
@@ -95,9 +94,8 @@ fn void nvgDeletePathCache(NvgPathCache* c) @local {
 }
 
 fn NvgPathCache* nvgAllocPathCache() @local {
-	NvgPathCache* c = mem::malloc(NvgPathCache::size);
+	NvgPathCache* c = mem::calloc(NvgPathCache::size);
 	if (c == null) return null;
-	mem::clear(c, NvgPathCache::size);
 
 	c.points = mem::malloc(NvgPoint::size * INIT_POINTS_SIZE);
 	if (c.points == null) {
@@ -226,9 +224,8 @@ fn float nvgHue(float h, float m1, float m2) @local {
 }
 
 fn NvgContext* nvgCreateInternal(NvgParams* params) {
-	NvgContext* vg = mem::malloc(NvgContext::size);
+	NvgContext* vg = mem::calloc(NvgContext::size);
 	if (vg == null) return null;
-	mem::clear(vg, NvgContext::size);
 
 	vg.params = params[0];
 
@@ -336,7 +333,7 @@ fn NvgColor nvgHsl(float h, float s, float l) => nvgHsla(h, s, l, 255);
 
 fn NvgColor nvgHsla(float h, float s, float l, char a) {
 	NvgColor col;
-	h = fmodf(h, 1.0f);
+	h = h % 1.0f;
 	if (h < 0.0f) h += 1.0f;
 	s = math::clamp(s, 0.0f, 1.0f);
 	l = math::clamp(l, 0.0f, 1.0f);
@@ -1357,9 +1354,7 @@ fn void NvgContext.calculateJoins(&self, float w, LineJoin lineJoin, float miter
 				p1.dmy *= scale;
 			}
 
-			PathPointFlags __nf;
-			__nf.corner = p1.flags.corner;
-			p1.flags = __nf;
+		p1.flags = { .corner = p1.flags.corner };
 
 			float cross = p1.dx * p0.dy - p0.dx * p1.dy;
 			if (cross > 0.0f) {
@@ -1738,20 +1733,10 @@ fn void NvgContext.pathWinding(&self, int dir) {
 }
 
 fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, int dir) {
-	float a = 0;
-	float da = 0;
-	float hda = 0;
-	float kappa = 0;
-	float dx = 0;
-	float dy = 0;
-	float x = 0;
-	float y = 0;
-	float tanx = 0;
-	float tany = 0;
-	float px = 0;
-	float py = 0;
-	float ptanx = 0;
-	float ptany = 0;
+	float a, da, hda, kappa;
+	float dx, dy, x, y;
+	float tanx, tany, px, py;
+	float ptanx, ptany;
 	PathCmd[108] cmds;
 	int ndivs, ncmds;
 	PathCommand firstCmd = self.ncommands > 0 ? PathCommand.LINE : PathCommand.MOVE;
