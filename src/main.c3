@@ -51,7 +51,7 @@ fn void main(String[] args) {
     }
     io::printfn("OpenGL loaded (version tag %d)", loaded);
 
-    microvg::NvgContext* vg = glbackend::nvgCreateGl3(glbackend::NVG_ANTIALIAS | glbackend::NVG_STENCIL_STROKES);
+    microvg::MicroVG* vg = glbackend::nvgCreateGl3(glbackend::NVG_ANTIALIAS | glbackend::NVG_STENCIL_STROKES);
     defer vg.destroy();
 
     if (vg == null) {
@@ -119,38 +119,38 @@ fn void saveScreenshot(char* path, int w, int h) {
     }
 }
 
-fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
+fn void drawScene(microvg::MicroVG* vg, float w, float h, float t) {
     vg.beginPath();
     vg.roundedRect(40.0f, 40.0f, 200.0f, 120.0f, 12.0f);
-    vg.fillColor(microvg::nvgRgba(70, 130, 220, 255));
+    vg.fillColor(microvg::rgba(70, 130, 220, 255));
     vg.fill();
-    vg.strokeColor(microvg::nvgRgba(255, 255, 255, 200));
+    vg.strokeColor(microvg::rgba(255, 255, 255, 200));
     vg.strokeWidth(2.0f);
     vg.stroke();
 
-    microvg::NvgPaint lg = vg.linearGradient(40.0f, 200.0f, 240.0f, 320.0f,
-        microvg::nvgRgba(255, 160, 0, 255), microvg::nvgRgba(255, 32, 120, 255));
+    microvg::Paint lg = vg.linearGradient(40.0f, 200.0f, 240.0f, 320.0f,
+        microvg::rgba(255, 160, 0, 255), microvg::rgba(255, 32, 120, 255));
     vg.beginPath();
     vg.roundedRect(40.0f, 200.0f, 200.0f, 120.0f, 12.0f);
     vg.fillPaint(lg);
     vg.fill();
 
-    microvg::NvgPaint rg = vg.radialGradient(360.0f, 100.0f, 10.0f, 60.0f,
-        microvg::nvgRgba(255, 255, 255, 255), microvg::nvgRgba(40, 200, 160, 255));
+    microvg::Paint rg = vg.radialGradient(360.0f, 100.0f, 10.0f, 60.0f,
+        microvg::rgba(255, 255, 255, 255), microvg::rgba(40, 200, 160, 255));
     vg.beginPath();
     vg.circle(360.0f, 100.0f, 60.0f);
     vg.fillPaint(rg);
     vg.fill();
 
-    microvg::NvgPaint bg = vg.boxGradient(300.0f, 200.0f, 140.0f, 100.0f, 20.0f, 30.0f,
-        microvg::nvgRgba(255, 0, 0, 160), microvg::nvgRgba(0, 0, 0, 0));
+    microvg::Paint bg = vg.boxGradient(300.0f, 200.0f, 140.0f, 100.0f, 20.0f, 30.0f,
+        microvg::rgba(255, 0, 0, 160), microvg::rgba(0, 0, 0, 0));
     vg.beginPath();
     vg.rect(280.0f, 180.0f, 200.0f, 160.0f);
     vg.fillPaint(bg);
     vg.fill();
     vg.beginPath();
     vg.roundedRect(300.0f, 200.0f, 140.0f, 100.0f, 10.0f);
-    vg.fillColor(microvg::nvgRgba(90, 90, 110, 255));
+    vg.fillColor(microvg::rgba(90, 90, 110, 255));
     vg.fill();
 
     vg.save();
@@ -161,7 +161,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
         float fy = 120.0f + math::sin(t * 2.0f + (float)i * 0.7f) * 50.0f;
         vg.lineTo(fx, fy);
     }
-    vg.strokeColor(microvg::nvgRgba(0, 220, 255, 255));
+    vg.strokeColor(microvg::rgba(0, 220, 255, 255));
     vg.strokeWidth(6.0f);
     vg.lineCap(LineCap.ROUND);
     vg.lineJoin(LineJoin.ROUND);
@@ -173,7 +173,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     vg.rotate(t);
     vg.beginPath();
     vg.rect(-40.0f, -40.0f, 80.0f, 80.0f);
-    vg.fillColor(microvg::nvgRgba(230, 90, 60, 230));
+    vg.fillColor(microvg::rgba(230, 90, 60, 230));
     vg.fill();
     vg.restore();
 
@@ -181,23 +181,23 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     vg.scissor(720.0f, 260.0f, 120.0f, 80.0f);
     vg.beginPath();
     vg.circle(780.0f, 320.0f, 70.0f);
-    vg.fillColor(microvg::nvgRgba(255, 220, 60, 255));
+    vg.fillColor(microvg::rgba(255, 220, 60, 255));
     vg.fill();
     vg.restore();
 
-    microvg::NvgPaint eg = vg.linearGradient(720.0f, 40.0f, 960.0f, 200.0f,
-        microvg::nvgRgba(100, 200, 255, 255), microvg::nvgRgba(200, 100, 255, 255));
+    microvg::Paint eg = vg.linearGradient(720.0f, 40.0f, 960.0f, 200.0f,
+        microvg::rgba(100, 200, 255, 255), microvg::rgba(200, 100, 255, 255));
     vg.beginPath();
     vg.ellipse(840.0f, 120.0f, 100.0f, 60.0f);
     vg.fillPaint(eg);
     vg.fill();
-    vg.strokeColor(microvg::nvgRgba(255, 255, 255, 180));
+    vg.strokeColor(microvg::rgba(255, 255, 255, 180));
     vg.strokeWidth(3.0f);
     vg.stroke();
 
     vg.beginPath();
-    vg.arc(160.0f, 440.0f, 50.0f, microvg::nvgDegToRad(0.0f), microvg::nvgDegToRad(270.0f), (int)Winding.CW);
-    vg.strokeColor(microvg::nvgRgba(255, 128, 0, 255));
+    vg.arc(160.0f, 440.0f, 50.0f, microvg::toRad(0.0f), microvg::toRad(270.0f), (int)Winding.CW);
+    vg.strokeColor(microvg::rgba(255, 128, 0, 255));
     vg.strokeWidth(4.0f);
     vg.lineCap(LineCap.ROUND);
     vg.stroke();
@@ -206,7 +206,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     vg.beginPath();
     vg.moveTo(300.0f, 400.0f);
     vg.lineTo(400.0f, 400.0f);
-    vg.strokeColor(microvg::nvgRgba(255, 80, 80, 255));
+    vg.strokeColor(microvg::rgba(255, 80, 80, 255));
     vg.strokeWidth(6.0f);
     vg.lineCap(LineCap.BUTT);
     vg.stroke();
@@ -214,7 +214,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     vg.beginPath();
     vg.moveTo(300.0f, 430.0f);
     vg.lineTo(400.0f, 430.0f);
-    vg.strokeColor(microvg::nvgRgba(80, 255, 80, 255));
+    vg.strokeColor(microvg::rgba(80, 255, 80, 255));
     vg.strokeWidth(6.0f);
     vg.lineCap(LineCap.ROUND);
     vg.stroke();
@@ -222,7 +222,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     vg.beginPath();
     vg.moveTo(300.0f, 460.0f);
     vg.lineTo(400.0f, 460.0f);
-    vg.strokeColor(microvg::nvgRgba(80, 80, 255, 255));
+    vg.strokeColor(microvg::rgba(80, 80, 255, 255));
     vg.strokeWidth(6.0f);
     vg.lineCap(LineCap.SQUARE);
     vg.stroke();
@@ -233,7 +233,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     vg.moveTo(500.0f, 400.0f);
     vg.lineTo(560.0f, 440.0f);
     vg.lineTo(620.0f, 400.0f);
-    vg.strokeColor(microvg::nvgRgba(255, 200, 0, 255));
+    vg.strokeColor(microvg::rgba(255, 200, 0, 255));
     vg.strokeWidth(5.0f);
     vg.lineJoin(LineJoin.BEVEL);
     vg.lineCap(LineCap.ROUND);
@@ -243,7 +243,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     vg.moveTo(500.0f, 460.0f);
     vg.lineTo(560.0f, 500.0f);
     vg.lineTo(620.0f, 460.0f);
-    vg.strokeColor(microvg::nvgRgba(0, 255, 200, 255));
+    vg.strokeColor(microvg::rgba(0, 255, 200, 255));
     vg.strokeWidth(5.0f);
     vg.lineJoin(LineJoin.ROUND);
     vg.lineCap(LineCap.ROUND);
@@ -253,7 +253,7 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
     vg.moveTo(500.0f, 520.0f);
     vg.lineTo(560.0f, 560.0f);
     vg.lineTo(620.0f, 520.0f);
-    vg.strokeColor(microvg::nvgRgba(200, 0, 255, 255));
+    vg.strokeColor(microvg::rgba(200, 0, 255, 255));
     vg.strokeWidth(5.0f);
     vg.lineJoin(LineJoin.MITER);
     vg.lineCap(LineCap.ROUND);
@@ -262,11 +262,11 @@ fn void drawScene(microvg::NvgContext* vg, float w, float h, float t) {
 
     vg.beginPath();
     vg.roundedRectVarying(700.0f, 400.0f, 200.0f, 100.0f, 20.0f, 5.0f, 30.0f, 10.0f);
-    microvg::NvgPaint rrg = vg.radialGradient(800.0f, 450.0f, 10.0f, 80.0f,
-        microvg::nvgRgba(255, 100, 100, 255), microvg::nvgRgba(100, 100, 255, 255));
+    microvg::Paint rrg = vg.radialGradient(800.0f, 450.0f, 10.0f, 80.0f,
+        microvg::rgba(255, 100, 100, 255), microvg::rgba(100, 100, 255, 255));
     vg.fillPaint(rrg);
     vg.fill();
-    vg.strokeColor(microvg::nvgRgba(255, 255, 255, 150));
+    vg.strokeColor(microvg::rgba(255, 255, 255, 150));
     vg.strokeWidth(2.0f);
     vg.stroke();
 }

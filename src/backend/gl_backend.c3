@@ -78,8 +78,8 @@ struct GlPath {
 struct GlFragUniforms {
 	float[12] scissorMat;
 	float[12] paintMat;
-	NvgColor innerCol;
-	NvgColor outerCol;
+	Color innerCol;
+	Color outerCol;
 	microvg::Vec2 scissorExt;
 	microvg::Vec2 scissorScale;
 	microvg::Vec2 extent;
@@ -110,7 +110,7 @@ struct GlContext {
 	GlPath* paths;
 	int cpaths;
 	int npaths;
-	NvgVertex* verts;
+	Vertex* verts;
 	int cverts;
 	int nverts;
 	char* uniforms;
@@ -306,14 +306,14 @@ fn void glnvgXformToMat3x4(float* m3, Mat2x3* t) @local {
 	m3[11] = 0.0f;
 }
 
-fn NvgColor glnvgPremulColor(NvgColor c) @local {
+fn Color glnvgPremulColor(Color c) @local {
 	c.r *= c.a;
 	c.g *= c.a;
 	c.b *= c.a;
 	return c;
 }
 
-fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, NvgPaint* paint, NvgScissor* scissor, float width, float fringe, float strokeThr) @local {
+fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, Paint* paint, Scissor* scissor, float width, float fringe, float strokeThr) @local {
 	GlTexture* tex = null;
 	Mat2x3 invxform;
 
@@ -524,7 +524,7 @@ fn GLenum glnvgConvertBlendFuncFactor(int factor) @local {
 	return gl::GL_INVALID_ENUM;
 }
 
-fn GlBlend glnvgBlendCompositeOperation(NvgCompositeOperationState op) @local {
+fn GlBlend glnvgBlendcompositeOp(CompositeOpState op) @local {
 	GlBlend blend;
 	blend.srcRGB = glnvgConvertBlendFuncFactor(op.srcRGB);
 	blend.dstRGB = glnvgConvertBlendFuncFactor(op.dstRGB);
@@ -540,7 +540,7 @@ fn GlBlend glnvgBlendCompositeOperation(NvgCompositeOperationState op) @local {
 	return blend;
 }
 
-fn int glnvgMaxVertCount(NvgPath* paths, int npaths) @local {
+fn int glnvgMaxVertCount(MvgPath* paths, int npaths) @local {
 	int count = 0;
 	for (int i = 0; i < npaths; i++) {
 		count += paths[i].nfill;
@@ -578,7 +578,7 @@ fn int glnvgAllocPaths(GlContext* gl, int n) @local {
 fn int glnvgAllocVerts(GlContext* gl, int n) @local {
 	if (gl.nverts + n > gl.cverts) {
 		int cverts = math::max(math::max(gl.nverts + n, 4096), gl.cverts + gl.cverts / 2);
-		NvgVertex* verts = mem::realloc(gl.verts, NvgVertex::size * cverts);
+		Vertex* verts = mem::realloc(gl.verts, Vertex::size * cverts);
 		if (verts == null) return -1;
 		gl.verts = verts;
 		gl.cverts = cverts;
@@ -602,7 +602,7 @@ fn int glnvgAllocFragUniforms(GlContext* gl, int n) @local {
 	return ret;
 }
 
-fn void glnvgVset(NvgVertex* vtx, float x, float y, float u, float v) @local => *vtx = { x, y, u, v };
+fn void glnvgVset(Vertex* vtx, float x, float y, float u, float v) @local => *vtx = { x, y, u, v };
 
 fn int glnvgRenderCreate(void* up) @local {
 	GlContext* gl = (GlContext*)up;
@@ -944,11 +944,11 @@ fn void glnvgRenderFlush(void* up) @local {
 
 		gl::bindVertexArray(gl.vertArr);
 		gl::bindBuffer(gl::GL_ARRAY_BUFFER, gl.vertBuf);
-		gl::bufferData(gl::GL_ARRAY_BUFFER, (gl::GLsizeiptr)(gl.nverts * NvgVertex::size), gl.verts, gl::GL_STREAM_DRAW);
+		gl::bufferData(gl::GL_ARRAY_BUFFER, (gl::GLsizeiptr)(gl.nverts * Vertex::size), gl.verts, gl::GL_STREAM_DRAW);
 		gl::enableVertexAttribArray(0);
 		gl::enableVertexAttribArray(1);
-		gl::vertexAttribPointer(0, 2, gl::GL_FLOAT, gl::GL_FALSE, NvgVertex::size, (void*)(usz)0);
-		gl::vertexAttribPointer(1, 2, gl::GL_FLOAT, gl::GL_FALSE, NvgVertex::size, (void*)(usz)(2 * float::size));
+		gl::vertexAttribPointer(0, 2, gl::GL_FLOAT, gl::GL_FALSE, Vertex::size, (void*)(usz)0);
+		gl::vertexAttribPointer(1, 2, gl::GL_FLOAT, gl::GL_FALSE, Vertex::size, (void*)(usz)(2 * float::size));
 
 		gl::uniform1i(gl.shader.loc[(GlNvgLoc.TEX)], 0);
 		gl::uniform2fv(gl.shader.loc[(GlNvgLoc.VIEWSIZE)], 1, &gl.view[0]);
@@ -987,10 +987,10 @@ fn void glnvgRenderFlush(void* up) @local {
 	gl.nuniforms = 0;
 }
 
-fn void glnvgRenderFill(void* up, NvgPaint* paint, NvgCompositeOperationState compositeOperation, NvgScissor* scissor, float fringe, float* bounds, NvgPath* paths, int npaths) @local {
+fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, float fringe, float* bounds, MvgPath* paths, int npaths) @local {
 	GlContext* gl = (GlContext*)up;
 	GlCall* call = glnvgAllocCall(gl);
-	NvgVertex* quad;
+	Vertex* quad;
 	GlFragUniforms* frag;
 	int maxverts, offset;
 
@@ -1005,7 +1005,7 @@ fn void glnvgRenderFill(void* up, NvgPaint* paint, NvgCompositeOperationState co
 	}
 	call.pathCount = npaths;
 	call.image = paint.image;
-	call.blendFunc = glnvgBlendCompositeOperation(compositeOperation);
+	call.blendFunc = glnvgBlendcompositeOp(compositeOp);
 
 	if (npaths == 1 && paths[0].convex) {
 		call.type = (GlNvgCallType.CONVEXFILL);
@@ -1021,18 +1021,18 @@ fn void glnvgRenderFill(void* up, NvgPaint* paint, NvgCompositeOperationState co
 
 	for (int i = 0; i < npaths; i++) {
 		GlPath* copy = &gl.paths[call.pathOffset + i];
-		NvgPath* path = &paths[i];
+		MvgPath* path = &paths[i];
 		mem::clear(copy, GlPath::size);
 		if (path.nfill > 0) {
 			copy.fillOffset = offset;
 			copy.fillCount = path.nfill;
-			mem::copy(&gl.verts[offset], path.fill, NvgVertex::size * path.nfill);
+			mem::copy(&gl.verts[offset], path.fill, Vertex::size * path.nfill);
 			offset += path.nfill;
 		}
 		if (path.nstroke > 0) {
 			copy.strokeOffset = offset;
 			copy.strokeCount = path.nstroke;
-			mem::copy(&gl.verts[offset], path.stroke, NvgVertex::size * path.nstroke);
+			mem::copy(&gl.verts[offset], path.stroke, Vertex::size * path.nstroke);
 			offset += path.nstroke;
 		}
 	}
@@ -1066,7 +1066,7 @@ fn void glnvgRenderFill(void* up, NvgPaint* paint, NvgCompositeOperationState co
 	}
 }
 
-fn void glnvgRenderStroke(void* up, NvgPaint* paint, NvgCompositeOperationState compositeOperation, NvgScissor* scissor, float fringe, float strokeWidth, NvgPath* paths, int npaths) @local {
+fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, float fringe, float strokeWidth, MvgPath* paths, int npaths) @local {
 	GlContext* gl = (GlContext*)up;
 	GlCall* call = glnvgAllocCall(gl);
 	int maxverts, offset;
@@ -1081,7 +1081,7 @@ fn void glnvgRenderStroke(void* up, NvgPaint* paint, NvgCompositeOperationState 
 	}
 	call.pathCount = npaths;
 	call.image = paint.image;
-	call.blendFunc = glnvgBlendCompositeOperation(compositeOperation);
+	call.blendFunc = glnvgBlendcompositeOp(compositeOp);
 
 	maxverts = glnvgMaxVertCount(paths, npaths);
 	offset = glnvgAllocVerts(gl, maxverts);
@@ -1092,12 +1092,12 @@ fn void glnvgRenderStroke(void* up, NvgPaint* paint, NvgCompositeOperationState 
 
 	for (int i = 0; i < npaths; i++) {
 		GlPath* copy = &gl.paths[call.pathOffset + i];
-		NvgPath* path = &paths[i];
+		MvgPath* path = &paths[i];
 		mem::clear(copy, GlPath::size);
 		if (path.nstroke) {
 			copy.strokeOffset = offset;
 			copy.strokeCount = path.nstroke;
-			mem::copy(&gl.verts[offset], path.stroke, NvgVertex::size * path.nstroke);
+			mem::copy(&gl.verts[offset], path.stroke, Vertex::size * path.nstroke);
 			offset += path.nstroke;
 		}
 	}
@@ -1122,7 +1122,7 @@ fn void glnvgRenderStroke(void* up, NvgPaint* paint, NvgCompositeOperationState 
 	}
 }
 
-fn void glnvgRenderTriangles(void* up, NvgPaint* paint, NvgCompositeOperationState compositeOperation, NvgScissor* scissor, NvgVertex* verts, int nverts, float fringe) @local {
+fn void glnvgRenderTriangles(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, Vertex* verts, int nverts, float fringe) @local {
 	GlContext* gl = (GlContext*)up;
 	GlCall* call = glnvgAllocCall(gl);
 	GlFragUniforms* frag;
@@ -1131,7 +1131,7 @@ fn void glnvgRenderTriangles(void* up, NvgPaint* paint, NvgCompositeOperationSta
 
 	call.type = (GlNvgCallType.TRIANGLES);
 	call.image = paint.image;
-	call.blendFunc = glnvgBlendCompositeOperation(compositeOperation);
+	call.blendFunc = glnvgBlendcompositeOp(compositeOp);
 
 	call.triangleOffset = glnvgAllocVerts(gl, nverts);
 	if (call.triangleOffset == -1) {
@@ -1140,7 +1140,7 @@ fn void glnvgRenderTriangles(void* up, NvgPaint* paint, NvgCompositeOperationSta
 	}
 	call.triangleCount = nverts;
 
-	mem::copy(&gl.verts[call.triangleOffset], verts, NvgVertex::size * nverts);
+	mem::copy(&gl.verts[call.triangleOffset], verts, Vertex::size * nverts);
 
 	call.uniformOffset = glnvgAllocFragUniforms(gl, 1);
 	if (call.uniformOffset == -1) {
@@ -1177,13 +1177,13 @@ fn void glnvgRenderDelete(void* up) @local {
 	mem::free(gl);
 }
 
-fn NvgContext* nvgCreateGl3(int flags) {
-	NvgParams params;
-	NvgContext* ctx = null;
+fn MicroVG* nvgCreateGl3(int flags) {
+	Params params;
+	MicroVG* ctx = null;
 	GlContext* gl = mem::calloc(GlContext::size);
 	if (gl == null) return null;
 
-	mem::clear(&params, NvgParams::size);
+	mem::clear(&params, Params::size);
 	params.renderCreate = &glnvgRenderCreate;
 	params.renderCreateTexture = &glnvgRenderCreateTexture;
 	params.renderDeleteTexture = &glnvgRenderDeleteTexture;
@@ -1197,7 +1197,7 @@ fn NvgContext* nvgCreateGl3(int flags) {
 	params.renderTriangles = &glnvgRenderTriangles;
 	params.renderDelete = &glnvgRenderDelete;
 	params.userPtr = gl;
-	params.edgeAntiAlias = (flags & NVG_ANTIALIAS) ? 1 : 0;
+	params.edgeAA = (flags & NVG_ANTIALIAS) ? 1 : 0;
 
 	gl.flags = flags;
 

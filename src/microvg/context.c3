@@ -3,11 +3,6 @@ module microvg;
 import std::core::mem;
 import std::math;
 
-const PathPointFlags NVG_PT_CORNER = { .corner = true };
-const PathPointFlags NVG_PT_LEFT = { .left = true };
-const PathPointFlags NVG_PT_BEVEL = { .bevel = true };
-const PathPointFlags NVG_PR_INNERBEVEL = { .innerBevel = true };
-
 const int INIT_COMMANDS_SIZE = 256;
 const int INIT_POINTS_SIZE = 128;
 const int INIT_PATHS_SIZE = 16;
@@ -15,52 +10,15 @@ const int INIT_VERTS_SIZE = 256;
 
 const int MAX_STATES = 32;
 
-const float KAPPA90 = 0.5522847493f;
-
-struct NvgState {
-	NvgCompositeOperationState compositeOperation;
-	int shapeAntiAlias;
-	NvgPaint fill;
-	NvgPaint stroke;
-	float strokeWidth;
-	float miterLimit;
-	LineJoin lineJoin;
-	LineCap lineCap;
-	float alpha;
-	Mat2x3 form;
-	NvgScissor scissor;
-}
-
-struct NvgPoint {
-	float x, y;
-	float dx, dy;
-	float len;
-	float dmx, dmy;
-	PathPointFlags flags;
-}
-
-struct NvgPathCache {
-	NvgPoint* points;
-	int npoints;
-	int cpoints;
-	NvgPath* paths;
-	int npaths;
-	int cpaths;
-	NvgVertex* verts;
-	int nverts;
-	int cverts;
-	Vec4 bounds;
-}
-
-struct NvgContext {
-	NvgParams params;
+struct MicroVG {
+	Params params;
 	PathCmd* commands;
 	int ccommands;
 	int ncommands;
 	float commandx, commandy;
-	NvgState[MAX_STATES] states;
+	State[MAX_STATES] states;
 	int nstates;
-	NvgPathCache* cache;
+	PathCache* cache;
 	float tessTol;
 	float distTol;
 	float fringeWidth;
@@ -71,156 +29,17 @@ struct NvgContext {
 	int textTriCount;
 }
 
-fn float nvgNormalize(float* x, float* y) @local {
-	float d = math::sqrt(x[0] * x[0] + y[0] * y[0]);
-	if (d > 1e-6f) {
-		float id = 1.0f / d;
-		x[0] *= id;
-		y[0] *= id;
-	}
-	return d;
-}
-
-fn void nvgDeletePathCache(NvgPathCache* c) @local {
-	if (c == null) return;
-	if (c.points != null) mem::free(c.points);
-	if (c.paths != null) mem::free(c.paths);
-	if (c.verts != null) mem::free(c.verts);
-	mem::free(c);
-}
-
-fn NvgPathCache* nvgAllocPathCache() @local {
-	NvgPathCache* c = mem::calloc(NvgPathCache::size);
-	if (c == null) return null;
-
-	c.points = mem::malloc(NvgPoint::size * INIT_POINTS_SIZE);
-	if (c.points == null) {
-		nvgDeletePathCache(c);
-		return null;
-	}
-	c.npoints = 0;
-	c.cpoints = INIT_POINTS_SIZE;
-
-	c.paths = mem::malloc(NvgPath::size * INIT_PATHS_SIZE);
-	if (c.paths == null) {
-		nvgDeletePathCache(c);
-		return null;
-	}
-	c.npaths = 0;
-	c.cpaths = INIT_PATHS_SIZE;
-
-	c.verts = mem::malloc(NvgVertex::size * INIT_VERTS_SIZE);
-	if (c.verts == null) {
-		nvgDeletePathCache(c);
-		return null;
-	}
-	c.nverts = 0;
-	c.cverts = INIT_VERTS_SIZE;
-
-	return c;
-}
-
-fn void NvgContext.setPxRatio(&self, float ratio) {
+fn void MicroVG.setPxRatio(&self, float ratio) {
 	self.tessTol = 0.25f / ratio;
 	self.distTol = 0.01f / ratio;
 	self.fringeWidth = 1.0f / ratio;
 	self.pxRatio = ratio;
 }
 
-fn NvgCompositeOperationState nvgCompositeOpState(CompositeOp op) @local {
-	int sfactor;
-	int dfactor;
+fn State* MicroVG.getState(&self) => &self.states[self.nstates - 1];
 
-	switch (op) {
-		case CompositeOp.SOURCE_OVER:
-			sfactor = BLEND_ONE;
-			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-
-		case CompositeOp.SOURCE_IN:
-			sfactor = BLEND_DST_ALPHA;
-			dfactor = BLEND_ZERO;
-
-		case CompositeOp.SOURCE_OUT:
-			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-			dfactor = BLEND_ZERO;
-
-		case CompositeOp.ATOP:
-			sfactor = BLEND_DST_ALPHA;
-			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-
-		case CompositeOp.DESTINATION_OVER:
-			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-			dfactor = BLEND_ONE;
-
-		case CompositeOp.DESTINATION_IN:
-			sfactor = BLEND_ZERO;
-			dfactor = BLEND_SRC_ALPHA;
-
-		case CompositeOp.DESTINATION_OUT:
-			sfactor = BLEND_ZERO;
-			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-
-		case CompositeOp.DESTINATION_ATOP:
-			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-			dfactor = BLEND_SRC_ALPHA;
-
-		case CompositeOp.LIGHTER:
-			sfactor = BLEND_ONE;
-			dfactor = BLEND_ONE;
-
-		case CompositeOp.COPY:
-			sfactor = BLEND_ONE;
-			dfactor = BLEND_ZERO;
-
-		case CompositeOp.XOR:
-			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
-
-		default:
-			sfactor = BLEND_ONE;
-			dfactor = BLEND_ZERO;
-	}
-
-	NvgCompositeOperationState state;
-	state.srcRGB = sfactor;
-	state.dstRGB = dfactor;
-	state.srcAlpha = sfactor;
-	state.dstAlpha = dfactor;
-
-	return state;
-}
-
-fn NvgState* NvgContext.getState(&self) => &self.states[self.nstates - 1];
-
-fn void nvgSetPaintColor(NvgPaint* p, NvgColor color) @local {
-	mem::clear(p, NvgPaint::size);
-	p.form.identity();
-	p.radius = 0.0f;
-	p.feather = 1.0f;
-	p.innerColor = color;
-	p.outerColor = color;
-}
-
-fn float nvgHue(float h, float m1, float m2) @local {
-	if (h < 0) h += 1;
-	if (h > 1) h -= 1;
-
-	switch {
-		case h < 1.0f / 6.0f:
-			return m1 + (m2 - m1) * h * 6.0f;
-
-		case h < 3.0f / 6.0f:
-			return m2;
-
-		case h < 4.0f / 6.0f:
-			return m1 + (m2 - m1) * (2.0f / 3.0f - h) * 6.0f;
-	}
-
-	return m1;
-}
-
-fn NvgContext* nvgCreateInternal(NvgParams* params) {
-	NvgContext* vg = mem::calloc(NvgContext::size);
+fn MicroVG* nvgCreateInternal(Params* params) {
+	MicroVG* vg = mem::calloc(MicroVG::size);
 	if (vg == null) return null;
 
 	vg.params = params[0];
@@ -233,7 +52,7 @@ fn NvgContext* nvgCreateInternal(NvgParams* params) {
 	vg.ncommands = 0;
 	vg.ccommands = INIT_COMMANDS_SIZE;
 
-	vg.cache = nvgAllocPathCache();
+	vg.cache = allocPathCache();
 	if (vg.cache == null) {
 		vg.destroy();
 		return null;
@@ -252,17 +71,17 @@ fn NvgContext* nvgCreateInternal(NvgParams* params) {
 	return vg;
 }
 
-fn void NvgContext.destroy(&self) {
+fn void MicroVG.destroy(&self) {
 	if (self == null) return;
 	if (self.commands != null) mem::free(self.commands);
-	if (self.cache != null) nvgDeletePathCache(self.cache);
+	if (self.cache != null) self.cache.delete();
 
 	if (self.params.renderDelete != null) self.params.renderDelete(self.params.userPtr);
 
 	mem::free(self);
 }
 
-fn void NvgContext.beginFrame(&self, float width, float height, float pxRatio) {
+fn void MicroVG.beginFrame(&self, float width, float height, float pxRatio) {
 	self.nstates = 0;
 	self.save();
 	self.reset();
@@ -277,102 +96,29 @@ fn void NvgContext.beginFrame(&self, float width, float height, float pxRatio) {
 	self.textTriCount = 0;
 }
 
-fn void NvgContext.cancelFrame(&self) => self.params.renderCancel(self.params.userPtr);
+fn void MicroVG.cancelFrame(&self) => self.params.renderCancel(self.params.userPtr);
 
-fn void NvgContext.endFrame(&self) => self.params.renderFlush(self.params.userPtr);
+fn void MicroVG.endFrame(&self) => self.params.renderFlush(self.params.userPtr);
 
-fn NvgColor nvgRgb(char r, char g, char b) => nvgRgba(r, g, b, 255);
-
-fn NvgColor nvgRgbf(float r, float g, float b) => nvgRgbaf(r, g, b, 1.0f);
-
-fn NvgColor nvgRgba(char r, char g, char b, char a) => {
-	r / 255.0f,
-	g / 255.0f,
-	b / 255.0f,
-	a / 255.0f
-};
-
-fn NvgColor nvgRgbaf(float r, float g, float b, float a) => { r, g, b, a };
-
-fn NvgColor nvgTransRgba(NvgColor c, char a) {
-	c.a = a / 255.0f;
-	return c;
-}
-
-fn NvgColor nvgTransRgbaf(NvgColor c, float a) {
-	c.a = a;
-	return c;
-}
-
-fn NvgColor nvgHsl(float h, float s, float l) => nvgHsla(h, s, l, 255);
-
-fn NvgColor nvgHsla(float h, float s, float l, char a) {
-	NvgColor col;
-	h = h % 1.0f;
-	if (h < 0.0f) h += 1.0f;
-	s = math::clamp(s, 0.0f, 1.0f);
-	l = math::clamp(l, 0.0f, 1.0f);
-	float m2 = l <= 0.5f ?(l * (1 + s)) :(l + s - l * s);
-	float m1 = 2 * l - m2;
-	col.r = math::clamp(nvgHue(h + 1.0f / 3.0f, m1, m2), 0.0f, 1.0f);
-	col.g = math::clamp(nvgHue(h, m1, m2), 0.0f, 1.0f);
-	col.b = math::clamp(nvgHue(h - 1.0f / 3.0f, m1, m2), 0.0f, 1.0f);
-	col.a = a / 255.0f;
-	return col;
-}
-
-fn void nvgTransformTranslate(Mat2x3* t, float tx, float ty) {
-	*t = { { 1, 0, 0, 1 }, { tx, ty } };
-}
-
-fn void nvgTransformScale(Mat2x3* t, float sx, float sy) {
-	*t = { { sx, 0, 0, sy }, { 0, 0 } };
-}
-
-fn void nvgTransformRotate(Mat2x3* t, float a) {
-	float cs = math::cos(a);
-	float sn = math::sin(a);
-	*t = { { cs, sn, -sn, cs }, { 0, 0 } };
-}
-
-fn void nvgTransformMultiply(Mat2x3* t, Mat2x3* s) {
-	*t = *s * *t;
-}
-
-fn void nvgTransformPremultiply(Mat2x3* t, Mat2x3* s) {
-	*t = *t * *s;
-}
-
-fn int nvgTransformInverse(Mat2x3* inv, Mat2x3* t) {
-	*inv = t.inverse();
-	float det = t.linear.x * t.linear.w - t.linear.z * t.linear.y;
-	if (det > -1e-6f && det < 1e-6f) return 0;
-	return 1;
-}
-
-fn float nvgDegToRad(float deg) => deg / 180.0f * PI;
-
-fn float nvgRadToDeg(float rad) => rad / PI * 180.0f;
-
-fn void NvgContext.save(&self) {
+fn void MicroVG.save(&self) {
 	if (self.nstates >= MAX_STATES) return;
-	if (self.nstates > 0) mem::copy(&self.states[self.nstates], &self.states[self.nstates - 1], NvgState::size);
+	if (self.nstates > 0) mem::copy(&self.states[self.nstates], &self.states[self.nstates - 1], State::size);
 	self.nstates++;
 }
 
-fn void NvgContext.restore(&self) {
+fn void MicroVG.restore(&self) {
 	if (self.nstates <= 1) return;
 	self.nstates--;
 }
 
-fn void NvgContext.reset(&self) {
-	NvgState* state = self.getState();
-	mem::clear(state, NvgState::size);
+fn void MicroVG.reset(&self) {
+	State* state = self.getState();
+	mem::clear(state, State::size);
 
-	nvgSetPaintColor(&state.fill, nvgRgba(255, 255, 255, 255));
-	nvgSetPaintColor(&state.stroke, nvgRgba(0, 0, 0, 255));
-	state.compositeOperation = nvgCompositeOpState(CompositeOp.SOURCE_OVER);
-	state.shapeAntiAlias = 1;
+	state.fill.color(rgba(255, 255, 255, 255));
+	state.stroke.color(rgba(0, 0, 0, 255));
+	state.compositeOp = CompositeOp.SOURCE_OVER.state();
+	state.shapeAA = 1;
 	state.strokeWidth = 1.0f;
 	state.miterLimit = 10.0f;
 	state.lineCap = LineCap.BUTT;
@@ -384,105 +130,105 @@ fn void NvgContext.reset(&self) {
 	state.scissor.extent.y = -1.0f;
 }
 
-fn void NvgContext.shapeAntiAlias(&self, int enabled) {
-	NvgState* state = self.getState();
-	state.shapeAntiAlias = enabled;
+fn void MicroVG.shapeAA(&self, int enabled) {
+	State* state = self.getState();
+	state.shapeAA = enabled;
 }
 
-fn void NvgContext.strokeWidth(&self, float width) {
-	NvgState* state = self.getState();
+fn void MicroVG.strokeWidth(&self, float width) {
+	State* state = self.getState();
 	state.strokeWidth = width;
 }
 
-fn void NvgContext.miterLimit(&self, float limit) {
-	NvgState* state = self.getState();
+fn void MicroVG.miterLimit(&self, float limit) {
+	State* state = self.getState();
 	state.miterLimit = limit;
 }
 
-fn void NvgContext.lineCap(&self, LineCap cap) {
-	NvgState* state = self.getState();
+fn void MicroVG.lineCap(&self, LineCap cap) {
+	State* state = self.getState();
 	state.lineCap = cap;
 }
 
-fn void NvgContext.lineJoin(&self, LineJoin join) {
-	NvgState* state = self.getState();
+fn void MicroVG.lineJoin(&self, LineJoin join) {
+	State* state = self.getState();
 	state.lineJoin = join;
 }
 
-fn void NvgContext.globalAlpha(&self, float alpha) {
-	NvgState* state = self.getState();
+fn void MicroVG.globalAlpha(&self, float alpha) {
+	State* state = self.getState();
 	state.alpha = alpha;
 }
 
-fn void NvgContext.transform(&self, float a, float b, float c, float d, float e, float f) {
-	NvgState* state = self.getState();
+fn void MicroVG.transform(&self, float a, float b, float c, float d, float e, float f) {
+	State* state = self.getState();
 	Mat2x3 t = { { a, b, c, d }, { e, f } };
 	nvgTransformPremultiply(&state.form, &t);
 }
 
-fn void NvgContext.resetTransform(&self) {
-	NvgState* state = self.getState();
+fn void MicroVG.resetTransform(&self) {
+	State* state = self.getState();
 	state.form.identity();
 }
 
-fn void NvgContext.translate(&self, float x, float y) => self.getState().form.translate(x, y);
+fn void MicroVG.translate(&self, float x, float y) => self.getState().form.translate(x, y);
 
-fn void NvgContext.rotate(&self, float angle) => self.getState().form.rotate(angle);
+fn void MicroVG.rotate(&self, float angle) => self.getState().form.rotate(angle);
 
-fn void NvgContext.skewX(&self, float angle) => self.getState().form.skewX(angle);
+fn void MicroVG.skewX(&self, float angle) => self.getState().form.skewX(angle);
 
-fn void NvgContext.skewY(&self, float angle) => self.getState().form.skewY(angle);
+fn void MicroVG.skewY(&self, float angle) => self.getState().form.skewY(angle);
 
-fn void NvgContext.scale(&self, float x, float y) => self.getState().form.scale(x, y);
+fn void MicroVG.scale(&self, float x, float y) => self.getState().form.scale(x, y);
 
-fn void NvgContext.currentTransform(&self, float* form) {
-	NvgState* state = self.getState();
+fn void MicroVG.currentTransform(&self, float* form) {
+	State* state = self.getState();
 	if (form == null) return;
 	mem::copy(form, &state.form, float::size * 6);
 }
 
-fn void NvgContext.strokeColor(&self, NvgColor color) {
-	NvgState* state = self.getState();
-	nvgSetPaintColor(&state.stroke, color);
+fn void MicroVG.strokeColor(&self, Color color) {
+	State* state = self.getState();
+	state.stroke.color(color);
 }
 
-fn void NvgContext.strokePaint(&self, NvgPaint paint) {
-	NvgState* state = self.getState();
+fn void MicroVG.strokePaint(&self, Paint paint) {
+	State* state = self.getState();
 	state.stroke = paint;
 	nvgTransformMultiply(&state.stroke.form, &state.form);
 }
 
-fn void NvgContext.fillColor(&self, NvgColor color) {
-	NvgState* state = self.getState();
-	nvgSetPaintColor(&state.fill, color);
+fn void MicroVG.fillColor(&self, Color color) {
+	State* state = self.getState();
+	state.fill.color(color);
 }
 
-fn void NvgContext.fillPaint(&self, NvgPaint paint) {
-	NvgState* state = self.getState();
+fn void MicroVG.fillPaint(&self, Paint paint) {
+	State* state = self.getState();
 	state.fill = paint;
 	nvgTransformMultiply(&state.fill.form, &state.form);
 }
 
-fn int NvgContext.createImageRgba(&self, int w, int h, int imageFlags, char* data) =>
+fn int MicroVG.createImageRgba(&self, int w, int h, int imageFlags, char* data) =>
 self.params.renderCreateTexture(self.params.userPtr, TextureType.RGBA, w, h, imageFlags, data);
 
-fn void NvgContext.updateImage(&self, int image, char* data) {
+fn void MicroVG.updateImage(&self, int image, char* data) {
 	int w, h;
 	self.params.renderGetTextureSize(self.params.userPtr, image, &w, &h);
 	self.params.renderUpdateTexture(self.params.userPtr, image, 0, 0, w, h, data);
 }
 
-fn void NvgContext.imageSize(&self, int image, int* w, int* h) =>
+fn void MicroVG.imageSize(&self, int image, int* w, int* h) =>
 self.params.renderGetTextureSize(self.params.userPtr, image, w, h);
 
-fn void NvgContext.deleteImage(&self, int image) =>
+fn void MicroVG.deleteImage(&self, int image) =>
 self.params.renderDeleteTexture(self.params.userPtr, image);
 
-fn NvgPaint NvgContext.linearGradient(
+fn Paint MicroVG.linearGradient(
 &self, float sx, float sy, float ex, float ey,
-NvgColor icol, NvgColor ocol
+Color icol, Color ocol
 ) {
-	NvgPaint p;
+	Paint p;
 	float large = 1e5f;
 
 	Vec2 d = { ex - sx, ey - sy };
@@ -505,11 +251,11 @@ NvgColor icol, NvgColor ocol
 	return p;
 }
 
-fn NvgPaint NvgContext.radialGradient(
+fn Paint MicroVG.radialGradient(
 &self, float cx, float cy, float inr, float outr,
-NvgColor icol, NvgColor ocol
+Color icol, Color ocol
 ) {
-	NvgPaint p;
+	Paint p;
 	float r = (inr + outr) * 0.5f;
 	float f = outr - inr;
 
@@ -528,11 +274,11 @@ NvgColor icol, NvgColor ocol
 	return p;
 }
 
-fn NvgPaint NvgContext.boxGradient(
+fn Paint MicroVG.boxGradient(
 &self, float x, float y, float w, float h, float r, float f,
-NvgColor icol, NvgColor ocol
+Color icol, Color ocol
 ) {
-	NvgPaint p;
+	Paint p;
 
 	p.form.identity();
 	p.form.trans = { x + w * 0.5f, y + h * 0.5f };
@@ -548,12 +294,12 @@ NvgColor icol, NvgColor ocol
 	return p;
 }
 
-fn NvgPaint NvgContext.imagePattern(
+fn Paint MicroVG.imagePattern(
 &self, float cx, float cy, float w, float h,
 float angle, int image, float alpha
 ) {
-	NvgPaint p;
-	mem::clear(&p, NvgPaint::size);
+	Paint p;
+	mem::clear(&p, Paint::size);
 
 	nvgTransformRotate(&p.form, angle);
 	p.form.trans.x = cx;
@@ -564,14 +310,14 @@ float angle, int image, float alpha
 
 	p.image = image;
 
-	p.outerColor = nvgRgbaf(1, 1, 1, alpha);
+	p.outerColor = rgbaf(1, 1, 1, alpha);
 	p.innerColor = p.outerColor;
 
 	return p;
 }
 
-fn void NvgContext.scissor(&self, float x, float y, float w, float h) {
-	NvgState* state = self.getState();
+fn void MicroVG.scissor(&self, float x, float y, float w, float h) {
+	State* state = self.getState();
 
 	w = math::max(0.0f, w);
 	h = math::max(0.0f, h);
@@ -586,7 +332,7 @@ fn void NvgContext.scissor(&self, float x, float y, float w, float h) {
 fn Vec4 nvgIsectRect(
 float ax, float ay, float aw, float ah,
 float bx, float by, float bw, float bh
-) @local {
+) {
 	float minx = math::max(ax, bx);
 	float miny = math::max(ay, by);
 	float maxx = math::min(ax + aw, bx + bw);
@@ -594,8 +340,8 @@ float bx, float by, float bw, float bh
 	return { minx, miny, math::max(0.0f, maxx - minx), math::max(0.0f, maxy - miny) };
 }
 
-fn void NvgContext.intersectScissor(&self, float x, float y, float w, float h) {
-	NvgState* state = self.getState();
+fn void MicroVG.intersectScissor(&self, float x, float y, float w, float h) {
+	State* state = self.getState();
 
 	if (state.scissor.extent.x < 0) {
 		self.scissor(x, y, w, h);
@@ -614,62 +360,59 @@ fn void NvgContext.intersectScissor(&self, float x, float y, float w, float h) {
 	self.scissor(r.x, r.y, r.z, r.w);
 }
 
-fn void NvgContext.resetScissor(&self) {
-	NvgState* state = self.getState();
+fn void MicroVG.resetScissor(&self) {
+	State* state = self.getState();
 	mem::clear(&state.scissor.form, Mat2x3::size);
 	state.scissor.extent.x = -1.0f;
 	state.scissor.extent.y = -1.0f;
 }
 
-fn void NvgContext.globalCompositeOperation(&self, int op) {
-	NvgState* state = self.getState();
-	state.compositeOperation = nvgCompositeOpState((CompositeOp)op);
+fn void MicroVG.globalCompositeOp(&self, CompositeOp op) {
+	State* state = self.getState();
+	state.compositeOp = op.state();
 }
 
-fn void NvgContext.globalCompositeBlendFunc(&self, int sfactor, int dfactor) =>
+fn void MicroVG.globalCompositeBlendFunc(&self, int sfactor, int dfactor) =>
 self.globalCompositeBlendFuncSeparate(sfactor, dfactor, sfactor, dfactor);
 
-fn void NvgContext.globalCompositeBlendFuncSeparate(
+fn void MicroVG.globalCompositeBlendFuncSeparate(
 &self, int srcRGB, int dstRGB,
 int srcAlpha, int dstAlpha
 ) {
-	NvgCompositeOperationState op;
+	CompositeOpState op;
 	op.srcRGB = srcRGB;
 	op.dstRGB = dstRGB;
 	op.srcAlpha = srcAlpha;
 	op.dstAlpha = dstAlpha;
 
-	NvgState* state = self.getState();
-	state.compositeOperation = op;
+	State* state = self.getState();
+	state.compositeOp = op;
 }
 
-fn bool nvgPtEquals(float x1, float y1, float x2, float y2, float tol) @local {
-	float dx = x2 - x1;
-	float dy = y2 - y1;
-	return dx * dx + dy * dy < tol * tol;
+fn bool nvgPtEquals(Vec2 a, Vec2 b, float tol) {
+	Vec2 d = b - a;
+	return d.dot(d) < tol * tol;
 }
 
-fn float nvgDistPtSeg(float x, float y, float px, float py, float qx, float qy) @local {
-	float pqx = qx - px;
-	float pqy = qy - py;
-	float ddx = x - px;
-	float ddy = y - py;
-	float d = pqx * pqx + pqy * pqy;
-	float t = pqx * ddx + pqy * ddy;
-	if (d > 0) t /= d;
+fn float nvgDistPtSeg(Vec2 p, Vec2 q0, Vec2 q1) {
+	Vec2 pq = q1 - q0;
+	Vec2 d = p - q0;
+	float t = d.dot(pq);
+	float dd = pq.dot(pq);
+	if (dd > 0) t /= dd;
 	if (t < 0) {
 		t = 0;
 	}
 	else if (t > 1) {
 		t = 1;
 	}
-	ddx = px + t * pqx - x;
-	ddy = py + t * pqy - y;
-	return ddx * ddx + ddy * ddy;
+
+	Vec2 r = q0 + pq * t - p;
+	return r.dot(r);
 }
 
-fn void NvgContext.appendCommands(&self, PathCmd* cmds, int ncmds) {
-	NvgState* state = self.getState();
+fn void MicroVG.appendCommands(&self, PathCmd* cmds, int ncmds) {
+	State* state = self.getState();
 
 	if (self.ncommands + ncmds > self.ccommands) {
 		int ccommands = math::max(self.ncommands + ncmds, self.ccommands + self.ccommands / 2);
@@ -709,83 +452,83 @@ fn void NvgContext.appendCommands(&self, PathCmd* cmds, int ncmds) {
 	self.ncommands += ncmds;
 }
 
-fn void NvgContext.clearPathCache(&self) {
+fn void MicroVG.clearPathCache(&self) {
 	self.cache.npoints = 0;
 	self.cache.npaths = 0;
 }
 
-fn NvgPath* NvgContext.lastPath(&self) {
+fn MvgPath* MicroVG.lastPath(&self) {
 	if (self.cache.npaths > 0) return &self.cache.paths[self.cache.npaths - 1];
 	return null;
 }
 
-fn void NvgContext.addPath(&self) {
+fn void MicroVG.addPath(&self) {
 	if (self.cache.npaths + 1 > self.cache.cpaths) {
 		int cpaths = math::max(self.cache.npaths + 1, self.cache.cpaths + self.cache.cpaths / 2);
-		NvgPath* paths = mem::realloc(self.cache.paths, NvgPath::size * cpaths);
+		MvgPath* paths = mem::realloc(self.cache.paths, MvgPath::size * cpaths);
 		if (paths == null) return;
 		self.cache.paths = paths;
 		self.cache.cpaths = cpaths;
 	}
-	NvgPath* path = &self.cache.paths[self.cache.npaths];
-	mem::clear(path, NvgPath::size);
+	MvgPath* path = &self.cache.paths[self.cache.npaths];
+	mem::clear(path, MvgPath::size);
 	path.first = self.cache.npoints;
 	path.winding = Winding.CCW;
 
 	self.cache.npaths++;
 }
 
-fn NvgPoint* NvgContext.lastPoint(&self) {
+fn Point* MicroVG.lastPoint(&self) {
 	if (self.cache.npoints > 0) return &self.cache.points[self.cache.npoints - 1];
 	return null;
 }
 
-fn void NvgContext.addPoint(&self, float x, float y, PathPointFlags flags) {
-	NvgPath* path = self.lastPath();
+fn void MicroVG.addPoint(&self, Vec2 pt, PathPointFlags flags) {
+	MvgPath* path = self.lastPath();
 	if (path == null) return;
 
 	if (path.count > 0 && self.cache.npoints > 0) {
-		NvgPoint* pt = self.lastPoint();
-		if (nvgPtEquals(pt.x, pt.y, x, y, self.distTol)) {
-			pt.flags = pt.flags | flags;
+		Point* lastPt = self.lastPoint();
+		if (nvgPtEquals( { lastPt.x, lastPt.y }, pt, self.distTol)) {
+			lastPt.flags = lastPt.flags | flags;
 			return;
 		}
 	}
 
 	if (self.cache.npoints + 1 > self.cache.cpoints) {
 		int cpoints = math::max(self.cache.npoints + 1, self.cache.cpoints + self.cache.cpoints / 2);
-		NvgPoint* points = mem::realloc(self.cache.points, NvgPoint::size * cpoints);
+		Point* points = mem::realloc(self.cache.points, Point::size * cpoints);
 		if (points == null) return;
 		self.cache.points = points;
 		self.cache.cpoints = cpoints;
 	}
 
-	NvgPoint* pt = &self.cache.points[self.cache.npoints];
-	mem::clear(pt, NvgPoint::size);
-	pt.x = x;
-	pt.y = y;
-	pt.flags = flags;
+	Point* newPt = &self.cache.points[self.cache.npoints];
+	mem::clear(newPt, Point::size);
+	newPt.x = pt.x;
+	newPt.y = pt.y;
+	newPt.flags = flags;
 
 	self.cache.npoints++;
 	path.count++;
 }
 
-fn void NvgContext.closePathCache(&self) {
-	NvgPath* path = self.lastPath();
+fn void MicroVG.closePathCache(&self) {
+	MvgPath* path = self.lastPath();
 	if (path == null) return;
 	path.closed = 1;
 }
 
-fn void NvgContext.pathWindingCache(&self, int winding) {
-	NvgPath* path = self.lastPath();
+fn void MicroVG.pathWindingCache(&self, int winding) {
+	MvgPath* path = self.lastPath();
 	if (path == null) return;
 	path.winding = (Winding)winding;
 }
 
-fn NvgVertex* NvgContext.allocTempVerts(&self, int nverts) {
+fn Vertex* MicroVG.allocTempVerts(&self, int nverts) {
 	if (nverts > self.cache.cverts) {
 		int cverts = math::max((nverts + 0xff) & ~0xff, self.cache.cverts + self.cache.cverts / 2);
-		NvgVertex* verts = mem::realloc(self.cache.verts, NvgVertex::size * cverts);
+		Vertex* verts = mem::realloc(self.cache.verts, Vertex::size * cverts);
 		if (verts == null) return null;
 		self.cache.verts = verts;
 		self.cache.cverts = cverts;
@@ -794,32 +537,25 @@ fn NvgVertex* NvgContext.allocTempVerts(&self, int nverts) {
 	return self.cache.verts;
 }
 
-fn float nvgTriarea2(float ax, float ay, float bx, float by, float cx, float cy) @local {
-	float abx = bx - ax;
-	float aby = by - ay;
-	float acx = cx - ax;
-	float acy = cy - ay;
+fn float nvgTriarea2(Vec2 a, Vec2 b, Vec2 c) => (c - a).cross(b - a);
 
-	return acx * aby - abx * acy;
-}
-
-fn float nvgPolyArea(NvgPoint* pts, int npts) @local {
+fn float nvgPolyArea(Point* pts, int npts) {
 	float area = 0;
 	for (int i = 2; i < npts; i++) {
-		NvgPoint* a = &pts[0];
-		NvgPoint* b = &pts[i - 1];
-		NvgPoint* c = &pts[i];
-		area += nvgTriarea2(a.x, a.y, b.x, b.y, c.x, c.y);
+		Point* a = &pts[0];
+		Point* b = &pts[i - 1];
+		Point* c = &pts[i];
+		area += nvgTriarea2( { a.x, a.y }, { b.x, b.y }, { c.x, c.y });
 	}
 
 	return area * 0.5f;
 }
 
-fn void nvgPolyReverse(NvgPoint* pts, int npts) @local {
+fn void nvgPolyReverse(Point* pts, int npts) {
 	int i = 0;
 	int j = npts - 1;
 	while (i < j) {
-		NvgPoint tmp = pts[i];
+		Point tmp = pts[i];
 		pts[i] = pts[j];
 		pts[j] = tmp;
 		i++;
@@ -827,45 +563,36 @@ fn void nvgPolyReverse(NvgPoint* pts, int npts) @local {
 	}
 }
 
-fn void nvgVset(NvgVertex* vtx, float x, float y, float u, float v) @local => *vtx = { x, y, u, v };
+fn void nvgVset(Vertex* vtx, float x, float y, float u, float v) => *vtx = { x, y, u, v };
 
-fn void NvgContext.tesselateBezier(&self,
-float x1, float y1, float x2, float y2,
-float x3, float y3, float x4, float y4,
+fn void MicroVG.tesselateBezier(&self,
+Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3,
 int level, PathPointFlags type
 ) {
 	if (level > 10) return;
 
-	float x12 = (x1 + x2) * 0.5f;
-	float y12 = (y1 + y2) * 0.5f;
-	float x23 = (x2 + x3) * 0.5f;
-	float y23 = (y2 + y3) * 0.5f;
-	float x34 = (x3 + x4) * 0.5f;
-	float y34 = (y3 + y4) * 0.5f;
-	float x123 = (x12 + x23) * 0.5f;
-	float y123 = (y12 + y23) * 0.5f;
+	Vec2 p01 = p0.half(p1);
+	Vec2 p12 = p1.half(p2);
+	Vec2 p23 = p2.half(p3);
+	Vec2 p012 = p01.half(p12);
+	Vec2 p123 = p12.half(p23);
+	Vec2 p0123 = p012.half(p123);
 
-	float dx = x4 - x1;
-	float dy = y4 - y1;
-	float d2 = math::abs(((x2 - x4) * dy - (y2 - y4) * dx));
-	float d3 = math::abs(((x3 - x4) * dy - (y3 - y4) * dx));
+	Vec2 d0 = p3 - p0;
+	float d2 = math::abs((p1 - p3).cross(d0));
+	float d3 = math::abs((p2 - p3).cross(d0));
 
-	if ((d2 + d3) * (d2 + d3) < self.tessTol * (dx * dx + dy * dy)) {
-		self.addPoint(x4, y4, type);
+	if ((d2 + d3) * (d2 + d3) < self.tessTol * d0.dot(d0)) {
+		self.addPoint(p3, type);
 		return;
 	}
 
-	float x234 = (x23 + x34) * 0.5f;
-	float y234 = (y23 + y34) * 0.5f;
-	float x1234 = (x123 + x234) * 0.5f;
-	float y1234 = (y123 + y234) * 0.5f;
-
-	self.tesselateBezier(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1, (PathPointFlags)0);
-	self.tesselateBezier(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1, type);
+	self.tesselateBezier(p0, p01, p012, p0123, level + 1, (PathPointFlags)0);
+	self.tesselateBezier(p0123, p123, p23, p3, level + 1, type);
 }
 
-fn void NvgContext.flattenPaths(&self) {
-	NvgPathCache* cache = self.cache;
+fn void MicroVG.flattenPaths(&self) {
+	PathCache* cache = self.cache;
 
 	if (cache.npaths > 0) return;
 
@@ -875,19 +602,17 @@ fn void NvgContext.flattenPaths(&self) {
 		switch (cmd.cmd) {
 			case PathCommand.MOVE:
 				self.addPath();
-				self.addPoint(cmd.p0.x, cmd.p0.y, NVG_PT_CORNER);
+				self.addPoint(cmd.p0, PT_CORNER);
 
 			case PathCommand.LINE:
-				self.addPoint(cmd.p0.x, cmd.p0.y, NVG_PT_CORNER);
+				self.addPoint(cmd.p0, PT_CORNER);
 
 			case PathCommand.BEZIER:
-				NvgPoint* last = self.lastPoint();
+				Point* last = self.lastPoint();
 				if (last != null) self.tesselateBezier(
-				last.x, last.y,
-				cmd.p0.x, cmd.p0.y,
-				cmd.p1.x, cmd.p1.y,
-				cmd.p2.x, cmd.p2.y,
-				0, NVG_PT_CORNER
+					{ last.x, last.y },
+					cmd.p0, cmd.p1, cmd.p2,
+					0, PT_CORNER
 				);
 
 			case PathCommand.CLOSE:
@@ -898,18 +623,15 @@ fn void NvgContext.flattenPaths(&self) {
 		}
 	}
 
-	cache.bounds.x = 1e6f;
-	cache.bounds.y = 1e6f;
-	cache.bounds.z = -1e6f;
-	cache.bounds.w = -1e6f;
+	cache.bounds = { 1e6f, 1e6f, -1e6f, -1e6f };
 
 	for (int j = 0; j < cache.npaths; j++) {
-		NvgPath* path = &cache.paths[j];
-		NvgPoint* pts = &cache.points[path.first];
+		MvgPath* path = &cache.paths[j];
+		Point* pts = &cache.points[path.first];
 
-		NvgPoint* p0 = &pts[path.count - 1];
-		NvgPoint* p1 = &pts[0];
-		if (nvgPtEquals(p0.x, p0.y, p1.x, p1.y, self.distTol)) {
+		Point* p0 = &pts[path.count - 1];
+		Point* p1 = &pts[0];
+		if (nvgPtEquals( { p0.x, p0.y }, { p1.x, p1.y }, self.distTol)) {
 			path.count--;
 			p0 = &pts[path.count - 1];
 			path.closed = 1;
@@ -925,25 +647,27 @@ fn void NvgContext.flattenPaths(&self) {
 			p0.dx = p1.x - p0.x;
 			p0.dy = p1.y - p0.y;
 			p0.len = nvgNormalize(&p0.dx, &p0.dy);
-			cache.bounds.x = math::min(cache.bounds.x, p0.x);
-			cache.bounds.y = math::min(cache.bounds.y, p0.y);
-			cache.bounds.z = math::max(cache.bounds.z, p0.x);
-			cache.bounds.w = math::max(cache.bounds.w, p0.y);
+			cache.bounds = {
+				math::min(cache.bounds.x, p0.x),
+				math::min(cache.bounds.y, p0.y),
+				math::max(cache.bounds.z, p0.x),
+				math::max(cache.bounds.w, p0.y)
+			};
 			p0 = p1;
 			p1++;
 		}
 	}
 }
 
-fn int nvgCurveDivs(float r, float arc, float tol) @local {
+fn int nvgCurveDivs(float r, float arc, float tol) {
 	float da = math::acos(r / (r + tol)) * 2.0f;
 	return math::max(2, (int)math::ceil(arc / da));
 }
 
 fn void nvgChooseBevel(
-bool bevel, NvgPoint* p0, NvgPoint* p1, float w,
+bool bevel, Point* p0, Point* p1, float w,
 float* x0, float* y0, float* x1, float* y1
-) @local {
+) {
 	if (bevel) {
 		x0[0] = p1.x + p0.dy * w;
 		y0[0] = p1.y - p0.dx * w;
@@ -958,10 +682,10 @@ float* x0, float* y0, float* x1, float* y1
 	}
 }
 
-fn NvgVertex* nvgRoundJoin(
-NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
+fn Vertex* nvgRoundJoin(
+Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, int ncap, float fringe
-) @local {
+) {
 	float dlx0 = p0.dy;
 	float dly0 = -p0.dx;
 	float dlx1 = p1.dy;
@@ -1029,10 +753,10 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 	return dst;
 }
 
-fn NvgVertex* nvgBevelJoin(
-NvgVertex* dst, NvgPoint* p0, NvgPoint* p1,
+fn Vertex* nvgBevelJoin(
+Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, float fringe
-) @local {
+) {
 	float dlx0 = p0.dy;
 	float dly0 = -p0.dx;
 	float dlx1 = p1.dy;
@@ -1132,11 +856,11 @@ float lw, float rw, float lu, float ru, float fringe
 	return dst;
 }
 
-fn NvgVertex* nvgButtCapStart(
-NvgVertex* dst, NvgPoint* p,
+fn Vertex* nvgButtCapStart(
+Vertex* dst, Point* p,
 float dx, float dy, float w, float d,
 float aa, float u0, float u1
-) @local {
+) {
 	float px = p.x - dx * d;
 	float py = p.y - dy * d;
 	float dlx = dy;
@@ -1154,11 +878,11 @@ float aa, float u0, float u1
 	return dst;
 }
 
-fn NvgVertex* nvgButtCapEnd(
-NvgVertex* dst, NvgPoint* p,
+fn Vertex* nvgButtCapEnd(
+Vertex* dst, Point* p,
 float dx, float dy, float w, float d,
 float aa, float u0, float u1
-) @local {
+) {
 	float px = p.x + dx * d;
 	float py = p.y + dy * d;
 	float dlx = dy;
@@ -1176,11 +900,11 @@ float aa, float u0, float u1
 	return dst;
 }
 
-fn NvgVertex* nvgRoundCapStart(
-NvgVertex* dst, NvgPoint* p,
+fn Vertex* nvgRoundCapStart(
+Vertex* dst, Point* p,
 float dx, float dy, float w, int ncap,
 float aa, float u0, float u1
-) @local {
+) {
 	float px = p.x;
 	float py = p.y;
 	float dlx = dy;
@@ -1204,11 +928,11 @@ float aa, float u0, float u1
 	return dst;
 }
 
-fn NvgVertex* nvgRoundCapEnd(
-NvgVertex* dst, NvgPoint* p,
+fn Vertex* nvgRoundCapEnd(
+Vertex* dst, Point* p,
 float dx, float dy, float w, int ncap,
 float aa, float u0, float u1
-) @local {
+) {
 	float px = p.x;
 	float py = p.y;
 	float dlx = dy;
@@ -1232,17 +956,17 @@ float aa, float u0, float u1
 	return dst;
 }
 
-fn void NvgContext.calculateJoins(&self, float w, LineJoin lineJoin, float miterLimit) {
-	NvgPathCache* cache = self.cache;
+fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLimit) {
+	PathCache* cache = self.cache;
 	float iw = 0.0f;
 
 	if (w > 0.0f) iw = 1.0f / w;
 
 	for (int i = 0; i < cache.npaths; i++) {
-		NvgPath* path = &cache.paths[i];
-		NvgPoint* pts = &cache.points[path.first];
-		NvgPoint* p0 = &pts[path.count - 1];
-		NvgPoint* p1 = &pts[0];
+		MvgPath* path = &cache.paths[i];
+		Point* pts = &cache.points[path.first];
+		Point* p0 = &pts[path.count - 1];
+		Point* p1 = &pts[0];
 		int nleft = 0;
 
 		path.nbevel = 0;
@@ -1265,7 +989,7 @@ fn void NvgContext.calculateJoins(&self, float w, LineJoin lineJoin, float miter
 				p1.dmy *= scale;
 			}
 
-		p1.flags = { .corner = p1.flags.corner };
+			p1.flags = { .corner = p1.flags.corner };
 
 			float cross = p1.dx * p0.dy - p0.dx * p1.dy;
 			if (cross > 0.0f) {
@@ -1292,8 +1016,8 @@ fn void NvgContext.calculateJoins(&self, float w, LineJoin lineJoin, float miter
 	}
 }
 
-fn int NvgContext.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJoin lineJoin, float miterLimit) {
-	NvgPathCache* cache = self.cache;
+fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJoin lineJoin, float miterLimit) {
+	PathCache* cache = self.cache;
 	float aa = fringe;
 	float u0 = 0.0f;
 	float u1 = 1.0f;
@@ -1310,7 +1034,7 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, LineCap lineCap, Li
 
 	int cverts = 0;
 	for (int i = 0; i < cache.npaths; i++) {
-		NvgPath* path = &cache.paths[i];
+		MvgPath* path = &cache.paths[i];
 		int loop = (path.closed == 0) ? 0 : 1;
 
 		if (lineJoin == LineJoin.ROUND) {
@@ -1330,14 +1054,14 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, LineCap lineCap, Li
 		}
 	}
 
-	NvgVertex* verts = self.allocTempVerts(cverts);
+	Vertex* verts = self.allocTempVerts(cverts);
 	if (verts == null) return 0;
 
 	for (int i = 0; i < cache.npaths; i++) {
-		NvgPath* path = &cache.paths[i];
-		NvgPoint* pts = &cache.points[path.first];
-		NvgPoint* p0;
-		NvgPoint* p1;
+		MvgPath* path = &cache.paths[i];
+		Point* pts = &cache.points[path.first];
+		Point* p0;
+		Point* p1;
 		int s, e, loop;
 		float dx, dy;
 
@@ -1345,7 +1069,7 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, LineCap lineCap, Li
 		path.nfill = 0;
 
 		loop = (path.closed == 0) ? 0 : 1;
-		NvgVertex* dst = verts;
+		Vertex* dst = verts;
 		path.stroke = dst;
 
 		if (loop) {
@@ -1428,8 +1152,8 @@ fn int NvgContext.expandStroke(&self, float w, float fringe, LineCap lineCap, Li
 	return 1;
 }
 
-fn int NvgContext.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
-	NvgPathCache* cache = self.cache;
+fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
+	PathCache* cache = self.cache;
 	float aa = self.fringeWidth;
 	bool fringe = w > 0.0f;
 
@@ -1437,28 +1161,28 @@ fn int NvgContext.expandFill(&self, float w, LineJoin lineJoin, float miterLimit
 
 	int cverts = 0;
 	for (int i = 0; i < cache.npaths; i++) {
-		NvgPath* path = &cache.paths[i];
+		MvgPath* path = &cache.paths[i];
 		cverts += path.count + path.nbevel + 1;
 		if (fringe) {
 			cverts += (path.count + path.nbevel * 5 + 1) * 2;
 		}
 	}
 
-	NvgVertex* verts = self.allocTempVerts(cverts);
+	Vertex* verts = self.allocTempVerts(cverts);
 	if (verts == null) return 0;
 
 	bool convex = cache.npaths == 1 && cache.paths[0].convex;
 
 	for (int i = 0; i < cache.npaths; i++) {
-		NvgPath* path = &cache.paths[i];
-		NvgPoint* pts = &cache.points[path.first];
-		NvgPoint* p0;
-		NvgPoint* p1;
+		MvgPath* path = &cache.paths[i];
+		Point* pts = &cache.points[path.first];
+		Point* p0;
+		Point* p1;
 		float rw, lw, woff;
 		float ru, lu;
 
 		woff = 0.5f * aa;
-		NvgVertex* dst = verts;
+		Vertex* dst = verts;
 		path.fill = dst;
 
 		if (fringe) {
@@ -1552,27 +1276,27 @@ fn int NvgContext.expandFill(&self, float w, LineJoin lineJoin, float miterLimit
 	return 1;
 }
 
-fn void NvgContext.beginPath(&self) {
+fn void MicroVG.beginPath(&self) {
 	self.ncommands = 0;
 	self.clearPathCache();
 }
 
-fn void NvgContext.moveTo(&self, float x, float y) {
+fn void MicroVG.moveTo(&self, float x, float y) {
 	PathCmd cmd = { .cmd = PathCommand.MOVE, .p0 = { x, y } };
 	self.appendCommands(&cmd, 1);
 }
 
-fn void NvgContext.lineTo(&self, float x, float y) {
+fn void MicroVG.lineTo(&self, float x, float y) {
 	PathCmd cmd = { .cmd = PathCommand.LINE, .p0 = { x, y } };
 	self.appendCommands(&cmd, 1);
 }
 
-fn void NvgContext.bezierTo(&self, float c1x, float c1y, float c2x, float c2y, float x, float y) {
+fn void MicroVG.bezierTo(&self, float c1x, float c1y, float c2x, float c2y, float x, float y) {
 	PathCmd cmd = { .cmd = PathCommand.BEZIER, .p0 = { c1x, c1y }, .p1 = { c2x, c2y }, .p2 = { x, y } };
 	self.appendCommands(&cmd, 1);
 }
 
-fn void NvgContext.quadTo(&self, float cx, float cy, float x, float y) {
+fn void MicroVG.quadTo(&self, float cx, float cy, float x, float y) {
 	float x0 = self.commandx;
 	float y0 = self.commandy;
 	PathCmd cmd = {
@@ -1584,16 +1308,18 @@ fn void NvgContext.quadTo(&self, float cx, float cy, float x, float y) {
 	self.appendCommands(&cmd, 1);
 }
 
-fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float radius) {
+fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radius) {
 	float x0 = self.commandx;
 	float y0 = self.commandy;
 
 	if (self.ncommands == 0) return;
 
-	if (nvgPtEquals(x0, y0, x1, y1, self.distTol) ||
-	nvgPtEquals(x1, y1, x2, y2, self.distTol) ||
-	nvgDistPtSeg(x1, y1, x0, y0, x2, y2) < self.distTol * self.distTol ||
-	radius < self.distTol) {
+	if (
+	nvgPtEquals( { x0, y0 }, { x1, y1 }, self.distTol) ||
+	nvgPtEquals( { x1, y1 }, { x2, y2 }, self.distTol) ||
+	nvgDistPtSeg( { x1, y1 }, { x0, y0 }, { x2, y2 }) < self.distTol * self.distTol ||
+	radius < self.distTol
+	) {
 		self.lineTo(x1, y1);
 		return;
 	}
@@ -1615,8 +1341,8 @@ fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float ra
 	float cx, cy, a0, a1;
 	int dir;
 
-	float[<2>] v0 = { dx0, dy0 };
-	float[<2>] v1 = { dx1, dy1 };
+	Vec2 v0 = { dx0, dy0 };
+	Vec2 v1 = { dx1, dy1 };
 	if (v1.cross(v0) > 0.0f) {
 		cx = x1 + dx0 * d + dy0 * radius;
 		cy = y1 + dy0 * d + -dx0 * radius;
@@ -1635,17 +1361,17 @@ fn void NvgContext.arcTo(&self, float x1, float y1, float x2, float y2, float ra
 	self.arc(cx, cy, radius, a0, a1, dir);
 }
 
-fn void NvgContext.closePath(&self) {
+fn void MicroVG.closePath(&self) {
 	PathCmd cmd = { .cmd = PathCommand.CLOSE };
 	self.appendCommands(&cmd, 1);
 }
 
-fn void NvgContext.pathWinding(&self, int dir) {
+fn void MicroVG.pathWinding(&self, int dir) {
 	PathCmd cmd = { .cmd = PathCommand.WINDING, .p0 = { (float)dir, 0.0f } };
 	self.appendCommands(&cmd, 1);
 }
 
-fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, int dir) {
+fn void MicroVG.arc(&self, float cx, float cy, float r, float a0, float a1, int dir) {
 	float a, da, hda, kappa;
 	float dx, dy, x, y;
 	float tanx, tany, px, py;
@@ -1709,7 +1435,7 @@ fn void NvgContext.arc(&self, float cx, float cy, float r, float a0, float a1, i
 	self.appendCommands(&cmds[0], ncmds);
 }
 
-fn void NvgContext.rect(&self, float x, float y, float w, float h) {
+fn void MicroVG.rect(&self, float x, float y, float w, float h) {
 	PathCmd[*] cmds = {
 		{ .cmd = PathCommand.MOVE, .p0 = { x, y } },
 		{ .cmd = PathCommand.LINE, .p0 = { x, y + h } },
@@ -1721,10 +1447,10 @@ fn void NvgContext.rect(&self, float x, float y, float w, float h) {
 	self.appendCommands(&cmds[0], cmds.len);
 }
 
-fn void NvgContext.roundedRect(&self, float x, float y, float w, float h, float r) =>
+fn void MicroVG.roundedRect(&self, float x, float y, float w, float h, float r) =>
 self.roundedRectVarying(x, y, w, h, r, r, r, r);
 
-fn void NvgContext.roundedRectVarying(
+fn void MicroVG.roundedRectVarying(
 &self, float x, float y, float w, float h,
 float radTopLeft, float radTopRight,
 float radBottomRight, float radBottomLeft
@@ -1780,7 +1506,7 @@ float radBottomRight, float radBottomLeft
 	self.appendCommands(&cmds[0], cmds.len);
 }
 
-fn void NvgContext.ellipse(&self, float cx, float cy, float rx, float ry) {
+fn void MicroVG.ellipse(&self, float cx, float cy, float rx, float ry) {
 	PathCmd[*] cmds = {
 		{ .cmd = PathCommand.MOVE, .p0 = { cx - rx, cy } },
 		{ .cmd = PathCommand.BEZIER, .p0 = { cx - rx, cy + ry * KAPPA90 }, .p1 = { cx - rx * KAPPA90, cy + ry }, .p2 = { cx, cy + ry } },
@@ -1792,16 +1518,14 @@ fn void NvgContext.ellipse(&self, float cx, float cy, float rx, float ry) {
 	self.appendCommands(&cmds[0], cmds.len);
 }
 
-fn void NvgContext.circle(&self, float cx, float cy, float r) {
-	self.ellipse(cx, cy, r, r);
-}
+fn void MicroVG.circle(&self, float cx, float cy, float r) => self.ellipse(cx, cy, r, r);
 
-fn void NvgContext.fill(&self) {
-	NvgState* state = self.getState();
-	NvgPaint fillPaint = state.fill;
+fn void MicroVG.fill(&self) {
+	State* state = self.getState();
+	Paint fillPaint = state.fill;
 
 	self.flattenPaths();
-	if (self.params.edgeAntiAlias && state.shapeAntiAlias) {
+	if (self.params.edgeAA && state.shapeAA) {
 		self.expandFill(self.fringeWidth, LineJoin.MITER, 2.4f);
 	}
 	else {
@@ -1811,22 +1535,22 @@ fn void NvgContext.fill(&self) {
 	fillPaint.innerColor.a *= state.alpha;
 	fillPaint.outerColor.a *= state.alpha;
 
-	self.params.renderFill(self.params.userPtr, &fillPaint, state.compositeOperation, &state.scissor,
+	self.params.renderFill(self.params.userPtr, &fillPaint, state.compositeOp, &state.scissor,
 	self.fringeWidth, &self.cache.bounds[0], self.cache.paths, self.cache.npaths);
 
 	for (int i = 0; i < self.cache.npaths; i++) {
-		NvgPath* path = &self.cache.paths[i];
+		MvgPath* path = &self.cache.paths[i];
 		self.fillTriCount += path.nfill - 2;
 		self.fillTriCount += path.nstroke - 2;
 		self.drawCallCount += 2;
 	}
 }
 
-fn void NvgContext.stroke(&self) {
-	NvgState* state = self.getState();
+fn void MicroVG.stroke(&self) {
+	State* state = self.getState();
 	float scale = state.form.averageScale();
 	float strokeWidth = math::clamp(state.strokeWidth * scale, 0.0f, 200.0f);
-	NvgPaint strokePaint = state.stroke;
+	Paint strokePaint = state.stroke;
 
 	if (strokeWidth < self.fringeWidth) {
 		float alpha = math::clamp(strokeWidth / self.fringeWidth, 0.0f, 1.0f);
@@ -1840,18 +1564,18 @@ fn void NvgContext.stroke(&self) {
 
 	self.flattenPaths();
 
-	if (self.params.edgeAntiAlias && state.shapeAntiAlias) {
+	if (self.params.edgeAA && state.shapeAA) {
 		self.expandStroke(strokeWidth * 0.5f, self.fringeWidth, state.lineCap, state.lineJoin, state.miterLimit);
 	}
 	else {
 		self.expandStroke(strokeWidth * 0.5f, 0.0f, state.lineCap, state.lineJoin, state.miterLimit);
 	}
 
-	self.params.renderStroke(self.params.userPtr, &strokePaint, state.compositeOperation, &state.scissor,
+	self.params.renderStroke(self.params.userPtr, &strokePaint, state.compositeOp, &state.scissor,
 	self.fringeWidth, strokeWidth, self.cache.paths, self.cache.npaths);
 
 	for (int i = 0; i < self.cache.npaths; i++) {
-		NvgPath* path = &self.cache.paths[i];
+		MvgPath* path = &self.cache.paths[i];
 		self.strokeTriCount += path.nstroke - 2;
 		self.drawCallCount++;
 	}
