@@ -704,14 +704,17 @@ fn Vertex* nvgSdfJoinFan(
 ) {
 	for (int i = 0; i <= SDF_JOIN_SEGS; i++) {
 		float a = a0 + (a1 - a0) * (float)i / (float)SDF_JOIN_SEGS;
-		*dst = { cx, cy, 0.5f, 1.0f };
+		*dst = { cx + math::cos(a) * r, cy + math::sin(a) * r, 0.5f, 2.0f };
 		dst++;
 		sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-		*dst = { cx + math::cos(a) * r, cy + math::sin(a) * r, 0.5f, 1.0f };
+		*dst = { cx, cy, 0.5f, 2.0f };
 		dst++;
 		sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 	}
-	*dst = { cx, cy, 0.5f, 1.0f };
+	*dst = { cx + math::cos(a1) * r, cy + math::sin(a1) * r, 0.5f, 2.0f };
+	dst++;
+	sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+	*dst = { cx, cy, 0.5f, 2.0f };
 	dst++;
 	sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 	return dst;
@@ -719,20 +722,26 @@ fn Vertex* nvgSdfJoinFan(
 
 fn Vertex* nvgSdfCapFan(
 	Vertex* dst, float* sdst, float px, float py,
-	float dx, float dy, float r, float aa
+	float dx, float dy, float r, float aa, float sign
 ) {
 	for (int i = 0; i <= SDF_JOIN_SEGS; i++) {
 		float a = i * PI / (float)SDF_JOIN_SEGS;
 		float ax = math::cos(a) * r;
 		float ay = math::sin(a) * r;
-		*dst = { px, py, 0.5f, 1.0f };
+		*dst = { px - dy * ax + dx * ay * sign, py + dx * ax + dy * ay * sign, 0.5f, 2.0f };
 		dst++;
 		sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-		*dst = { px - dx * ay + dy * ax, py - dy * ay - dx * ax, 0.5f, 1.0f };
+		*dst = { px, py, 0.5f, 2.0f };
 		dst++;
 		sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 	}
-	*dst = { px, py, 0.5f, 1.0f };
+	float ae = PI;
+	float ax_last = math::cos(ae) * r;
+	float ay_last = math::sin(ae) * r;
+	*dst = { px - dy * ax_last + dx * ay_last * sign, py + dx * ax_last + dy * ay_last * sign, 0.5f, 2.0f };
+	dst++;
+	sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+	*dst = { px, py, 0.5f, 2.0f };
 	dst++;
 	sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 	return dst;
@@ -987,21 +996,21 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		cverts += path.count * 2;
 
 		if (lineJoin == LineJoin.ROUND) {
-			cverts += path.nbevel * (SDF_JOIN_SEGS * 2 + 3);
+			cverts += path.nbevel * (SDF_JOIN_SEGS * 2 + 4);
 		}
 		else {
 			cverts += path.nbevel * 5 * 2;
 		}
 
-		cstrokeData += path.nbevel * (SDF_JOIN_SEGS * 2 + 3);
+		cstrokeData += path.nbevel * (SDF_JOIN_SEGS * 2 + 4);
 
 		if (loop) {
 			cverts += 2;
 		}
 		else {
 			if (lineCap == LineCap.ROUND) {
-				cverts += (SDF_JOIN_SEGS * 2 + 3) * 2;
-				cstrokeData += (SDF_JOIN_SEGS * 2 + 3) * 2;
+				cverts += (SDF_JOIN_SEGS * 2 + 4) * 2;
+				cstrokeData += (SDF_JOIN_SEGS * 2 + 4) * 2;
 			}
 			else {
 				cverts += 12;
@@ -1027,7 +1036,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 		int sdCount = path.count * 2;
 		if (lineJoin == LineJoin.ROUND) {
-			sdCount += path.nbevel * (SDF_JOIN_SEGS * 2 + 3);
+			sdCount += path.nbevel * (SDF_JOIN_SEGS * 2 + 4);
 		}
 		else {
 			sdCount += path.nbevel * 10;
@@ -1036,7 +1045,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 			sdCount += 2;
 		}
 		else {
-			sdCount += (lineCap == LineCap.ROUND) ? (SDF_JOIN_SEGS * 2 + 3) * 2 : 12;
+			sdCount += (lineCap == LineCap.ROUND) ? (SDF_JOIN_SEGS * 2 + 4) * 2 : 12;
 		}
 
 		path.strokeData = mem::malloc((sz)sdCount * 4 * float::size);
@@ -1065,19 +1074,47 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 			switch (lineCap) {
 				case LineCap.BUTT:
+				{
+					Vertex* before = dst;
 					dst = nvgButtCapStart(dst, p0, dx, dy, w, -aa * 0.5f, aa, u0, u1);
-					sdst += 24;
+					int n = (int)(dst - before);
+					for (int k = 0; k < n; k++) { sdst[0]=0; sdst[1]=0; sdst[2]=aa; sdst[3]=0; sdst += 4; }
+				}
 
 				case LineCap.SQUARE:
+				{
+					Vertex* before = dst;
 					dst = nvgButtCapStart(dst, p0, dx, dy, w, w - aa, aa, u0, u1);
-					sdst += 24;
+					int n = (int)(dst - before);
+					for (int k = 0; k < n; k++) { sdst[0]=0; sdst[1]=0; sdst[2]=aa; sdst[3]=0; sdst += 4; }
+				}
 
 				case LineCap.ROUND:
 				{
 					float r = w + aa * 0.5f;
-					dst = nvgSdfCapFan(dst, sdst, p0.x, p0.y, dx, dy, r, aa);
+					dst = nvgSdfCapFan(dst, sdst, p0.x, p0.y, dx, dy, r, aa, -1.0f);
 				}
 			}
+		}
+
+		if (loop == 0 && path.count == 2) {
+			float ndx = pts[1].x - pts[0].x;
+			float ndy = pts[1].y - pts[0].y;
+			nvgNormalize(&ndx, &ndy);
+			float nlx = ndy;
+			float nly = -ndx;
+			*dst = { pts[0].x + nlx * w, pts[0].y + nly * w, u0, 1 };
+			dst++;
+			sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+			*dst = { pts[0].x - nlx * w, pts[0].y - nly * w, u1, 1 };
+			dst++;
+			sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+			*dst = { pts[1].x + nlx * w, pts[1].y + nly * w, u0, 1 };
+			dst++;
+			sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+			*dst = { pts[1].x - nlx * w, pts[1].y - nly * w, u1, 1 };
+			dst++;
+			sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 		}
 
 		for (int j = s; j < e; j++) {
@@ -1095,8 +1132,10 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 					dst = nvgSdfJoinFan(dst, sdst, p1.x, p1.y, a0, a1, r, aa);
 				}
 				else {
+					Vertex* before = dst;
 					dst = nvgBevelJoin(dst, p0, p1, w, w, u0, u1, aa);
-					sdst += 40;
+					int n = (int)(dst - before);
+					for (int k = 0; k < n; k++) { sdst[0]=0; sdst[1]=0; sdst[2]=aa; sdst[3]=0; sdst += 4; }
 				}
 			}
 			else {
@@ -1126,17 +1165,25 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 			switch (lineCap) {
 				case LineCap.BUTT:
+				{
+					Vertex* before = dst;
 					dst = nvgButtCapEnd(dst, p1, dx, dy, w, -aa * 0.5f, aa, u0, u1);
-					sdst += 24;
+					int n = (int)(dst - before);
+					for (int k = 0; k < n; k++) { sdst[0]=0; sdst[1]=0; sdst[2]=aa; sdst[3]=0; sdst += 4; }
+				}
 
 				case LineCap.SQUARE:
+				{
+					Vertex* before = dst;
 					dst = nvgButtCapEnd(dst, p1, dx, dy, w, w - aa, aa, u0, u1);
-					sdst += 24;
+					int n = (int)(dst - before);
+					for (int k = 0; k < n; k++) { sdst[0]=0; sdst[1]=0; sdst[2]=aa; sdst[3]=0; sdst += 4; }
+				}
 
 				case LineCap.ROUND:
 				{
 					float r = w + aa * 0.5f;
-					dst = nvgSdfCapFan(dst, sdst, p1.x, p1.y, dx, dy, r, aa);
+					dst = nvgSdfCapFan(dst, sdst, p1.x, p1.y, dx, dy, r, aa, 1.0f);
 				}
 			}
 		}

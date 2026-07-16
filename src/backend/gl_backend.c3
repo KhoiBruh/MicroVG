@@ -474,6 +474,8 @@ fn void GlContext.stroke(&self, GlCall* call) {
 	GlPath* paths = self.pathsBuf.at(call.pathOffset);
 	int npaths = call.pathCount;
 
+	gl::disable(gl::GL_CULL_FACE);
+
 	if (self.flags & STENCIL_STROKES) {
 		gl::enable(GL_STENCIL_TEST);
 		self.setStencilMask(0xff);
@@ -511,6 +513,8 @@ fn void GlContext.stroke(&self, GlCall* call) {
 			gl::drawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
 		}
 	}
+
+	gl::enable(gl::GL_CULL_FACE);
 }
 
 fn void GlContext.triangles(&self, GlCall* call) {
@@ -584,6 +588,7 @@ fn int glnvgRenderCreate(void* up) @local {
 	gl.vertsBuf.init(Vertex::size, 4096);
 	gl.uniformBuf.init(1, 16384);
 	gl.strokeDataBuf.init(16, 4096);
+	gl.vertsBuf.init(Vertex::size, 4096);
 
 	char* shaderHeader = `
 		#version 150 core
@@ -651,7 +656,6 @@ fn int glnvgRenderCreate(void* up) @local {
 			in vec4 fjoin;
 			out vec4 outColor;
 		#else
-			uniform vec4 frag[UNIFORMARRAY_SIZE];
 			uniform sampler2D tex;
 			varying vec2 ftcoord;
 			varying vec2 fpos;
@@ -703,8 +707,8 @@ fn int glnvgRenderCreate(void* up) @local {
 				strokeAlpha = 1.0 - smoothstep(w_inner, w_outer, dist);
 			} else {
 				strokeAlpha = strokeMask();
+				if (strokeAlpha < strokeThr) discard;
 			}
-			if (strokeAlpha < strokeThr) discard;
 	#else
 			float strokeAlpha = 1.0;
 	#endif
@@ -953,7 +957,7 @@ fn void glnvgRenderFlush(void* up) @local {
 		gl::vertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, Vertex::size, (void*)(2 * float::size));
 
 		gl::bindBuffer(GL_ARRAY_BUFFER, gl.strokeBuf);
-		gl::bufferData(GL_ARRAY_BUFFER, gl.strokeDataBuf.count * 16L, gl.strokeDataBuf.data, GL_STREAM_DRAW);
+		gl::bufferData(GL_ARRAY_BUFFER, (gl::GLsizeiptr)(gl.strokeDataBuf.count * 16L), gl.strokeDataBuf.data, GL_STREAM_DRAW);
 		gl::enableVertexAttribArray(2);
 		gl::vertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 16, (void*)0);
 
@@ -1028,6 +1032,15 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 		gl.pathsBuf.count -= npaths;
 		return;
 	}
+
+	int sdOff = gl.strokeDataBuf.alloc(fillVertCount + strokeVertCount + triVertCount);
+	if (sdOff < 0) {
+		gl.callsBuf.count--;
+		gl.pathsBuf.count -= npaths;
+		gl.vertsBuf.count -= (fillVertCount + strokeVertCount + triVertCount);
+		return;
+	}
+	mem::clear(gl.strokeDataBuf.at(sdOff), (sz)16 * (sz)(fillVertCount + strokeVertCount + triVertCount));
 
 	int uniByteOff = gl.allocFragUniforms(uniCount);
 	if (uniByteOff < 0) {
@@ -1114,10 +1127,18 @@ fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, 
 		return;
 	}
 
-	int vertOff = gl.allocVerts(maxverts);
+	int vertOff = gl.vertsBuf.alloc(maxverts);
 	if (vertOff < 0) {
 		gl.callsBuf.count--;
 		gl.pathsBuf.count -= npaths;
+		return;
+	}
+
+	int sdoff = gl.strokeDataBuf.alloc(maxverts);
+	if (sdoff < 0) {
+		gl.callsBuf.count--;
+		gl.pathsBuf.count -= npaths;
+		gl.vertsBuf.count -= maxverts;
 		return;
 	}
 
@@ -1126,6 +1147,7 @@ fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, 
 		gl.callsBuf.count--;
 		gl.pathsBuf.count -= npaths;
 		gl.vertsBuf.count -= maxverts;
+		gl.strokeDataBuf.count -= maxverts;
 		return;
 	}
 
@@ -1137,15 +1159,6 @@ fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, 
 	call.image = paint.image;
 	call.blendFunc = glBlendCompositeOp(compositeOp);
 	call.uniformOffset = uniByteOff;
-
-	int sdoff = gl.strokeDataBuf.alloc(maxverts);
-	if (sdoff < 0) {
-		gl.callsBuf.count--;
-		gl.pathsBuf.count -= npaths;
-		gl.vertsBuf.count -= maxverts;
-		gl.uniformBuf.count -= uniCount * gl.fragSize;
-		return;
-	}
 
 	int voff = vertOff;
 	for (int i = 0; i < npaths; i++) {
@@ -1187,6 +1200,14 @@ fn void glnvgRenderTriangles(void* up, Paint* paint, CompositeOpState compositeO
 		gl.callsBuf.count--;
 		return;
 	}
+
+	int sdOff = gl.strokeDataBuf.alloc(nverts);
+	if (sdOff < 0) {
+		gl.callsBuf.count--;
+		gl.vertsBuf.count -= nverts;
+		return;
+	}
+	mem::clear(gl.strokeDataBuf.at(sdOff), (sz)16 * nverts);
 
 	int uniByteOff = gl.allocFragUniforms(1);
 	if (uniByteOff < 0) {
