@@ -189,7 +189,6 @@ fn void MicroVG.strokeColor(&self, Color color) {
 fn void MicroVG.strokePaint(&self, Paint paint) {
 	State* state = self.getState();
 	state.stroke = paint;
-	nvgTransformMultiply(&state.stroke.form, &state.form);
 }
 
 fn void MicroVG.fillColor(&self, Color color) {
@@ -200,7 +199,7 @@ fn void MicroVG.fillColor(&self, Color color) {
 fn void MicroVG.fillPaint(&self, Paint paint) {
 	State* state = self.getState();
 	state.fill = paint;
-	nvgTransformMultiply(&state.fill.form, &state.form);
+	state.fill.form = state.form * state.fill.form;
 }
 
 fn int MicroVG.createImageRgba(&self, int w, int h, int imageFlags, char* data) =>
@@ -319,7 +318,7 @@ fn void MicroVG.scissor(&self, float x, float y, float w, float h) {
 
 	state.scissor.form.identity();
 	state.scissor.form.trans = { x + w * 0.5f, y + h * 0.5f };
-	nvgTransformMultiply(&state.scissor.form, &state.form);
+	state.scissor.form = state.form * state.scissor.form;
 
 	state.scissor.extent = { w * 0.5f, h * 0.5f };
 }
@@ -347,7 +346,7 @@ fn void MicroVG.intersectScissor(&self, float x, float y, float w, float h) {
 	Mat2x3 invform;
 	Vec2 ex = state.scissor.extent;
 	invform = state.form.inverse();
-	nvgTransformMultiply(&pform, &invform);
+	pform = invform * pform;
 	float tex = ex.x * math::abs(pform.linear.x) + ex.y * math::abs(pform.linear.z);
 	float tey = ex.x * math::abs(pform.linear.y) + ex.y * math::abs(pform.linear.w);
 

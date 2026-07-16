@@ -19,17 +19,3 @@ fn float nvgNormalize(float* x, float* y) {
 	}
 	return d;
 }
-
-fn void nvgTransformTranslate(Mat2x3* t, float tx, float ty) {
-	t.identity();
-	t.translate(tx, ty);
-}
-
-fn void nvgTransformScale(Mat2x3* t, float sx, float sy) {
-	t.identity();
-	t.scale(sx, sy);
-}
-
-fn void nvgTransformMultiply(Mat2x3* t, Mat2x3* s) {
-	*t = *s * *t;
-}

@@ -348,12 +348,19 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, Paint* paint, Scis
 		if ((tex.flags & microvg::IMAGE_FLIPY) != 0) {
 			Mat2x3 m1;
 			Mat2x3 m2;
-			microvg::nvgTransformTranslate(&m1, 0.0f, frag.extent.y * 0.5f);
-			microvg::nvgTransformMultiply(&m1, &paint.form);
-			microvg::nvgTransformScale(&m2, 1.0f, -1.0f);
-			microvg::nvgTransformMultiply(&m2, &m1);
-			microvg::nvgTransformTranslate(&m1, 0.0f, -frag.extent.y * 0.5f);
-			microvg::nvgTransformMultiply(&m1, &m2);
+
+			m1.identity();
+			m1.translate(0.0f, frag.extent.y * 0.5f);
+			paint.form = m1 * paint.form;
+
+			m2.identity();
+			m2.scale(1.0f, -1.0f);
+			m2 = m1 * m2;
+
+			m1.identity();
+			m1.translate(0.0f, -frag.extent.y * 0.5f);
+			m1 = m2 * m1;
+
 			invxform = m1.inverse();
 		}
 		else {
