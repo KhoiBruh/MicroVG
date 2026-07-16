@@ -125,7 +125,7 @@ struct GlContext {
 fn void GlContext.bindTexture(&self, GLuint tex) {
 	if (self.boundTexture != tex) {
 		self.boundTexture = tex;
-		gl::bindTexture(gl::GL_TEXTURE_2D, tex);
+		gl::bindTexture(GL_TEXTURE_2D, tex);
 	}
 }
 
@@ -223,7 +223,7 @@ fn void glnvgDumpProgramError(uint prog, char* name) @local {
 fn void GlContext.checkError(&self, char* str) {
 	if ((self.flags & DEBUG) == 0) return;
 	GLenum err = gl::getError();
-	if (err != gl::GL_NO_ERROR) io::eprintfn("Error %08x after %s", err, ((ZString)str).str_view());
+	if (err != GL_NO_ERROR) io::eprintfn("Error %08x after %s", err, ((ZString)str).str_view());
 }
 
 fn int GlContext.allocCall(&self) => self.callsBuf.alloc(1);
@@ -243,23 +243,23 @@ fn int glnvgCreateShader(GlShader* shader, char* name, char* header, char* opts,
 	mem::clear(shader, GlShader::size);
 
 	prog = gl::createProgram();
-	vert = gl::createShader(gl::GL_VERTEX_SHADER);
-	frag = gl::createShader(gl::GL_FRAGMENT_SHADER);
+	vert = gl::createShader(GL_VERTEX_SHADER);
+	frag = gl::createShader(GL_FRAGMENT_SHADER);
 	str[2] = vshader;
 	gl::shaderSource(vert, 3, &str[0], null);
 	str[2] = fshader;
 	gl::shaderSource(frag, 3, &str[0], null);
 
 	gl::compileShader(vert);
-	gl::getShaderiv(vert, gl::GL_COMPILE_STATUS, &status);
-	if (status != gl::GL_TRUE) {
+	gl::getShaderiv(vert, GL_COMPILE_STATUS, &status);
+	if (status != GL_TRUE) {
 		glnvgDumpShaderError(vert, name, "vert");
 		return 0;
 	}
 
 	gl::compileShader(frag);
-	gl::getShaderiv(frag, gl::GL_COMPILE_STATUS, &status);
-	if (status != gl::GL_TRUE) {
+	gl::getShaderiv(frag, GL_COMPILE_STATUS, &status);
+	if (status != GL_TRUE) {
 		glnvgDumpShaderError(frag, name, "frag");
 		return 0;
 	}
@@ -271,8 +271,8 @@ fn int glnvgCreateShader(GlShader* shader, char* name, char* header, char* opts,
 	gl::bindAttribLocation(prog, 1, "tcoord");
 
 	gl::linkProgram(prog);
-	gl::getProgramiv(prog, gl::GL_LINK_STATUS, &status);
-	if (status != gl::GL_TRUE) {
+	gl::getProgramiv(prog, GL_LINK_STATUS, &status);
+	if (status != GL_TRUE) {
 		glnvgDumpProgramError(prog, name);
 		return 0;
 	}
@@ -391,7 +391,7 @@ fn GlFragUniforms* GlContext.fragUniformPtr(&self, int i) {
 
 fn void GlContext.setUniforms(&self, int uniformOffset, int image) {
 	GlTexture* tex = null;
-	gl::bindBufferRange(gl::GL_UNIFORM_BUFFER, GLNVG_FRAG_BINDING, self.fragBuf, uniformOffset, GlFragUniforms::size);
+	gl::bindBufferRange(GL_UNIFORM_BUFFER, GLNVG_FRAG_BINDING, self.fragBuf, uniformOffset, GlFragUniforms::size);
 
 	if (image != 0) tex = self.findTexture(image);
 	if (tex == null) tex = self.findTexture(self.dummyTex);
@@ -403,40 +403,40 @@ fn void GlContext.fill(&self, GlCall* call) {
 	GlPath* paths = self.pathsBuf.at(call.pathOffset);
 	int npaths = call.pathCount;
 
-	gl::enable(gl::GL_STENCIL_TEST);
+	gl::enable(GL_STENCIL_TEST);
 	self.setStencilMask(0xff);
-	self.setStencilFunc(gl::GL_ALWAYS, 0, 0xff);
-	gl::colorMask(gl::GL_FALSE, gl::GL_FALSE, gl::GL_FALSE, gl::GL_FALSE);
+	self.setStencilFunc(GL_ALWAYS, 0, 0xff);
+	gl::colorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
 	self.setUniforms(call.uniformOffset, 0);
 	self.checkError("fill simple");
 
-	gl::stencilOpSeparate(gl::GL_FRONT, gl::GL_KEEP, gl::GL_KEEP, gl::GL_INCR_WRAP);
-	gl::stencilOpSeparate(gl::GL_BACK, gl::GL_KEEP, gl::GL_KEEP, gl::GL_DECR_WRAP);
-	gl::disable(gl::GL_CULL_FACE);
+	gl::stencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+	gl::stencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+	gl::disable(GL_CULL_FACE);
 	for (int i = 0; i < npaths; i++) {
-		gl::drawArrays(gl::GL_TRIANGLE_FAN, paths[i].fillOffset, paths[i].fillCount);
+		gl::drawArrays(GL_TRIANGLE_FAN, paths[i].fillOffset, paths[i].fillCount);
 	}
-	gl::enable(gl::GL_CULL_FACE);
+	gl::enable(GL_CULL_FACE);
 
-	gl::colorMask(gl::GL_TRUE, gl::GL_TRUE, gl::GL_TRUE, gl::GL_TRUE);
+	gl::colorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
 	self.setUniforms(call.uniformOffset + self.fragSize, call.image);
 	self.checkError("fill fill");
 
 	if (self.flags & ANTIALIAS) {
-		self.setStencilFunc(gl::GL_EQUAL, 0x00, 0xff);
-		gl::stencilOp(gl::GL_KEEP, gl::GL_KEEP, gl::GL_KEEP);
+		self.setStencilFunc(GL_EQUAL, 0x00, 0xff);
+		gl::stencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 		for (int i = 0; i < npaths; i++) {
-			gl::drawArrays(gl::GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
+			gl::drawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
 		}
 	}
 
-	self.setStencilFunc(gl::GL_NOTEQUAL, 0x0, 0xff);
-	gl::stencilOp(gl::GL_ZERO, gl::GL_ZERO, gl::GL_ZERO);
-	gl::drawArrays(gl::GL_TRIANGLE_STRIP, call.triangleOffset, call.triangleCount);
+	self.setStencilFunc(GL_NOTEQUAL, 0x0, 0xff);
+	gl::stencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
+	gl::drawArrays(GL_TRIANGLE_STRIP, call.triangleOffset, call.triangleCount);
 
-	gl::disable(gl::GL_STENCIL_TEST);
+	gl::disable(GL_STENCIL_TEST);
 }
 
 fn void GlContext.convexFill(&self, GlCall* call) {
@@ -447,9 +447,9 @@ fn void GlContext.convexFill(&self, GlCall* call) {
 	self.checkError("convex fill");
 
 	for (int i = 0; i < npaths; i++) {
-		gl::drawArrays(gl::GL_TRIANGLE_FAN, paths[i].fillOffset, paths[i].fillCount);
+		gl::drawArrays(GL_TRIANGLE_FAN, paths[i].fillOffset, paths[i].fillCount);
 		if (paths[i].strokeCount > 0) {
-			gl::drawArrays(gl::GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
+			gl::drawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
 		}
 	}
 }
@@ -461,11 +461,11 @@ fn void GlContext.earFill(&self, GlCall* call) {
 	self.setUniforms(call.uniformOffset, call.image);
 	self.checkError("ear fill");
 
-	gl::drawArrays(gl::GL_TRIANGLES, call.triangleOffset, call.triangleCount);
+	gl::drawArrays(GL_TRIANGLES, call.triangleOffset, call.triangleCount);
 
 	if (self.flags & ANTIALIAS) {
 		for (int i = 0; i < npaths; i++) {
-			gl::drawArrays(gl::GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
+			gl::drawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
 		}
 	}
 }
@@ -475,40 +475,40 @@ fn void GlContext.stroke(&self, GlCall* call) {
 	int npaths = call.pathCount;
 
 	if (self.flags & STENCIL_STROKES) {
-		gl::enable(gl::GL_STENCIL_TEST);
+		gl::enable(GL_STENCIL_TEST);
 		self.setStencilMask(0xff);
 
-		self.setStencilFunc(gl::GL_EQUAL, 0x0, 0xff);
-		gl::stencilOp(gl::GL_KEEP, gl::GL_KEEP, gl::GL_INCR);
+		self.setStencilFunc(GL_EQUAL, 0x0, 0xff);
+		gl::stencilOp(GL_KEEP, GL_KEEP, GL_INCR);
 		self.setUniforms(call.uniformOffset + self.fragSize, call.image);
 		self.checkError("stroke fill 0");
 		for (int i = 0; i < npaths; i++) {
-			gl::drawArrays(gl::GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
+			gl::drawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
 		}
 
 		self.setUniforms(call.uniformOffset, call.image);
-		self.setStencilFunc(gl::GL_EQUAL, 0x00, 0xff);
-		gl::stencilOp(gl::GL_KEEP, gl::GL_KEEP, gl::GL_KEEP);
+		self.setStencilFunc(GL_EQUAL, 0x00, 0xff);
+		gl::stencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 		for (int i = 0; i < npaths; i++) {
-			gl::drawArrays(gl::GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
+			gl::drawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
 		}
 
-		gl::colorMask(gl::GL_FALSE, gl::GL_FALSE, gl::GL_FALSE, gl::GL_FALSE);
-		self.setStencilFunc(gl::GL_ALWAYS, 0x0, 0xff);
-		gl::stencilOp(gl::GL_ZERO, gl::GL_ZERO, gl::GL_ZERO);
+		gl::colorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+		self.setStencilFunc(GL_ALWAYS, 0x0, 0xff);
+		gl::stencilOp(GL_ZERO, GL_ZERO, GL_ZERO);
 		self.checkError("stroke fill 1");
 		for (int i = 0; i < npaths; i++) {
-			gl::drawArrays(gl::GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
+			gl::drawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
 		}
-		gl::colorMask(gl::GL_TRUE, gl::GL_TRUE, gl::GL_TRUE, gl::GL_TRUE);
+		gl::colorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
-		gl::disable(gl::GL_STENCIL_TEST);
+		gl::disable(GL_STENCIL_TEST);
 	}
 	else {
 		self.setUniforms(call.uniformOffset, call.image);
 		self.checkError("stroke fill");
 		for (int i = 0; i < npaths; i++) {
-			gl::drawArrays(gl::GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
+			gl::drawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
 		}
 	}
 }
@@ -516,7 +516,7 @@ fn void GlContext.stroke(&self, GlCall* call) {
 fn void GlContext.triangles(&self, GlCall* call) {
 	self.setUniforms(call.uniformOffset, call.image);
 	self.checkError("triangles fill");
-	gl::drawArrays(gl::GL_TRIANGLES, call.triangleOffset, call.triangleCount);
+	gl::drawArrays(GL_TRIANGLES, call.triangleOffset, call.triangleCount);
 }
 
 fn void glnvgRenderCancel(void* up) @local {
@@ -530,18 +530,18 @@ fn void glnvgRenderCancel(void* up) @local {
 
 fn GLenum glConvertBlendFuncFactor(BlendFactor factor) @local {
 	switch (factor) {
-		case BlendFactor.ZERO: return gl::GL_ZERO;
-		case BlendFactor.ONE: return gl::GL_ONE;
-		case BlendFactor.SRC_COLOR: return gl::GL_SRC_COLOR;
-		case BlendFactor.ONE_MINUS_SRC_COLOR: return gl::GL_ONE_MINUS_SRC_COLOR;
-		case BlendFactor.DST_COLOR: return gl::GL_DST_COLOR;
-		case BlendFactor.ONE_MINUS_DST_COLOR: return gl::GL_ONE_MINUS_DST_COLOR;
-		case BlendFactor.SRC_ALPHA: return gl::GL_SRC_ALPHA;
-		case BlendFactor.ONE_MINUS_SRC_ALPHA: return gl::GL_ONE_MINUS_SRC_ALPHA;
-		case BlendFactor.DST_ALPHA: return gl::GL_DST_ALPHA;
-		case BlendFactor.ONE_MINUS_DST_ALPHA: return gl::GL_ONE_MINUS_DST_ALPHA;
-		case BlendFactor.SRC_ALPHA_SATURATE: return gl::GL_SRC_ALPHA_SATURATE;
-		default: return gl::GL_INVALID_ENUM;
+		case BlendFactor.ZERO: return GL_ZERO;
+		case BlendFactor.ONE: return GL_ONE;
+		case BlendFactor.SRC_COLOR: return GL_SRC_COLOR;
+		case BlendFactor.ONE_MINUS_SRC_COLOR: return GL_ONE_MINUS_SRC_COLOR;
+		case BlendFactor.DST_COLOR: return GL_DST_COLOR;
+		case BlendFactor.ONE_MINUS_DST_COLOR: return GL_ONE_MINUS_DST_COLOR;
+		case BlendFactor.SRC_ALPHA: return GL_SRC_ALPHA;
+		case BlendFactor.ONE_MINUS_SRC_ALPHA: return GL_ONE_MINUS_SRC_ALPHA;
+		case BlendFactor.DST_ALPHA: return GL_DST_ALPHA;
+		case BlendFactor.ONE_MINUS_DST_ALPHA: return GL_ONE_MINUS_DST_ALPHA;
+		case BlendFactor.SRC_ALPHA_SATURATE: return GL_SRC_ALPHA_SATURATE;
+		default: return GL_INVALID_ENUM;
 	}
 }
 
@@ -554,13 +554,13 @@ fn GlBlend glBlendCompositeOp(CompositeOpState op) @local {
 	};
 
 	if (
-	blend.srcRGB == gl::GL_INVALID_ENUM || blend.dstRGB == gl::GL_INVALID_ENUM ||
-	blend.srcAlpha == gl::GL_INVALID_ENUM || blend.dstAlpha == gl::GL_INVALID_ENUM
+	blend.srcRGB == GL_INVALID_ENUM || blend.dstRGB == GL_INVALID_ENUM ||
+	blend.srcAlpha == GL_INVALID_ENUM || blend.dstAlpha == GL_INVALID_ENUM
 	) {
-		blend.srcRGB = gl::GL_ONE;
-		blend.dstRGB = gl::GL_ONE_MINUS_SRC_ALPHA;
-		blend.srcAlpha = gl::GL_ONE;
-		blend.dstAlpha = gl::GL_ONE_MINUS_SRC_ALPHA;
+		blend.srcRGB = GL_ONE;
+		blend.dstRGB = GL_ONE_MINUS_SRC_ALPHA;
+		blend.srcAlpha = GL_ONE;
+		blend.dstAlpha = GL_ONE_MINUS_SRC_ALPHA;
 	}
 
 	return blend;
@@ -777,7 +777,7 @@ fn int glnvgRenderCreate(void* up) @local {
 
 	gl::uniformBlockBinding(gl.shader.prog, (GLuint) gl.shader.loc[GlLoc.FRAG], GLNVG_FRAG_BINDING);
 	gl::genBuffers(1, &gl.fragBuf);
-	gl::getIntegerv(gl::GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
+	gl::getIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
 	gl.fragSize = (int)(GlFragUniforms::size) + align - (int)(GlFragUniforms::size) % align;
 
 	gl.dummyTex = glnvgRenderCreateTexture(gl, TextureType.ALPHA, 1, 1, 0, null);
@@ -800,62 +800,62 @@ fn int glnvgRenderCreateTexture(void* up, TextureType type, int w, int h, int im
 	tex.flags = imageFlags;
 	gl.bindTexture(tex.tex);
 
-	gl::pixelStorei(gl::GL_UNPACK_ALIGNMENT, 1);
-	gl::pixelStorei(gl::GL_UNPACK_ROW_LENGTH, tex.width);
-	gl::pixelStorei(gl::GL_UNPACK_SKIP_PIXELS, 0);
-	gl::pixelStorei(gl::GL_UNPACK_SKIP_ROWS, 0);
+	gl::pixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	gl::pixelStorei(GL_UNPACK_ROW_LENGTH, tex.width);
+	gl::pixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+	gl::pixelStorei(GL_UNPACK_SKIP_ROWS, 0);
 
 	if (type == TextureType.RGBA) {
-		gl::texImage2D(gl::GL_TEXTURE_2D, 0, gl::GL_RGBA, w, h, 0, gl::GL_RGBA, gl::GL_UNSIGNED_BYTE, data);
+		gl::texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	}
 	else {
-		gl::texImage2D(gl::GL_TEXTURE_2D, 0, gl::GL_RED, w, h, 0, gl::GL_RED, gl::GL_UNSIGNED_BYTE, data);
+		gl::texImage2D(GL_TEXTURE_2D, 0, GL_RED, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, data);
 	}
 
 	if (imageFlags & microvg::IMAGE_GENERATE_MIPMAPS) {
 		if (imageFlags & microvg::IMAGE_NEAREST) {
-			gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MIN_FILTER, gl::GL_NEAREST_MIPMAP_NEAREST);
+			gl::texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
 		}
 		else {
-			gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MIN_FILTER, gl::GL_LINEAR_MIPMAP_LINEAR);
+			gl::texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		}
 	}
 	else {
 		if (imageFlags & microvg::IMAGE_NEAREST) {
-			gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MIN_FILTER, gl::GL_NEAREST);
+			gl::texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		}
 		else {
-			gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MIN_FILTER, gl::GL_LINEAR);
+			gl::texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		}
 	}
 
 	if (imageFlags & microvg::IMAGE_NEAREST) {
-		gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MAG_FILTER, gl::GL_NEAREST);
+		gl::texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	}
 	else {
-		gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MAG_FILTER, gl::GL_LINEAR);
+		gl::texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	}
 
 	if (imageFlags & microvg::IMAGE_REPEATX) {
-		gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_S, gl::GL_REPEAT);
+		gl::texParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	}
 	else {
-		gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_S, gl::GL_CLAMP_TO_EDGE);
+		gl::texParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	}
 
 	if (imageFlags & microvg::IMAGE_REPEATY) {
-		gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_T, gl::GL_REPEAT);
+		gl::texParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	}
 	else {
-		gl::texParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_T, gl::GL_CLAMP_TO_EDGE);
+		gl::texParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	}
 
-	gl::pixelStorei(gl::GL_UNPACK_ALIGNMENT, 4);
-	gl::pixelStorei(gl::GL_UNPACK_ROW_LENGTH, 0);
-	gl::pixelStorei(gl::GL_UNPACK_SKIP_PIXELS, 0);
-	gl::pixelStorei(gl::GL_UNPACK_SKIP_ROWS, 0);
+	gl::pixelStorei(GL_UNPACK_ALIGNMENT, 4);
+	gl::pixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+	gl::pixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+	gl::pixelStorei(GL_UNPACK_SKIP_ROWS, 0);
 
-	if (imageFlags & microvg::IMAGE_GENERATE_MIPMAPS) gl::generateMipmap(gl::GL_TEXTURE_2D);
+	if (imageFlags & microvg::IMAGE_GENERATE_MIPMAPS) gl::generateMipmap(GL_TEXTURE_2D);
 
 	gl.checkError("create tex");
 	gl.bindTexture(0);
@@ -875,22 +875,22 @@ fn int glnvgRenderUpdateTexture(void* up, int image, int x, int y, int w, int h,
 	if (tex == null) return 0;
 	gl.bindTexture(tex.tex);
 
-	gl::pixelStorei(gl::GL_UNPACK_ALIGNMENT, 1);
-	gl::pixelStorei(gl::GL_UNPACK_ROW_LENGTH, tex.width);
-	gl::pixelStorei(gl::GL_UNPACK_SKIP_PIXELS, x);
-	gl::pixelStorei(gl::GL_UNPACK_SKIP_ROWS, y);
+	gl::pixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	gl::pixelStorei(GL_UNPACK_ROW_LENGTH, tex.width);
+	gl::pixelStorei(GL_UNPACK_SKIP_PIXELS, x);
+	gl::pixelStorei(GL_UNPACK_SKIP_ROWS, y);
 
 	if (tex.type == TextureType.RGBA) {
-		gl::texSubImage2D(gl::GL_TEXTURE_2D, 0, x, y, w, h, gl::GL_RGBA, gl::GL_UNSIGNED_BYTE, data);
+		gl::texSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	}
 	else {
-		gl::texSubImage2D(gl::GL_TEXTURE_2D, 0, x, y, w, h, gl::GL_RED, gl::GL_UNSIGNED_BYTE, data);
+		gl::texSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RED, GL_UNSIGNED_BYTE, data);
 	}
 
-	gl::pixelStorei(gl::GL_UNPACK_ALIGNMENT, 4);
-	gl::pixelStorei(gl::GL_UNPACK_ROW_LENGTH, 0);
-	gl::pixelStorei(gl::GL_UNPACK_SKIP_PIXELS, 0);
-	gl::pixelStorei(gl::GL_UNPACK_SKIP_ROWS, 0);
+	gl::pixelStorei(GL_UNPACK_ALIGNMENT, 4);
+	gl::pixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+	gl::pixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+	gl::pixelStorei(GL_UNPACK_SKIP_ROWS, 0);
 
 	gl.bindTexture(0);
 
@@ -919,48 +919,48 @@ fn void glnvgRenderFlush(void* up) @local {
 
 		gl::useProgram(gl.shader.prog);
 
-		gl::enable(gl::GL_CULL_FACE);
-		gl::cullFace(gl::GL_BACK);
-		gl::frontFace(gl::GL_CCW);
-		gl::enable(gl::GL_BLEND);
-		gl::disable(gl::GL_DEPTH_TEST);
-		gl::disable(gl::GL_SCISSOR_TEST);
-		gl::colorMask(gl::GL_TRUE, gl::GL_TRUE, gl::GL_TRUE, gl::GL_TRUE);
+		gl::enable(GL_CULL_FACE);
+		gl::cullFace(GL_BACK);
+		gl::frontFace(GL_CCW);
+		gl::enable(GL_BLEND);
+		gl::disable(GL_DEPTH_TEST);
+		gl::disable(GL_SCISSOR_TEST);
+		gl::colorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		gl::stencilMask(0xffffffff);
-		gl::stencilOp(gl::GL_KEEP, gl::GL_KEEP, gl::GL_KEEP);
-		gl::stencilFunc(gl::GL_ALWAYS, 0, 0xffffffff);
-		gl::activeTexture(gl::GL_TEXTURE0);
-		gl::bindTexture(gl::GL_TEXTURE_2D, 0);
+		gl::stencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+		gl::stencilFunc(GL_ALWAYS, 0, 0xffffffff);
+		gl::activeTexture(GL_TEXTURE0);
+		gl::bindTexture(GL_TEXTURE_2D, 0);
 		gl.boundTexture = 0;
 		gl.stencilMask = 0xffffffff;
-		gl.stencilFunc = gl::GL_ALWAYS;
+		gl.stencilFunc = GL_ALWAYS;
 		gl.stencilFuncRef = 0;
 		gl.stencilFuncMask = 0xffffffff;
-		gl.blendFunc.srcRGB = gl::GL_INVALID_ENUM;
-		gl.blendFunc.srcAlpha = gl::GL_INVALID_ENUM;
-		gl.blendFunc.dstRGB = gl::GL_INVALID_ENUM;
-		gl.blendFunc.dstAlpha = gl::GL_INVALID_ENUM;
+		gl.blendFunc.srcRGB = GL_INVALID_ENUM;
+		gl.blendFunc.srcAlpha = GL_INVALID_ENUM;
+		gl.blendFunc.dstRGB = GL_INVALID_ENUM;
+		gl.blendFunc.dstAlpha = GL_INVALID_ENUM;
 
-		gl::bindBuffer(gl::GL_UNIFORM_BUFFER, gl.fragBuf);
-		gl::bufferData(gl::GL_UNIFORM_BUFFER, gl.uniformBuf.count, gl.uniformBuf.data, gl::GL_STREAM_DRAW);
+		gl::bindBuffer(GL_UNIFORM_BUFFER, gl.fragBuf);
+		gl::bufferData(GL_UNIFORM_BUFFER, gl.uniformBuf.count, gl.uniformBuf.data, GL_STREAM_DRAW);
 
 		gl::bindVertexArray(gl.vertArr);
-		gl::bindBuffer(gl::GL_ARRAY_BUFFER, gl.vertBuf);
-		gl::bufferData(gl::GL_ARRAY_BUFFER, gl.vertsBuf.count * Vertex::size, gl.vertsBuf.data, gl::GL_STREAM_DRAW);
+		gl::bindBuffer(GL_ARRAY_BUFFER, gl.vertBuf);
+		gl::bufferData(GL_ARRAY_BUFFER, gl.vertsBuf.count * Vertex::size, gl.vertsBuf.data, GL_STREAM_DRAW);
 		gl::enableVertexAttribArray(0);
 		gl::enableVertexAttribArray(1);
-		gl::vertexAttribPointer(0, 2, gl::GL_FLOAT, gl::GL_FALSE, Vertex::size, (void*)0);
-		gl::vertexAttribPointer(1, 2, gl::GL_FLOAT, gl::GL_FALSE, Vertex::size, (void*)(2 * float::size));
+		gl::vertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, Vertex::size, (void*)0);
+		gl::vertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, Vertex::size, (void*)(2 * float::size));
 
-		gl::bindBuffer(gl::GL_ARRAY_BUFFER, gl.strokeBuf);
-		gl::bufferData(gl::GL_ARRAY_BUFFER, gl.strokeDataBuf.count * 16L, gl.strokeDataBuf.data, gl::GL_STREAM_DRAW);
+		gl::bindBuffer(GL_ARRAY_BUFFER, gl.strokeBuf);
+		gl::bufferData(GL_ARRAY_BUFFER, gl.strokeDataBuf.count * 16L, gl.strokeDataBuf.data, GL_STREAM_DRAW);
 		gl::enableVertexAttribArray(2);
-		gl::vertexAttribPointer(2, 4, gl::GL_FLOAT, gl::GL_FALSE, 16, (void*)0);
+		gl::vertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 16, (void*)0);
 
 		gl::uniform1i(gl.shader.loc[GlLoc.TEX], 0);
 		gl::uniform2fv(gl.shader.loc[GlLoc.VIEWSIZE], 1, &gl.view[0]);
 
-		gl::bindBuffer(gl::GL_UNIFORM_BUFFER, gl.fragBuf);
+		gl::bindBuffer(GL_UNIFORM_BUFFER, gl.fragBuf);
 
 		for (int i = 0; i < gl.callsBuf.count; i++) {
 			GlCall* call = gl.callsBuf.at(i);
@@ -980,8 +980,8 @@ fn void glnvgRenderFlush(void* up) @local {
 		gl::disableVertexAttribArray(1);
 		gl::disableVertexAttribArray(2);
 		gl::bindVertexArray(0);
-		gl::disable(gl::GL_CULL_FACE);
-		gl::bindBuffer(gl::GL_ARRAY_BUFFER, 0);
+		gl::disable(GL_CULL_FACE);
+		gl::bindBuffer(GL_ARRAY_BUFFER, 0);
 		gl::useProgram(0);
 		gl.bindTexture(0);
 	}
