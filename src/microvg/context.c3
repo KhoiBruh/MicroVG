@@ -465,6 +465,10 @@ fn void MicroVG.clearPathCache(&self) {
 			self.cache.paths[i].triFill = null;
 			self.cache.paths[i].ntriFill = 0;
 		}
+		if (self.cache.paths[i].strokeData != null) {
+			mem::free(self.cache.paths[i].strokeData);
+			self.cache.paths[i].strokeData = null;
+		}
 	}
 	self.cache.npoints = 0;
 	self.cache.npaths = 0;
@@ -692,9 +696,46 @@ fn void MicroVG.flattenPaths(&self) {
 	}
 }
 
-fn int nvgCurveDivs(float r, float arc, float tol) {
-	float da = math::acos(r / (r + tol)) * 2.0f;
-	return math::max(2, (int)math::ceil(arc / da));
+const int SDF_JOIN_SEGS = 5;
+
+fn Vertex* nvgSdfJoinFan(
+	Vertex* dst, float* sdst, float cx, float cy,
+	float a0, float a1, float r, float aa
+) {
+	for (int i = 0; i <= SDF_JOIN_SEGS; i++) {
+		float a = a0 + (a1 - a0) * (float)i / (float)SDF_JOIN_SEGS;
+		*dst = { cx, cy, 0.5f, 1.0f };
+		dst++;
+		sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+		*dst = { cx + math::cos(a) * r, cy + math::sin(a) * r, 0.5f, 1.0f };
+		dst++;
+		sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+	}
+	*dst = { cx, cy, 0.5f, 1.0f };
+	dst++;
+	sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+	return dst;
+}
+
+fn Vertex* nvgSdfCapFan(
+	Vertex* dst, float* sdst, float px, float py,
+	float dx, float dy, float r, float aa
+) {
+	for (int i = 0; i <= SDF_JOIN_SEGS; i++) {
+		float a = i * PI / (float)SDF_JOIN_SEGS;
+		float ax = math::cos(a) * r;
+		float ay = math::sin(a) * r;
+		*dst = { px, py, 0.5f, 1.0f };
+		dst++;
+		sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+		*dst = { px - dx * ay + dy * ax, py - dy * ay - dx * ax, 0.5f, 1.0f };
+		dst++;
+		sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+	}
+	*dst = { px, py, 0.5f, 1.0f };
+	dst++;
+	sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+	return dst;
 }
 
 fn void nvgChooseBevel(
@@ -713,77 +754,6 @@ float* x0, float* y0, float* x1, float* y1
 		x1[0] = p1.x + p1.dmx * w;
 		y1[0] = p1.y + p1.dmy * w;
 	}
-}
-
-fn Vertex* nvgRoundJoin(
-Vertex* dst, Point* p0, Point* p1,
-float lw, float rw, float lu, float ru, int ncap, float fringe
-) {
-	float dlx0 = p0.dy;
-	float dly0 = -p0.dx;
-	float dlx1 = p1.dy;
-	float dly1 = -p1.dx;
-
-	if (p1.flags.left) {
-		float lx0, ly0, lx1, ly1;
-		nvgChooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
-		float a0 = math::atan2(-dly0, -dlx0);
-		float a1 = math::atan2(-dly1, -dlx1);
-		if (a1 > a0) a1 -= PI * 2;
-
-		*dst = { lx0, ly0, lu, 1 };
-		dst++;
-		*dst = { p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1 };
-		dst++;
-
-		int n = math::clamp((int)math::ceil(((a0 - a1) / PI) * ncap), 2, ncap);
-		for (int i = 0; i < n; i++) {
-			float u = i / (float)(n - 1);
-			float a = a0 + u * (a1 - a0);
-			float rx = p1.x + math::cos(a) * rw;
-			float ry = p1.y + math::sin(a) * rw;
-			*dst = { p1.x, p1.y, 0.5f, 1 };
-			dst++;
-			*dst = { rx, ry, ru, 1 };
-			dst++;
-		}
-
-		*dst = { lx1, ly1, lu, 1 };
-		dst++;
-		*dst = { p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1 };
-		dst++;
-	}
-	else {
-		float rx0, ry0, rx1, ry1;
-		nvgChooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
-		float a0 = math::atan2(dly0, dlx0);
-		float a1 = math::atan2(dly1, dlx1);
-		if (a1 < a0) a1 += PI * 2;
-
-		*dst = { p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1 };
-		dst++;
-		*dst = { rx0, ry0, ru, 1 };
-		dst++;
-
-		int n = math::clamp((int)math::ceil(((a1 - a0) / PI) * ncap), 2, ncap);
-		for (int i = 0; i < n; i++) {
-			float u = i / (float)(n - 1);
-			float a = a0 + u * (a1 - a0);
-			float lx = p1.x + math::cos(a) * lw;
-			float ly = p1.y + math::sin(a) * lw;
-			*dst = { lx, ly, lu, 1 };
-			dst++;
-			*dst = { p1.x, p1.y, 0.5f, 1 };
-			dst++;
-		}
-
-		*dst = { p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1 };
-		dst++;
-		*dst = { rx1, ry1, ru, 1 };
-		dst++;
-	}
-
-	return dst;
 }
 
 fn Vertex* nvgBevelJoin(
@@ -933,62 +903,6 @@ float aa, float u0, float u1
 	return dst;
 }
 
-fn Vertex* nvgRoundCapStart(
-Vertex* dst, Point* p,
-float dx, float dy, float w, int ncap,
-float aa, float u0, float u1
-) {
-	float px = p.x;
-	float py = p.y;
-	float dlx = dy;
-	float dly = -dx;
-
-	for (int i = 0; i < ncap; i++) {
-		float a = i / (float)(ncap - 1) * PI;
-		float ax = math::cos(a) * w;
-		float ay = math::sin(a) * w;
-		*dst = { px - dlx * ax - dx * ay, py - dly * ax - dy * ay, u0, 1 };
-		dst++;
-		*dst = { px, py, 0.5f, 1 };
-		dst++;
-	}
-
-	*dst = { px + dlx * w, py + dly * w, u0, 1 };
-	dst++;
-	*dst = { px - dlx * w, py - dly * w, u1, 1 };
-	dst++;
-
-	return dst;
-}
-
-fn Vertex* nvgRoundCapEnd(
-Vertex* dst, Point* p,
-float dx, float dy, float w, int ncap,
-float aa, float u0, float u1
-) {
-	float px = p.x;
-	float py = p.y;
-	float dlx = dy;
-	float dly = -dx;
-
-	*dst = { px + dlx * w, py + dly * w, u0, 1 };
-	dst++;
-	*dst = { px - dlx * w, py - dly * w, u1, 1 };
-	dst++;
-
-	for (int i = 0; i < ncap; i++) {
-		float a = i / (float)(ncap - 1) * PI;
-		float ax = math::cos(a) * w;
-		float ay = math::sin(a) * w;
-		*dst = { px, py, 0.5f, 1 };
-		dst++;
-		*dst = { px - dlx * ax + dx * ay, py - dly * ax + dy * ay, u0, 1 };
-		dst++;
-	}
-
-	return dst;
-}
-
 fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLimit) {
 	PathCache* cache = self.cache;
 	float iw = 0.0f;
@@ -1054,7 +968,6 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 	float aa = fringe;
 	float u0 = 0.0f;
 	float u1 = 1.0f;
-	int ncap = nvgCurveDivs(w, PI, self.tessTol);
 
 	w += aa * 0.5f;
 
@@ -1066,23 +979,32 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 	self.calculateJoins(w, lineJoin, miterLimit);
 
 	int cverts = 0;
+	int cstrokeData = 0;
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
 		int loop = (path.closed == 0) ? 0 : 1;
 
+		cverts += path.count * 2;
+
 		if (lineJoin == LineJoin.ROUND) {
-			cverts += (path.count + path.nbevel * (ncap + 2) + 1) * 2;
+			cverts += path.nbevel * (SDF_JOIN_SEGS * 2 + 3);
 		}
 		else {
-			cverts += (path.count + path.nbevel * 5 + 1) * 2;
+			cverts += path.nbevel * 5 * 2;
 		}
 
-		if (loop == 0) {
+		cstrokeData += path.nbevel * (SDF_JOIN_SEGS * 2 + 3);
+
+		if (loop) {
+			cverts += 2;
+		}
+		else {
 			if (lineCap == LineCap.ROUND) {
-				cverts += (ncap * 2 + 2) * 2;
+				cverts += (SDF_JOIN_SEGS * 2 + 3) * 2;
+				cstrokeData += (SDF_JOIN_SEGS * 2 + 3) * 2;
 			}
 			else {
-				cverts += (3 + 3) * 2;
+				cverts += 12;
 			}
 		}
 	}
@@ -1102,6 +1024,24 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		path.nfill = 0;
 
 		loop = (path.closed == 0) ? 0 : 1;
+
+		int sdCount = path.count * 2;
+		if (lineJoin == LineJoin.ROUND) {
+			sdCount += path.nbevel * (SDF_JOIN_SEGS * 2 + 3);
+		}
+		else {
+			sdCount += path.nbevel * 10;
+		}
+		if (loop) {
+			sdCount += 2;
+		}
+		else {
+			sdCount += (lineCap == LineCap.ROUND) ? (SDF_JOIN_SEGS * 2 + 3) * 2 : 12;
+		}
+
+		path.strokeData = mem::malloc((sz)sdCount * 4 * float::size);
+		float* sdst = path.strokeData;
+
 		Vertex* dst = verts;
 		path.stroke = dst;
 
@@ -1126,29 +1066,46 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 			switch (lineCap) {
 				case LineCap.BUTT:
 					dst = nvgButtCapStart(dst, p0, dx, dy, w, -aa * 0.5f, aa, u0, u1);
+					sdst += 24;
 
 				case LineCap.SQUARE:
 					dst = nvgButtCapStart(dst, p0, dx, dy, w, w - aa, aa, u0, u1);
+					sdst += 24;
 
 				case LineCap.ROUND:
-					dst = nvgRoundCapStart(dst, p0, dx, dy, w, ncap, aa, u0, u1);
+				{
+					float r = w + aa * 0.5f;
+					dst = nvgSdfCapFan(dst, sdst, p0.x, p0.y, dx, dy, r, aa);
+				}
 			}
 		}
 
 		for (int j = s; j < e; j++) {
 			if ((p1.flags.bevel || p1.flags.innerBevel)) {
 				if (lineJoin == LineJoin.ROUND) {
-					dst = nvgRoundJoin(dst, p0, p1, w, w, u0, u1, ncap, aa);
+					float a0 = math::atan2(p1.dy, p1.dx);
+					float a1 = math::atan2(p0.dy, p0.dx);
+					if (p1.flags.left) {
+						if (a1 < a0) a1 += PI * 2;
+					}
+					else {
+						if (a1 > a0) a1 -= PI * 2;
+					}
+					float r = w + aa * 0.5f;
+					dst = nvgSdfJoinFan(dst, sdst, p1.x, p1.y, a0, a1, r, aa);
 				}
 				else {
 					dst = nvgBevelJoin(dst, p0, p1, w, w, u0, u1, aa);
+					sdst += 40;
 				}
 			}
 			else {
 				*dst = { p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), u0, 1 };
 				dst++;
+				sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 				*dst = { p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), u1, 1 };
 				dst++;
+				sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 			}
 			p0 = p1;
 			p1++;
@@ -1157,8 +1114,10 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		if (loop) {
 			*dst = { verts[0].x, verts[0].y, u0, 1 };
 			dst++;
+			sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 			*dst = { verts[1].x, verts[1].y, u1, 1 };
 			dst++;
+			sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 		}
 		else {
 			dx = p1.x - p0.x;
@@ -1168,12 +1127,17 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 			switch (lineCap) {
 				case LineCap.BUTT:
 					dst = nvgButtCapEnd(dst, p1, dx, dy, w, -aa * 0.5f, aa, u0, u1);
+					sdst += 24;
 
 				case LineCap.SQUARE:
 					dst = nvgButtCapEnd(dst, p1, dx, dy, w, w - aa, aa, u0, u1);
+					sdst += 24;
 
 				case LineCap.ROUND:
-					dst = nvgRoundCapEnd(dst, p1, dx, dy, w, ncap, aa, u0, u1);
+				{
+					float r = w + aa * 0.5f;
+					dst = nvgSdfCapFan(dst, sdst, p1.x, p1.y, dx, dy, r, aa);
+				}
 			}
 		}
 

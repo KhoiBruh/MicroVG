@@ -102,6 +102,7 @@ struct GlContext {
 	uint vertBuf;
 	uint vertArr;
 	uint fragBuf;
+	uint strokeBuf;
 	int fragSize;
 	int flags;
 
@@ -109,6 +110,7 @@ struct GlContext {
 	FrameBuf pathsBuf;
 	FrameBuf vertsBuf;
 	FrameBuf uniformBuf;
+	FrameBuf strokeDataBuf;
 
 	GLuint boundTexture;
 	GLuint stencilMask;
@@ -166,7 +168,7 @@ fn GlTexture* GlContext.allocTexture(&self) {
 	if (tex == null) {
 		if (self.ntextures + 1 > self.ctextures) {
 			int ctextures = math::max(math::max(self.ntextures + 1, 4), self.ctextures + self.ctextures / 2);
-			GlTexture* textures = mem::realloc(self.textures, (GlTexture::size * ctextures));
+			GlTexture* textures = mem::realloc(self.textures, GlTexture::size * ctextures);
 			if (textures == null) return null;
 			self.textures = textures;
 			self.ctextures = ctextures;
@@ -518,11 +520,12 @@ fn void GlContext.triangles(&self, GlCall* call) {
 }
 
 fn void glnvgRenderCancel(void* up) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 	gl.callsBuf.reset();
 	gl.pathsBuf.reset();
 	gl.vertsBuf.reset();
 	gl.uniformBuf.reset();
+	gl.strokeDataBuf.reset();
 }
 
 fn GLenum glConvertBlendFuncFactor(BlendFactor factor) @local {
@@ -573,13 +576,14 @@ fn int glnvgMaxVertCount(MvgPath* paths, int npaths) @local {
 }
 
 fn int glnvgRenderCreate(void* up) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 	int align = 4;
 
 	gl.callsBuf.init(GlCall::size, 128);
 	gl.pathsBuf.init(GlPath::size, 128);
 	gl.vertsBuf.init(Vertex::size, 4096);
 	gl.uniformBuf.init(1, 16384);
+	gl.strokeDataBuf.init(16, 4096);
 
 	char* shaderHeader = `
 		#version 150 core
@@ -592,18 +596,23 @@ fn int glnvgRenderCreate(void* up) @local {
 			uniform vec2 viewSize;
 			in vec2 vertex;
 			in vec2 tcoord;
+			in vec4 strokedata;
 			out vec2 ftcoord;
 			out vec2 fpos;
+			out vec4 fjoin;
 		#else
 			uniform vec2 viewSize;
 			attribute vec2 vertex;
 			attribute vec2 tcoord;
+			attribute vec4 strokedata;
 			varying vec2 ftcoord;
 			varying vec2 fpos;
+			varying vec4 fjoin;
 		#endif
 		void main(void) {
 			ftcoord = tcoord;
 			fpos = vertex;
+			fjoin = strokedata;
 			gl_Position = vec4(2.0*vertex.x/viewSize.x - 1.0, 1.0 - 2.0*vertex.y/viewSize.y, 0, 1);
 		}
 	`;
@@ -639,12 +648,14 @@ fn int glnvgRenderCreate(void* up) @local {
 			uniform sampler2D tex;
 			in vec2 ftcoord;
 			in vec2 fpos;
+			in vec4 fjoin;
 			out vec4 outColor;
 		#else
 			uniform vec4 frag[UNIFORMARRAY_SIZE];
 			uniform sampler2D tex;
 			varying vec2 ftcoord;
 			varying vec2 fpos;
+			varying vec4 fjoin;
 		#endif
 		#ifndef USE_UNIFORMBUFFER
 			#define scissorMat mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)
@@ -683,7 +694,16 @@ fn int glnvgRenderCreate(void* up) @local {
 			vec4 result;
 			float scissor = scissorMask(fpos);
 	#ifdef EDGE_AA
-			float strokeAlpha = strokeMask();
+			float strokeAlpha;
+			if (ftcoord.y > 1.5) {
+				float fringew = fjoin.z;
+				float w_inner = fringew * (strokeMult - 0.5);
+				float w_outer = fringew * (strokeMult + 0.5);
+				float dist = length(fpos - fjoin.xy);
+				strokeAlpha = 1.0 - smoothstep(w_inner, w_outer, dist);
+			} else {
+				strokeAlpha = strokeMask();
+			}
 			if (strokeAlpha < strokeThr) discard;
 	#else
 			float strokeAlpha = 1.0;
@@ -753,6 +773,7 @@ fn int glnvgRenderCreate(void* up) @local {
 
 	gl::genVertexArrays(1, &gl.vertArr);
 	gl::genBuffers(1, &gl.vertBuf);
+	gl::genBuffers(1, &gl.strokeBuf);
 
 	gl::uniformBlockBinding(gl.shader.prog, (GLuint) gl.shader.loc[GlLoc.FRAG], GLNVG_FRAG_BINDING);
 	gl::genBuffers(1, &gl.fragBuf);
@@ -767,7 +788,7 @@ fn int glnvgRenderCreate(void* up) @local {
 }
 
 fn int glnvgRenderCreateTexture(void* up, TextureType type, int w, int h, int imageFlags, char* data) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 	GlTexture* tex = gl.allocTexture();
 
 	if (tex == null) return 0;
@@ -843,12 +864,12 @@ fn int glnvgRenderCreateTexture(void* up, TextureType type, int w, int h, int im
 }
 
 fn int glnvgRenderDeleteTexture(void* up, int image) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 	return gl.deleteTexture(image);
 }
 
 fn int glnvgRenderUpdateTexture(void* up, int image, int x, int y, int w, int h, char* data) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 	GlTexture* tex = gl.findTexture(image);
 
 	if (tex == null) return 0;
@@ -877,7 +898,7 @@ fn int glnvgRenderUpdateTexture(void* up, int image, int x, int y, int w, int h,
 }
 
 fn int glnvgRenderGetTextureSize(void* up, int image, int* w, int* h) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 	GlTexture* tex = gl.findTexture(image);
 	if (tex == null) return 0;
 	*w = tex.width;
@@ -886,13 +907,13 @@ fn int glnvgRenderGetTextureSize(void* up, int image, int* w, int* h) @local {
 }
 
 fn void glnvgRenderViewport(void* up, float width, float height, float devicePixelRatio) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 	gl.view.x = width;
 	gl.view.y = height;
 }
 
 fn void glnvgRenderFlush(void* up) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 
 	if (gl.callsBuf.count > 0) {
 
@@ -910,11 +931,11 @@ fn void glnvgRenderFlush(void* up) @local {
 		gl::stencilFunc(gl::GL_ALWAYS, 0, 0xffffffff);
 		gl::activeTexture(gl::GL_TEXTURE0);
 		gl::bindTexture(gl::GL_TEXTURE_2D, 0);
-		gl.boundTexture = (GLuint)0;
-		gl.stencilMask = (GLuint)0xffffffff;
+		gl.boundTexture = 0;
+		gl.stencilMask = 0xffffffff;
 		gl.stencilFunc = gl::GL_ALWAYS;
-		gl.stencilFuncRef = (GLint)0;
-		gl.stencilFuncMask = (GLuint)0xffffffff;
+		gl.stencilFuncRef = 0;
+		gl.stencilFuncMask = 0xffffffff;
 		gl.blendFunc.srcRGB = gl::GL_INVALID_ENUM;
 		gl.blendFunc.srcAlpha = gl::GL_INVALID_ENUM;
 		gl.blendFunc.dstRGB = gl::GL_INVALID_ENUM;
@@ -928,16 +949,21 @@ fn void glnvgRenderFlush(void* up) @local {
 		gl::bufferData(gl::GL_ARRAY_BUFFER, gl.vertsBuf.count * Vertex::size, gl.vertsBuf.data, gl::GL_STREAM_DRAW);
 		gl::enableVertexAttribArray(0);
 		gl::enableVertexAttribArray(1);
-		gl::vertexAttribPointer(0, 2, gl::GL_FLOAT, gl::GL_FALSE, Vertex::size, (void*)(usz)0);
-		gl::vertexAttribPointer(1, 2, gl::GL_FLOAT, gl::GL_FALSE, Vertex::size, (void*)(usz)(2 * float::size));
+		gl::vertexAttribPointer(0, 2, gl::GL_FLOAT, gl::GL_FALSE, Vertex::size, (void*)0);
+		gl::vertexAttribPointer(1, 2, gl::GL_FLOAT, gl::GL_FALSE, Vertex::size, (void*)(2 * float::size));
 
-		gl::uniform1i(gl.shader.loc[(GlLoc.TEX)], 0);
-		gl::uniform2fv(gl.shader.loc[(GlLoc.VIEWSIZE)], 1, &gl.view[0]);
+		gl::bindBuffer(gl::GL_ARRAY_BUFFER, gl.strokeBuf);
+		gl::bufferData(gl::GL_ARRAY_BUFFER, gl.strokeDataBuf.count * 16L, gl.strokeDataBuf.data, gl::GL_STREAM_DRAW);
+		gl::enableVertexAttribArray(2);
+		gl::vertexAttribPointer(2, 4, gl::GL_FLOAT, gl::GL_FALSE, 16, (void*)0);
+
+		gl::uniform1i(gl.shader.loc[GlLoc.TEX], 0);
+		gl::uniform2fv(gl.shader.loc[GlLoc.VIEWSIZE], 1, &gl.view[0]);
 
 		gl::bindBuffer(gl::GL_UNIFORM_BUFFER, gl.fragBuf);
 
 		for (int i = 0; i < gl.callsBuf.count; i++) {
-			GlCall* call = (GlCall*)gl.callsBuf.at(i);
+			GlCall* call = gl.callsBuf.at(i);
 			gl.blendFuncSeparate(&call.blendFunc);
 
 			switch (call.type) {
@@ -952,6 +978,7 @@ fn void glnvgRenderFlush(void* up) @local {
 
 		gl::disableVertexAttribArray(0);
 		gl::disableVertexAttribArray(1);
+		gl::disableVertexAttribArray(2);
 		gl::bindVertexArray(0);
 		gl::disable(gl::GL_CULL_FACE);
 		gl::bindBuffer(gl::GL_ARRAY_BUFFER, 0);
@@ -963,10 +990,11 @@ fn void glnvgRenderFlush(void* up) @local {
 	gl.pathsBuf.reset();
 	gl.vertsBuf.reset();
 	gl.uniformBuf.reset();
+	gl.strokeDataBuf.reset();
 }
 
 fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, float fringe, float* bounds, MvgPath* paths, int npaths) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 	bool convex = (npaths == 1 && paths[0].convex);
 	bool earClip = !convex && npaths == 1 && paths[0].triFill != null;
 
@@ -1009,7 +1037,7 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 		return;
 	}
 
-	GlCall* call = (GlCall*)gl.callsBuf.at(callIdx);
+	GlCall* call = gl.callsBuf.at(callIdx);
 	mem::clear(call, GlCall::size);
 	call.type = convex ? GlCallType.CONVEXFILL : (earClip ? GlCallType.EARFILL : GlCallType.FILL);
 	call.triangleCount = triVertCount;
@@ -1052,7 +1080,7 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 	}
 	else if (!convex) {
 		call.triangleOffset = voff;
-		Vertex* quad = (Vertex*)gl.vertsBuf.at(call.triangleOffset);
+		Vertex* quad = gl.vertsBuf.at(call.triangleOffset);
 		quad[0] = { bounds[2], bounds[3], 0.5f, 1.0f };
 		quad[1] = { bounds[2], bounds[1], 0.5f, 1.0f };
 		quad[2] = { bounds[0], bounds[3], 0.5f, 1.0f };
@@ -1073,7 +1101,7 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 }
 
 fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, float fringe, float strokeWidth, MvgPath* paths, int npaths) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 	int maxverts = glnvgMaxVertCount(paths, npaths);
 	int uniCount = (gl.flags & STENCIL_STROKES) ? 2 : 1;
 
@@ -1110,6 +1138,15 @@ fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, 
 	call.blendFunc = glBlendCompositeOp(compositeOp);
 	call.uniformOffset = uniByteOff;
 
+	int sdoff = gl.strokeDataBuf.alloc(maxverts);
+	if (sdoff < 0) {
+		gl.callsBuf.count--;
+		gl.pathsBuf.count -= npaths;
+		gl.vertsBuf.count -= maxverts;
+		gl.uniformBuf.count -= uniCount * gl.fragSize;
+		return;
+	}
+
 	int voff = vertOff;
 	for (int i = 0; i < npaths; i++) {
 		GlPath* copy = gl.pathsBuf.at(pathOff + i);
@@ -1119,6 +1156,13 @@ fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, 
 			copy.strokeOffset = voff;
 			copy.strokeCount = path.nstroke;
 			mem::copy(gl.vertsBuf.at(voff), path.stroke, Vertex::size * path.nstroke);
+			if (path.strokeData != null) {
+				mem::copy(gl.strokeDataBuf.at(sdoff), path.strokeData, (sz)16 * path.nstroke);
+			}
+			else {
+				mem::clear(gl.strokeDataBuf.at(sdoff), (sz)16 * path.nstroke);
+			}
+			sdoff += path.nstroke;
 			voff += path.nstroke;
 		}
 	}
@@ -1168,7 +1212,7 @@ fn void glnvgRenderTriangles(void* up, Paint* paint, CompositeOpState compositeO
 }
 
 fn void glnvgRenderDelete(void* up) @local {
-	GlContext* gl = (GlContext*)up;
+	GlContext* gl = up;
 	if (gl == null) return;
 
 	glnvgDeleteShader(&gl.shader);
@@ -1176,6 +1220,7 @@ fn void glnvgRenderDelete(void* up) @local {
 	if (gl.fragBuf != 0) gl::deleteBuffers(1, &gl.fragBuf);
 	if (gl.vertArr != 0) gl::deleteVertexArrays(1, &gl.vertArr);
 	if (gl.vertBuf != 0) gl::deleteBuffers(1, &gl.vertBuf);
+	if (gl.strokeBuf != 0) gl::deleteBuffers(1, &gl.strokeBuf);
 
 	for (int i = 0; i < gl.ntextures; i++) {
 		if (gl.textures[i].tex != 0 && (gl.textures[i].flags & IMAGE_NODELETE) == 0) {
@@ -1188,6 +1233,7 @@ fn void glnvgRenderDelete(void* up) @local {
 	gl.pathsBuf.delete();
 	gl.vertsBuf.delete();
 	gl.uniformBuf.delete();
+	gl.strokeDataBuf.delete();
 
 	mem::free(gl);
 }
