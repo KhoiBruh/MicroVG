@@ -459,6 +459,13 @@ fn void MicroVG.appendCommands(&self, PathCmd* cmds, int ncmds) {
 }
 
 fn void MicroVG.clearPathCache(&self) {
+	for (int i = 0; i < self.cache.npaths; i++) {
+		if (self.cache.paths[i].triFill != null) {
+			mem::free(self.cache.paths[i].triFill);
+			self.cache.paths[i].triFill = null;
+			self.cache.paths[i].ntriFill = 0;
+		}
+	}
 	self.cache.npoints = 0;
 	self.cache.npaths = 0;
 }
@@ -1178,6 +1185,116 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 	return 1;
 }
 
+fn bool earPointInTriangle(Vec2 pt, Vec2 a, Vec2 b, Vec2 c) @local {
+	float d1 = (b.x - a.x) * (pt.y - a.y) - (b.y - a.y) * (pt.x - a.x);
+	float d2 = (c.x - b.x) * (pt.y - b.y) - (c.y - b.y) * (pt.x - b.x);
+	float d3 = (a.x - c.x) * (pt.y - c.y) - (a.y - c.y) * (pt.x - c.x);
+
+	bool has_neg = (d1 <= -1e-6f) || (d2 <= -1e-6f) || (d3 <= -1e-6f);
+	bool has_pos = (d1 >= 1e-6f) || (d2 >= 1e-6f) || (d3 >= 1e-6f);
+	return !(has_neg && has_pos);
+}
+
+fn int earClipTriangulate(Vertex* verts, int nverts, int* out_indices) @local {
+	if (nverts < 3) return 0;
+	if (nverts == 3) {
+		out_indices[0] = 0; out_indices[1] = 1; out_indices[2] = 2;
+		return 3;
+	}
+
+	int* indices = mem::malloc((sz)nverts * int::size);
+	for (int i = 0; i < nverts; i++) indices[i] = i;
+
+	int n = nverts;
+	int tri_count = 0;
+	int max_iter = nverts * nverts * 2;
+
+	while (n > 2 && tri_count < nverts - 2) {
+		bool found = false;
+		for (int i = 0; i < n; i++) {
+			int p = indices[(i + n - 1) % n];
+			int c = indices[i];
+			int nx = indices[(i + 1) % n];
+
+			Vec2 prev = { verts[p].x, verts[p].y };
+			Vec2 curr = { verts[c].x, verts[c].y };
+			Vec2 next = { verts[nx].x, verts[nx].y };
+
+			float cross = (curr.x - prev.x) * (next.y - curr.y) - (curr.y - prev.y) * (next.x - curr.x);
+			if (cross >= 0) continue;
+
+			bool is_ear = true;
+			for (int j = 0; j < n; j++) {
+				if (indices[j] == p || indices[j] == c || indices[j] == nx) continue;
+				Vec2 pt = { verts[indices[j]].x, verts[indices[j]].y };
+				if (earPointInTriangle(pt, prev, curr, next)) {
+					is_ear = false;
+					break;
+				}
+			}
+
+			if (is_ear) {
+				out_indices[tri_count * 3] = p;
+				out_indices[tri_count * 3 + 1] = c;
+				out_indices[tri_count * 3 + 2] = nx;
+				tri_count++;
+
+				for (int j = i; j < n - 1; j++) indices[j] = indices[j + 1];
+				n--;
+				found = true;
+				break;
+			}
+
+			max_iter--;
+			if (max_iter <= 0) break;
+		}
+
+		if (!found || max_iter <= 0) break;
+	}
+
+	mem::free(indices);
+	return tri_count * 3;
+}
+
+fn bool earClipFill(MvgPath* path, Vertex* fanVerts, int nfan) @local {
+	if (nfan < 3) return false;
+	if (nfan == 3) {
+		path.triFill = mem::malloc(3 * Vertex::size);
+		if (path.triFill == null) return false;
+		path.triFill[0] = fanVerts[0];
+		path.triFill[1] = fanVerts[1];
+		path.triFill[2] = fanVerts[2];
+		path.ntriFill = 3;
+		return true;
+	}
+
+	int max_indices = (nfan - 2) * 3;
+	int* tri_indices = mem::malloc((sz)max_indices * int::size);
+	if (tri_indices == null) return false;
+
+	int 	ntri = earClipTriangulate(fanVerts, nfan, tri_indices);
+	if (ntri == 0) {
+		mem::free(tri_indices);
+		return false;
+	}
+
+	Vertex* triVerts = mem::malloc((sz)ntri * Vertex::size);
+	if (triVerts == null) {
+		mem::free(tri_indices);
+		return false;
+	}
+
+	for (int i = 0; i < ntri; i++) {
+		triVerts[i] = fanVerts[tri_indices[i]];
+	}
+
+	mem::free(tri_indices);
+
+	path.triFill = triVerts;
+	path.ntriFill = ntri;
+	return true;
+}
+
 fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 	PathCache* cache = self.cache;
 	float aa = self.fringeWidth;
@@ -1254,6 +1371,10 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 
 		path.nfill = (int)(dst - verts);
 		verts = dst;
+
+		if (!path.convex && path.nfill > 3) {
+			earClipFill(path, path.fill, path.nfill);
+		}
 
 		if (fringe) {
 			lw = w + woff;
@@ -1566,7 +1687,12 @@ fn void MicroVG.fill(&self) {
 
 	for (int i = 0; i < self.cache.npaths; i++) {
 		MvgPath* path = &self.cache.paths[i];
-		self.fillTriCount += path.nfill - 2;
+		if (path.triFill != null) {
+			self.fillTriCount += path.ntriFill / 3;
+		}
+		else {
+			self.fillTriCount += path.nfill - 2;
+		}
 		self.fillTriCount += path.nstroke - 2;
 		self.drawCallCount += 2;
 	}

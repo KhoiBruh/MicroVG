@@ -31,8 +31,6 @@ fn void main(String[] args) {
     glfw34::windowHint(glfw34::CONTEXT_VERSION_MAJOR, 3);
     glfw34::windowHint(glfw34::CONTEXT_VERSION_MINOR, 3);
     glfw34::windowHint(glfw34::OPENGL_PROFILE, glfw34::OPENGL_CORE_PROFILE);
-    glfw34::windowHint(glfw34::OPENGL_FORWARD_COMPAT, glfw34::TRUE);
-    glfw34::windowHint(glfw34::SAMPLES, 4);
 
     window = glfw34::createWindow(1000, 600, "MicroVG Demo", null, null);
     if (window == null) {
@@ -269,4 +267,22 @@ fn void drawScene(microvg::MicroVG* vg, float w, float h, float t) {
     vg.strokeColor(microvg::rgba(255, 255, 255, 150));
     vg.strokeWidth(2.0f);
     vg.stroke();
+
+    vg.save();
+    vg.beginPath();
+    float lx = 520.0f;
+    float ly = 460.0f;
+    vg.moveTo(lx, ly);
+    vg.lineTo(lx + 30.0f, ly);
+    vg.lineTo(lx + 30.0f, ly + 40.0f);
+    vg.lineTo(lx + 80.0f, ly + 40.0f);
+    vg.lineTo(lx + 80.0f, ly + 80.0f);
+    vg.lineTo(lx, ly + 80.0f);
+    vg.closePath();
+    vg.fillColor(microvg::rgba(0, 220, 160, 255));
+    vg.fill();
+    vg.strokeColor(microvg::rgba(255, 255, 255, 180));
+    vg.strokeWidth(2.0f);
+    vg.stroke();
+    vg.restore();
 }

@@ -31,6 +31,7 @@ enum GlCallType : char {
 	NONE,
 	FILL,
 	CONVEXFILL,
+	EARFILL,
 	STROKE,
 	TRIANGLES
 }
@@ -446,6 +447,22 @@ fn void GlContext.convexFill(&self, GlCall* call) {
 	for (int i = 0; i < npaths; i++) {
 		gl::drawArrays(gl::GL_TRIANGLE_FAN, paths[i].fillOffset, paths[i].fillCount);
 		if (paths[i].strokeCount > 0) {
+			gl::drawArrays(gl::GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
+		}
+	}
+}
+
+fn void GlContext.earFill(&self, GlCall* call) {
+	GlPath* paths = self.pathsBuf.at(call.pathOffset);
+	int npaths = call.pathCount;
+
+	self.setUniforms(call.uniformOffset, call.image);
+	self.checkError("ear fill");
+
+	gl::drawArrays(gl::GL_TRIANGLES, call.triangleOffset, call.triangleCount);
+
+	if (self.flags & ANTIALIAS) {
+		for (int i = 0; i < npaths; i++) {
 			gl::drawArrays(gl::GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
 		}
 	}
@@ -926,6 +943,7 @@ fn void glnvgRenderFlush(void* up) @local {
 			switch (call.type) {
 				case GlCallType.FILL: gl.fill(call);
 				case GlCallType.CONVEXFILL: gl.convexFill(call);
+				case GlCallType.EARFILL: gl.earFill(call);
 				case GlCallType.STROKE: gl.stroke(call);
 				case GlCallType.TRIANGLES: gl.triangles(call);
 				case GlCallType.NONE: break;
@@ -949,10 +967,23 @@ fn void glnvgRenderFlush(void* up) @local {
 
 fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, float fringe, float* bounds, MvgPath* paths, int npaths) @local {
 	GlContext* gl = (GlContext*)up;
-	int maxverts = glnvgMaxVertCount(paths, npaths);
 	bool convex = (npaths == 1 && paths[0].convex);
-	int triVertCount = convex ? 0 : 4;
-	int uniCount = convex ? 1 : 2;
+	bool earClip = !convex && npaths == 1 && paths[0].triFill != null;
+
+	int fillVertCount = 0;
+	int strokeVertCount = 0;
+	for (int i = 0; i < npaths; i++) {
+		if (paths[i].triFill != null) {
+			fillVertCount += paths[i].ntriFill;
+		}
+		else {
+			fillVertCount += paths[i].nfill;
+		}
+		strokeVertCount += paths[i].nstroke;
+	}
+
+	int triVertCount = convex ? 0 : (earClip ? 0 : 4);
+	int uniCount = (convex || earClip) ? 1 : 2;
 
 	int callIdx = gl.allocCall();
 	if (callIdx < 0) return;
@@ -963,7 +994,7 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 		return;
 	}
 
-	int vertOff = gl.allocVerts(maxverts + triVertCount);
+	int vertOff = gl.allocVerts(fillVertCount + strokeVertCount + triVertCount);
 	if (vertOff < 0) {
 		gl.callsBuf.count--;
 		gl.pathsBuf.count -= npaths;
@@ -974,13 +1005,13 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 	if (uniByteOff < 0) {
 		gl.callsBuf.count--;
 		gl.pathsBuf.count -= npaths;
-		gl.vertsBuf.count -= (maxverts + triVertCount);
+		gl.vertsBuf.count -= (fillVertCount + strokeVertCount + triVertCount);
 		return;
 	}
 
 	GlCall* call = (GlCall*)gl.callsBuf.at(callIdx);
 	mem::clear(call, GlCall::size);
-	call.type = convex ? GlCallType.CONVEXFILL : GlCallType.FILL;
+	call.type = convex ? GlCallType.CONVEXFILL : (earClip ? GlCallType.EARFILL : GlCallType.FILL);
 	call.triangleCount = triVertCount;
 	call.pathOffset = pathOff;
 	call.pathCount = npaths;
@@ -992,7 +1023,13 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 		GlPath* copy = gl.pathsBuf.at(pathOff + i);
 		MvgPath* path = &paths[i];
 		mem::clear(copy, GlPath::size);
-		if (path.nfill > 0) {
+		if (earClip) {
+			copy.fillOffset = voff;
+			copy.fillCount = path.ntriFill;
+			mem::copy(gl.vertsBuf.at(voff), path.triFill, Vertex::size * path.ntriFill);
+			voff += path.ntriFill;
+		}
+		else if (path.nfill > 0) {
 			copy.fillOffset = voff;
 			copy.fillCount = path.nfill;
 			mem::copy(gl.vertsBuf.at(voff), path.fill, Vertex::size * path.nfill);
@@ -1006,7 +1043,14 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 		}
 	}
 
-	if (!convex) {
+	if (earClip) {
+		call.triangleOffset = vertOff;
+		call.triangleCount = paths[0].ntriFill;
+		call.uniformOffset = uniByteOff;
+		GlFragUniforms* frag = (GlFragUniforms*)(gl.uniformBuf.data + call.uniformOffset);
+		gl.convertPaint(frag, paint, scissor, fringe, fringe, -1.0f);
+	}
+	else if (!convex) {
 		call.triangleOffset = voff;
 		Vertex* quad = (Vertex*)gl.vertsBuf.at(call.triangleOffset);
 		quad[0] = { bounds[2], bounds[3], 0.5f, 1.0f };
