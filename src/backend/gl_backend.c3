@@ -516,34 +516,41 @@ fn void glnvgRenderCancel(void* up) @local {
 	gl.nuniforms = 0;
 }
 
-fn GLenum glnvgConvertBlendFuncFactor(int factor) @local {
-	if (factor == microvg::BLEND_ZERO)                return gl::GL_ZERO;
-	if (factor == microvg::BLEND_ONE)                 return gl::GL_ONE;
-	if (factor == microvg::BLEND_SRC_COLOR)           return gl::GL_SRC_COLOR;
-	if (factor == microvg::BLEND_ONE_MINUS_SRC_COLOR) return gl::GL_ONE_MINUS_SRC_COLOR;
-	if (factor == microvg::BLEND_DST_COLOR)           return gl::GL_DST_COLOR;
-	if (factor == microvg::BLEND_ONE_MINUS_DST_COLOR) return gl::GL_ONE_MINUS_DST_COLOR;
-	if (factor == microvg::BLEND_SRC_ALPHA)           return gl::GL_SRC_ALPHA;
-	if (factor == microvg::BLEND_ONE_MINUS_SRC_ALPHA) return gl::GL_ONE_MINUS_SRC_ALPHA;
-	if (factor == microvg::BLEND_DST_ALPHA)           return gl::GL_DST_ALPHA;
-	if (factor == microvg::BLEND_ONE_MINUS_DST_ALPHA) return gl::GL_ONE_MINUS_DST_ALPHA;
-	if (factor == microvg::BLEND_SRC_ALPHA_SATURATE)  return gl::GL_SRC_ALPHA_SATURATE;
-	return gl::GL_INVALID_ENUM;
+fn GLenum glConvertBlendFuncFactor(BlendFactor factor) @local {
+	switch (factor) {
+		case BlendFactor.ZERO: return gl::GL_ZERO;
+		case BlendFactor.ONE: return gl::GL_ONE;
+		case BlendFactor.SRC_COLOR: return gl::GL_SRC_COLOR;
+		case BlendFactor.ONE_MINUS_SRC_COLOR: return gl::GL_ONE_MINUS_SRC_COLOR;
+		case BlendFactor.DST_COLOR: return gl::GL_DST_COLOR;
+		case BlendFactor.ONE_MINUS_DST_COLOR: return gl::GL_ONE_MINUS_DST_COLOR;
+		case BlendFactor.SRC_ALPHA: return gl::GL_SRC_ALPHA;
+		case BlendFactor.ONE_MINUS_SRC_ALPHA: return gl::GL_ONE_MINUS_SRC_ALPHA;
+		case BlendFactor.DST_ALPHA: return gl::GL_DST_ALPHA;
+		case BlendFactor.ONE_MINUS_DST_ALPHA: return gl::GL_ONE_MINUS_DST_ALPHA;
+		case BlendFactor.SRC_ALPHA_SATURATE: return gl::GL_SRC_ALPHA_SATURATE;
+		default: return gl::GL_INVALID_ENUM;
+	}
 }
 
-fn GlBlend glnvgBlendcompositeOp(CompositeOpState op) @local {
-	GlBlend blend;
-	blend.srcRGB = glnvgConvertBlendFuncFactor(op.srcRGB);
-	blend.dstRGB = glnvgConvertBlendFuncFactor(op.dstRGB);
-	blend.srcAlpha = glnvgConvertBlendFuncFactor(op.srcAlpha);
-	blend.dstAlpha = glnvgConvertBlendFuncFactor(op.dstAlpha);
-	if (blend.srcRGB == gl::GL_INVALID_ENUM || blend.dstRGB == gl::GL_INVALID_ENUM ||
-	blend.srcAlpha == gl::GL_INVALID_ENUM || blend.dstAlpha == gl::GL_INVALID_ENUM) {
+fn GlBlend glBlendCompositeOp(CompositeOpState op) @local {
+	GlBlend blend = {
+		glConvertBlendFuncFactor(op.srcRGB),
+		glConvertBlendFuncFactor(op.dstRGB),
+		glConvertBlendFuncFactor(op.srcAlpha),
+		glConvertBlendFuncFactor(op.dstAlpha)
+	};
+
+	if (
+		blend.srcRGB == gl::GL_INVALID_ENUM || blend.dstRGB == gl::GL_INVALID_ENUM ||
+		blend.srcAlpha == gl::GL_INVALID_ENUM || blend.dstAlpha == gl::GL_INVALID_ENUM
+	) {
 		blend.srcRGB = gl::GL_ONE;
 		blend.dstRGB = gl::GL_ONE_MINUS_SRC_ALPHA;
 		blend.srcAlpha = gl::GL_ONE;
 		blend.dstAlpha = gl::GL_ONE_MINUS_SRC_ALPHA;
 	}
+
 	return blend;
 }
 
@@ -608,8 +615,6 @@ fn int glnvgAllocFragUniforms(GlContext* gl, int n) @local {
 	gl.nuniforms += n;
 	return ret;
 }
-
-fn void glnvgVset(Vertex* vtx, float x, float y, float u, float v) @local => *vtx = { x, y, u, v };
 
 fn int glnvgRenderCreate(void* up) @local {
 	GlContext* gl = (GlContext*)up;
@@ -1012,7 +1017,7 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 	}
 	call.pathCount = npaths;
 	call.image = paint.image;
-	call.blendFunc = glnvgBlendcompositeOp(compositeOp);
+	call.blendFunc = glBlendCompositeOp(compositeOp);
 
 	if (npaths == 1 && paths[0].convex) {
 		call.type = (GlNvgCallType.CONVEXFILL);
@@ -1047,10 +1052,10 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 	if (call.type == (GlNvgCallType.FILL)) {
 		call.triangleOffset = offset;
 		quad = &gl.verts[call.triangleOffset];
-		glnvgVset(&quad[0], bounds[2], bounds[3], 0.5f, 1.0f);
-		glnvgVset(&quad[1], bounds[2], bounds[1], 0.5f, 1.0f);
-		glnvgVset(&quad[2], bounds[0], bounds[3], 0.5f, 1.0f);
-		glnvgVset(&quad[3], bounds[0], bounds[1], 0.5f, 1.0f);
+		quad[0] = { bounds[2], bounds[3], 0.5f, 1.0f };
+		quad[1] = { bounds[2], bounds[1], 0.5f, 1.0f };
+		quad[2] = { bounds[0], bounds[3], 0.5f, 1.0f };
+		quad[3] = { bounds[0], bounds[1], 0.5f, 1.0f };
 
 		call.uniformOffset = glnvgAllocFragUniforms(gl, 2);
 		if (call.uniformOffset == -1) {
@@ -1088,7 +1093,7 @@ fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, 
 	}
 	call.pathCount = npaths;
 	call.image = paint.image;
-	call.blendFunc = glnvgBlendcompositeOp(compositeOp);
+	call.blendFunc = glBlendCompositeOp(compositeOp);
 
 	maxverts = glnvgMaxVertCount(paths, npaths);
 	offset = glnvgAllocVerts(gl, maxverts);
@@ -1138,7 +1143,7 @@ fn void glnvgRenderTriangles(void* up, Paint* paint, CompositeOpState compositeO
 
 	call.type = (GlNvgCallType.TRIANGLES);
 	call.image = paint.image;
-	call.blendFunc = glnvgBlendcompositeOp(compositeOp);
+	call.blendFunc = glBlendCompositeOp(compositeOp);
 
 	call.triangleOffset = glnvgAllocVerts(gl, nverts);
 	if (call.triangleOffset == -1) {

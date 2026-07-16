@@ -1,16 +1,18 @@
 module microvg;
 
-const int BLEND_ZERO = 1 << 0;
-const int BLEND_ONE = 1 << 1;
-const int BLEND_SRC_COLOR = 1 << 2;
-const int BLEND_ONE_MINUS_SRC_COLOR = 1 << 3;
-const int BLEND_DST_COLOR = 1 << 4;
-const int BLEND_ONE_MINUS_DST_COLOR = 1 << 5;
-const int BLEND_SRC_ALPHA = 1 << 6;
-const int BLEND_ONE_MINUS_SRC_ALPHA = 1 << 7;
-const int BLEND_DST_ALPHA = 1 << 8;
-const int BLEND_ONE_MINUS_DST_ALPHA = 1 << 9;
-const int BLEND_SRC_ALPHA_SATURATE = 1 << 10;
+enum BlendFactor : char {
+	ZERO,
+	ONE,
+	SRC_COLOR,
+	ONE_MINUS_SRC_COLOR,
+	DST_COLOR,
+	ONE_MINUS_DST_COLOR,
+	SRC_ALPHA,
+	ONE_MINUS_SRC_ALPHA,
+	DST_ALPHA,
+	ONE_MINUS_DST_ALPHA,
+	SRC_ALPHA_SATURATE
+}
 
 const int IMAGE_GENERATE_MIPMAPS = 1 << 0;
 const int IMAGE_REPEATX = 1 << 1;

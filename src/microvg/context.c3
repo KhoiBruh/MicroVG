@@ -42,7 +42,7 @@ fn MicroVG* nvgCreateInternal(Params* params) {
 	MicroVG* vg = mem::calloc(MicroVG::size);
 	if (vg == null) return null;
 
-	vg.params = params[0];
+	vg.params = *params;
 
 	vg.commands = mem::malloc(PathCmd::size * INIT_COMMANDS_SIZE);
 	if (vg.commands == null) {
@@ -366,12 +366,12 @@ fn void MicroVG.globalCompositeOp(&self, CompositeOp op) {
 	state.compositeOp = op.state();
 }
 
-fn void MicroVG.globalCompositeBlendFunc(&self, int sfactor, int dfactor) =>
+fn void MicroVG.globalCompositeBlendFunc(&self, BlendFactor sfactor, BlendFactor dfactor) =>
 self.globalCompositeBlendFuncSeparate(sfactor, dfactor, sfactor, dfactor);
 
 fn void MicroVG.globalCompositeBlendFuncSeparate(
-&self, int srcRGB, int dstRGB,
-int srcAlpha, int dstAlpha
+&self, BlendFactor srcRGB, BlendFactor dstRGB,
+BlendFactor srcAlpha, BlendFactor dstAlpha
 ) {
 	CompositeOpState op;
 	op.srcRGB = srcRGB;
@@ -557,8 +557,6 @@ fn void nvgPolyReverse(Point* pts, int npts) {
 	}
 }
 
-fn void nvgVset(Vertex* vtx, float x, float y, float u, float v) => *vtx = { x, y, u, v };
-
 fn void MicroVG.tesselateBezier(&self,
 Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3,
 int level, PathPointFlags type
@@ -692,9 +690,9 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 		float a1 = math::atan2(-dly1, -dlx1);
 		if (a1 > a0) a1 -= PI * 2;
 
-		nvgVset(dst, lx0, ly0, lu, 1);
+		*dst = { lx0, ly0, lu, 1 };
 		dst++;
-		nvgVset(dst, p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+		*dst = { p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1 };
 		dst++;
 
 		int n = math::clamp((int)math::ceil(((a0 - a1) / PI) * ncap), 2, ncap);
@@ -703,15 +701,15 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 			float a = a0 + u * (a1 - a0);
 			float rx = p1.x + math::cos(a) * rw;
 			float ry = p1.y + math::sin(a) * rw;
-			nvgVset(dst, p1.x, p1.y, 0.5f, 1);
+			*dst = { p1.x, p1.y, 0.5f, 1 };
 			dst++;
-			nvgVset(dst, rx, ry, ru, 1);
+			*dst = { rx, ry, ru, 1 };
 			dst++;
 		}
 
-		nvgVset(dst, lx1, ly1, lu, 1);
+		*dst = { lx1, ly1, lu, 1 };
 		dst++;
-		nvgVset(dst, p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+		*dst = { p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1 };
 		dst++;
 	}
 	else {
@@ -721,9 +719,9 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 		float a1 = math::atan2(dly1, dlx1);
 		if (a1 < a0) a1 += PI * 2;
 
-		nvgVset(dst, p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1);
+		*dst = { p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1 };
 		dst++;
-		nvgVset(dst, rx0, ry0, ru, 1);
+		*dst = { rx0, ry0, ru, 1 };
 		dst++;
 
 		int n = math::clamp((int)math::ceil(((a1 - a0) / PI) * ncap), 2, ncap);
@@ -732,15 +730,15 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 			float a = a0 + u * (a1 - a0);
 			float lx = p1.x + math::cos(a) * lw;
 			float ly = p1.y + math::sin(a) * lw;
-			nvgVset(dst, lx, ly, lu, 1);
+			*dst = { lx, ly, lu, 1 };
 			dst++;
-			nvgVset(dst, p1.x, p1.y, 0.5f, 1);
+			*dst = { p1.x, p1.y, 0.5f, 1 };
 			dst++;
 		}
 
-		nvgVset(dst, p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1);
+		*dst = { p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1 };
 		dst++;
-		nvgVset(dst, rx1, ry1, ru, 1);
+		*dst = { rx1, ry1, ru, 1 };
 		dst++;
 	}
 
@@ -760,90 +758,90 @@ float lw, float rw, float lu, float ru, float fringe
 		float lx0, ly0, lx1, ly1;
 		nvgChooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 
-		nvgVset(dst, lx0, ly0, lu, 1);
+		*dst = { lx0, ly0, lu, 1 };
 		dst++;
-		nvgVset(dst, p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+		*dst = { p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1 };
 		dst++;
 
 		if (p1.flags.bevel) {
-			nvgVset(dst, lx0, ly0, lu, 1);
+			*dst = { lx0, ly0, lu, 1 };
 			dst++;
-			nvgVset(dst, p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+			*dst = { p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1 };
 			dst++;
 
-			nvgVset(dst, lx1, ly1, lu, 1);
+			*dst = { lx1, ly1, lu, 1 };
 			dst++;
-			nvgVset(dst, p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+			*dst = { p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1 };
 			dst++;
 		}
 		else {
 			float rx0 = p1.x - p1.dmx * rw;
 			float ry0 = p1.y - p1.dmy * rw;
 
-			nvgVset(dst, p1.x, p1.y, 0.5f, 1);
+			*dst = { p1.x, p1.y, 0.5f, 1 };
 			dst++;
-			nvgVset(dst, p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
-			dst++;
-
-			nvgVset(dst, rx0, ry0, ru, 1);
-			dst++;
-			nvgVset(dst, rx0, ry0, ru, 1);
+			*dst = { p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1 };
 			dst++;
 
-			nvgVset(dst, p1.x, p1.y, 0.5f, 1);
+			*dst = { rx0, ry0, ru, 1 };
 			dst++;
-			nvgVset(dst, p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+			*dst = { rx0, ry0, ru, 1 };
+			dst++;
+
+			*dst = { p1.x, p1.y, 0.5f, 1 };
+			dst++;
+			*dst = { p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1 };
 			dst++;
 		}
 
-		nvgVset(dst, lx1, ly1, lu, 1);
+		*dst = { lx1, ly1, lu, 1 };
 		dst++;
-		nvgVset(dst, p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+		*dst = { p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1 };
 		dst++;
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
 		nvgChooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 
-		nvgVset(dst, p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+		*dst = { p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1 };
 		dst++;
-		nvgVset(dst, rx0, ry0, ru, 1);
+		*dst = { rx0, ry0, ru, 1 };
 		dst++;
 
 		if (p1.flags.bevel) {
-			nvgVset(dst, p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+			*dst = { p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1 };
 			dst++;
-			nvgVset(dst, rx0, ry0, ru, 1);
+			*dst = { rx0, ry0, ru, 1 };
 			dst++;
 
-			nvgVset(dst, p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+			*dst = { p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1 };
 			dst++;
-			nvgVset(dst, rx1, ry1, ru, 1);
+			*dst = { rx1, ry1, ru, 1 };
 			dst++;
 		}
 		else {
 			float lx0 = p1.x + p1.dmx * lw;
 			float ly0 = p1.y + p1.dmy * lw;
 
-			nvgVset(dst, p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+			*dst = { p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1 };
 			dst++;
-			nvgVset(dst, p1.x, p1.y, 0.5f, 1);
-			dst++;
-
-			nvgVset(dst, lx0, ly0, lu, 1);
-			dst++;
-			nvgVset(dst, lx0, ly0, lu, 1);
+			*dst = { p1.x, p1.y, 0.5f, 1 };
 			dst++;
 
-			nvgVset(dst, p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+			*dst = { lx0, ly0, lu, 1 };
 			dst++;
-			nvgVset(dst, p1.x, p1.y, 0.5f, 1);
+			*dst = { lx0, ly0, lu, 1 };
+			dst++;
+
+			*dst = { p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1 };
+			dst++;
+			*dst = { p1.x, p1.y, 0.5f, 1 };
 			dst++;
 		}
 
-		nvgVset(dst, p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+		*dst = { p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1 };
 		dst++;
-		nvgVset(dst, rx1, ry1, ru, 1);
+		*dst = { rx1, ry1, ru, 1 };
 		dst++;
 	}
 
@@ -860,13 +858,13 @@ float aa, float u0, float u1
 	float dlx = dy;
 	float dly = -dx;
 
-	nvgVset(dst, px + dlx * w - dx * aa, py + dly * w - dy * aa, u0, 0);
+	*dst = { px + dlx * w - dx * aa, py + dly * w - dy * aa, u0, 0 };
 	dst++;
-	nvgVset(dst, px - dlx * w - dx * aa, py - dly * w - dy * aa, u1, 0);
+	*dst = { px - dlx * w - dx * aa, py - dly * w - dy * aa, u1, 0 };
 	dst++;
-	nvgVset(dst, px + dlx * w, py + dly * w, u0, 1);
+	*dst = { px + dlx * w, py + dly * w, u0, 1 };
 	dst++;
-	nvgVset(dst, px - dlx * w, py - dly * w, u1, 1);
+	*dst = { px - dlx * w, py - dly * w, u1, 1 };
 	dst++;
 
 	return dst;
@@ -882,13 +880,13 @@ float aa, float u0, float u1
 	float dlx = dy;
 	float dly = -dx;
 
-	nvgVset(dst, px + dlx * w, py + dly * w, u0, 1);
+	*dst = { px + dlx * w, py + dly * w, u0, 1 };
 	dst++;
-	nvgVset(dst, px - dlx * w, py - dly * w, u1, 1);
+	*dst = { px - dlx * w, py - dly * w, u1, 1 };
 	dst++;
-	nvgVset(dst, px + dlx * w + dx * aa, py + dly * w + dy * aa, u0, 0);
+	*dst = { px + dlx * w + dx * aa, py + dly * w + dy * aa, u0, 0 };
 	dst++;
-	nvgVset(dst, px - dlx * w + dx * aa, py - dly * w + dy * aa, u1, 0);
+	*dst = { px - dlx * w + dx * aa, py - dly * w + dy * aa, u1, 0 };
 	dst++;
 
 	return dst;
@@ -908,15 +906,15 @@ float aa, float u0, float u1
 		float a = i / (float)(ncap - 1) * PI;
 		float ax = math::cos(a) * w;
 		float ay = math::sin(a) * w;
-		nvgVset(dst, px - dlx * ax - dx * ay, py - dly * ax - dy * ay, u0, 1);
+		*dst = { px - dlx * ax - dx * ay, py - dly * ax - dy * ay, u0, 1 };
 		dst++;
-		nvgVset(dst, px, py, 0.5f, 1);
+		*dst = { px, py, 0.5f, 1 };
 		dst++;
 	}
 
-	nvgVset(dst, px + dlx * w, py + dly * w, u0, 1);
+	*dst = { px + dlx * w, py + dly * w, u0, 1 };
 	dst++;
-	nvgVset(dst, px - dlx * w, py - dly * w, u1, 1);
+	*dst = { px - dlx * w, py - dly * w, u1, 1 };
 	dst++;
 
 	return dst;
@@ -932,18 +930,18 @@ float aa, float u0, float u1
 	float dlx = dy;
 	float dly = -dx;
 
-	nvgVset(dst, px + dlx * w, py + dly * w, u0, 1);
+	*dst = { px + dlx * w, py + dly * w, u0, 1 };
 	dst++;
-	nvgVset(dst, px - dlx * w, py - dly * w, u1, 1);
+	*dst = { px - dlx * w, py - dly * w, u1, 1 };
 	dst++;
 
 	for (int i = 0; i < ncap; i++) {
 		float a = i / (float)(ncap - 1) * PI;
 		float ax = math::cos(a) * w;
 		float ay = math::sin(a) * w;
-		nvgVset(dst, px, py, 0.5f, 1);
+		*dst = { px, py, 0.5f, 1 };
 		dst++;
-		nvgVset(dst, px - dlx * ax + dx * ay, py - dly * ax + dy * ay, u0, 1);
+		*dst = { px - dlx * ax + dx * ay, py - dly * ax + dy * ay, u0, 1 };
 		dst++;
 	}
 
@@ -1106,9 +1104,9 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 				}
 			}
 			else {
-				nvgVset(dst, p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), u0, 1);
+				*dst = { p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), u0, 1 };
 				dst++;
-				nvgVset(dst, p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), u1, 1);
+				*dst = { p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), u1, 1 };
 				dst++;
 			}
 			p0 = p1;
@@ -1116,9 +1114,9 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		}
 
 		if (loop) {
-			nvgVset(dst, verts[0].x, verts[0].y, u0, 1);
+			*dst = { verts[0].x, verts[0].y, u0, 1 };
 			dst++;
-			nvgVset(dst, verts[1].x, verts[1].y, u1, 1);
+			*dst = { verts[1].x, verts[1].y, u1, 1 };
 			dst++;
 		}
 		else {
@@ -1191,7 +1189,7 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 					if (p1.flags.left) {
 						float lx = p1.x + p1.dmx * woff;
 						float ly = p1.y + p1.dmy * woff;
-						nvgVset(dst, lx, ly, 0.5f, 1);
+						*dst = { lx, ly, 0.5f, 1 };
 						dst++;
 					}
 					else {
@@ -1199,14 +1197,14 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 						float ly0 = p1.y + dly0 * woff;
 						float lx1 = p1.x + dlx1 * woff;
 						float ly1 = p1.y + dly1 * woff;
-						nvgVset(dst, lx0, ly0, 0.5f, 1);
+						*dst = { lx0, ly0, 0.5f, 1 };
 						dst++;
-						nvgVset(dst, lx1, ly1, 0.5f, 1);
+						*dst = { lx1, ly1, 0.5f, 1 };
 						dst++;
 					}
 				}
 				else {
-					nvgVset(dst, p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5f, 1);
+					*dst = { p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5f, 1 };
 					dst++;
 				}
 				p0 = p1;
@@ -1215,7 +1213,7 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 		}
 		else {
 			for (int j = 0; j < path.count; j++) {
-				nvgVset(dst, pts[j].x, pts[j].y, 0.5f, 1);
+				*dst = { pts[j].x, pts[j].y, 0.5f, 1 };
 				dst++;
 			}
 		}
@@ -1244,18 +1242,18 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 					dst = nvgBevelJoin(dst, p0, p1, lw, rw, lu, ru, self.fringeWidth);
 				}
 				else {
-					nvgVset(dst, p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1);
+					*dst = { p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1 };
 					dst++;
-					nvgVset(dst, p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1);
+					*dst = { p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1 };
 					dst++;
 				}
 				p0 = p1;
 				p1++;
 			}
 
-			nvgVset(dst, verts[0].x, verts[0].y, lu, 1);
+			*dst = { verts[0].x, verts[0].y, lu, 1 };
 			dst++;
-			nvgVset(dst, verts[1].x, verts[1].y, ru, 1);
+			*dst = { verts[1].x, verts[1].y, ru, 1 };
 			dst++;
 
 			path.nstroke = (int)(dst - verts);

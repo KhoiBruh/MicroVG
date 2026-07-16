@@ -15,10 +15,10 @@ enum CompositeOp : char {
 }
 
 struct CompositeOpState {
-	int srcRGB;
-	int dstRGB;
-	int srcAlpha;
-	int dstAlpha;
+	BlendFactor srcRGB;
+	BlendFactor dstRGB;
+	BlendFactor srcAlpha;
+	BlendFactor dstAlpha;
 }
 
 struct Scissor {
@@ -41,57 +41,57 @@ struct State {
 }
 
 fn CompositeOpState CompositeOp.state(self) {
-	int sfactor;
-	int dfactor;
+	BlendFactor sfactor;
+	BlendFactor dfactor;
 
 	switch (self) {
 		case CompositeOp.SOURCE_OVER:
-			sfactor = BLEND_ONE;
-			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
+			sfactor = BlendFactor.ONE;
+			dfactor = BlendFactor.ONE_MINUS_SRC_ALPHA;
 
 		case CompositeOp.SOURCE_IN:
-			sfactor = BLEND_DST_ALPHA;
-			dfactor = BLEND_ZERO;
+			sfactor = BlendFactor.DST_ALPHA;
+			dfactor = BlendFactor.ZERO;
 
 		case CompositeOp.SOURCE_OUT:
-			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-			dfactor = BLEND_ZERO;
+			sfactor = BlendFactor.ONE_MINUS_DST_ALPHA;
+			dfactor = BlendFactor.ZERO;
 
 		case CompositeOp.ATOP:
-			sfactor = BLEND_DST_ALPHA;
-			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
+			sfactor = BlendFactor.DST_ALPHA;
+			dfactor = BlendFactor.ONE_MINUS_SRC_ALPHA;
 
 		case CompositeOp.DESTINATION_OVER:
-			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-			dfactor = BLEND_ONE;
+			sfactor = BlendFactor.ONE_MINUS_DST_ALPHA;
+			dfactor = BlendFactor.ONE;
 
 		case CompositeOp.DESTINATION_IN:
-			sfactor = BLEND_ZERO;
-			dfactor = BLEND_SRC_ALPHA;
+			sfactor = BlendFactor.ZERO;
+			dfactor = BlendFactor.SRC_ALPHA;
 
 		case CompositeOp.DESTINATION_OUT:
-			sfactor = BLEND_ZERO;
-			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
+			sfactor = BlendFactor.ZERO;
+			dfactor = BlendFactor.ONE_MINUS_SRC_ALPHA;
 
 		case CompositeOp.DESTINATION_ATOP:
-			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-			dfactor = BLEND_SRC_ALPHA;
+			sfactor = BlendFactor.ONE_MINUS_DST_ALPHA;
+			dfactor = BlendFactor.SRC_ALPHA;
 
 		case CompositeOp.LIGHTER:
-			sfactor = BLEND_ONE;
-			dfactor = BLEND_ONE;
+			sfactor = BlendFactor.ONE;
+			dfactor = BlendFactor.ONE;
 
 		case CompositeOp.COPY:
-			sfactor = BLEND_ONE;
-			dfactor = BLEND_ZERO;
+			sfactor = BlendFactor.ONE;
+			dfactor = BlendFactor.ZERO;
 
 		case CompositeOp.XOR:
-			sfactor = BLEND_ONE_MINUS_DST_ALPHA;
-			dfactor = BLEND_ONE_MINUS_SRC_ALPHA;
+			sfactor = BlendFactor.ONE_MINUS_DST_ALPHA;
+			dfactor = BlendFactor.ONE_MINUS_SRC_ALPHA;
 
 		default:
-			sfactor = BLEND_ONE;
-			dfactor = BLEND_ZERO;
+			sfactor = BlendFactor.ONE;
+			dfactor = BlendFactor.ZERO;
 	}
 
 	CompositeOpState state;
