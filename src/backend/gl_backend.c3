@@ -330,7 +330,7 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, Paint* paint, Scis
 		frag.scissorScale.y = 1.0f;
 	}
 	else {
-		microvg::nvgTransformInverse(&invxform, &scissor.form);
+		invxform = scissor.form.inverse();
 		glnvgXformToMat3x4(&frag.scissorMat[0], &invxform);
 		frag.scissorExt.x = scissor.extent.x;
 		frag.scissorExt.y = scissor.extent.y;
@@ -354,10 +354,10 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, Paint* paint, Scis
 			microvg::nvgTransformMultiply(&m2, &m1);
 			microvg::nvgTransformTranslate(&m1, 0.0f, -frag.extent.y * 0.5f);
 			microvg::nvgTransformMultiply(&m1, &m2);
-			microvg::nvgTransformInverse(&invxform, &m1);
+			invxform = m1.inverse();
 		}
 		else {
-			microvg::nvgTransformInverse(&invxform, &paint.form);
+			invxform = paint.form.inverse();
 		}
 		frag.type = (NsvgShader.FILLIMG);
 		if (tex.type == TextureType.RGBA) {
@@ -371,7 +371,7 @@ fn int glnvgConvertPaint(GlContext* gl, GlFragUniforms* frag, Paint* paint, Scis
 		frag.type = (NsvgShader.FILLGRAD);
 		frag.radius = paint.radius;
 		frag.feather = paint.feather;
-		microvg::nvgTransformInverse(&invxform, &paint.form);
+		invxform = paint.form.inverse();
 	}
 
 	glnvgXformToMat3x4(&frag.paintMat[0], &invxform);

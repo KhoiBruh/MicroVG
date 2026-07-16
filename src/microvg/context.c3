@@ -160,12 +160,6 @@ fn void MicroVG.globalAlpha(&self, float alpha) {
 	state.alpha = alpha;
 }
 
-fn void MicroVG.transform(&self, float a, float b, float c, float d, float e, float f) {
-	State* state = self.getState();
-	Mat2x3 t = { { a, b, c, d }, { e, f } };
-	nvgTransformPremultiply(&state.form, &t);
-}
-
 fn void MicroVG.resetTransform(&self) {
 	State* state = self.getState();
 	state.form.identity();
@@ -301,7 +295,8 @@ float angle, int image, float alpha
 	Paint p;
 	mem::clear(&p, Paint::size);
 
-	nvgTransformRotate(&p.form, angle);
+	p.form.identity();
+	p.form.rotate(angle);
 	p.form.trans.x = cx;
 	p.form.trans.y = cy;
 
@@ -349,10 +344,10 @@ fn void MicroVG.intersectScissor(&self, float x, float y, float w, float h) {
 	}
 
 	Mat2x3 pform = state.scissor.form;
-	Mat2x3 invxorm;
+	Mat2x3 invform;
 	Vec2 ex = state.scissor.extent;
-	nvgTransformInverse(&invxorm, &state.form);
-	nvgTransformMultiply(&pform, &invxorm);
+	invform = state.form.inverse();
+	nvgTransformMultiply(&pform, &invform);
 	float tex = ex.x * math::abs(pform.linear.x) + ex.y * math::abs(pform.linear.z);
 	float tey = ex.x * math::abs(pform.linear.y) + ex.y * math::abs(pform.linear.w);
 
