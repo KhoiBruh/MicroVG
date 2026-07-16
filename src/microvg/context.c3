@@ -996,21 +996,21 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		cverts += path.count * 2;
 
 		if (lineJoin == LineJoin.ROUND) {
-			cverts += path.nbevel * (SDF_JOIN_SEGS * 2 + 4);
+			cverts += path.nbevel * (SDF_JOIN_SEGS * 2 + 4 + 4);
 		}
 		else {
 			cverts += path.nbevel * 5 * 2;
 		}
 
-		cstrokeData += path.nbevel * (SDF_JOIN_SEGS * 2 + 4);
+		cstrokeData += path.nbevel * (SDF_JOIN_SEGS * 2 + 4 + 4);
 
 		if (loop) {
 			cverts += 2;
 		}
 		else {
 			if (lineCap == LineCap.ROUND) {
-				cverts += (SDF_JOIN_SEGS * 2 + 4) * 2;
-				cstrokeData += (SDF_JOIN_SEGS * 2 + 4) * 2;
+				cverts += (SDF_JOIN_SEGS * 2 + 4) * 2 + 4;
+				cstrokeData += (SDF_JOIN_SEGS * 2 + 4) * 2 + 4;
 			}
 			else {
 				cverts += 12;
@@ -1036,7 +1036,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 		int sdCount = path.count * 2;
 		if (lineJoin == LineJoin.ROUND) {
-			sdCount += path.nbevel * (SDF_JOIN_SEGS * 2 + 4);
+			sdCount += path.nbevel * (SDF_JOIN_SEGS * 2 + 4 + 4);
 		}
 		else {
 			sdCount += path.nbevel * 10;
@@ -1045,7 +1045,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 			sdCount += 2;
 		}
 		else {
-			sdCount += (lineCap == LineCap.ROUND) ? (SDF_JOIN_SEGS * 2 + 4) * 2 : 12;
+			sdCount += (lineCap == LineCap.ROUND) ? (SDF_JOIN_SEGS * 2 + 4) * 2 + 4 : 12;
 		}
 
 		path.strokeData = mem::malloc((sz)sdCount * 4 * float::size);
@@ -1092,7 +1092,18 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 				case LineCap.ROUND:
 				{
 					float r = w + aa * 0.5f;
+					Vertex* before = dst;
 					dst = nvgSdfCapFan(dst, sdst, p0.x, p0.y, dx, dy, r, aa, -1.0f);
+					sdst += (sz)(dst - before) * 4;
+					// Add connector vertices to bridge from SDF (v=2) to body (v=1)
+					float dlx = dy;
+					float dly = -dx;
+					*dst = { p0.x + dlx * w, p0.y + dly * w, u0, 1 };
+					dst++;
+					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+					*dst = { p0.x - dlx * w, p0.y - dly * w, u1, 1 };
+					dst++;
+					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 				}
 			}
 		}
@@ -1120,16 +1131,45 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		for (int j = s; j < e; j++) {
 			if ((p1.flags.bevel || p1.flags.innerBevel)) {
 				if (lineJoin == LineJoin.ROUND) {
-					float a0 = math::atan2(p1.dy, p1.dx);
-					float a1 = math::atan2(p0.dy, p0.dx);
+					float a0;
+					float a1;
 					if (p1.flags.left) {
-						if (a1 < a0) a1 += PI * 2;
-					}
-					else {
+						// Left turn: fan on the right (outer) side
+						// Normal of p0: dlx0 = p0.dy, dly0 = -p0.dx
+						// Negated normal: -dlx0 = -p0.dy, -dly0 = p0.dx
+						a0 = math::atan2(p0.dx, -p0.dy);
+						a1 = math::atan2(p1.dx, -p1.dy);
 						if (a1 > a0) a1 -= PI * 2;
 					}
+					else {
+						// Right turn: fan on the left (outer) side
+						// Normal of p0: dlx0 = p0.dy, dly0 = -p0.dx
+						a0 = math::atan2(-p0.dx, p0.dy);
+						a1 = math::atan2(-p1.dx, p1.dy);
+						if (a1 < a0) a1 += PI * 2;
+					}
 					float r = w + aa * 0.5f;
+					// Add connector before fan: bridge from body (v=1) to SDF (v=2)
+					float dlx0 = p0.dy;
+					float dly0 = -p0.dx;
+					*dst = { p1.x + dlx0 * w, p1.y + dly0 * w, u0, 1 };
+					dst++;
+					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+					*dst = { p1.x - dlx0 * w, p1.y - dly0 * w, u1, 1 };
+					dst++;
+					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+					Vertex* before = dst;
 					dst = nvgSdfJoinFan(dst, sdst, p1.x, p1.y, a0, a1, r, aa);
+					sdst += (sz)(dst - before) * 4;
+					// Add connector after fan: bridge from SDF (v=2) to body (v=1)
+					float dlx1 = p1.dy;
+					float dly1 = -p1.dx;
+					*dst = { p1.x + dlx1 * w, p1.y + dly1 * w, u0, 1 };
+					dst++;
+					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+					*dst = { p1.x - dlx1 * w, p1.y - dly1 * w, u1, 1 };
+					dst++;
+					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 				}
 				else {
 					Vertex* before = dst;
@@ -1183,7 +1223,18 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 				case LineCap.ROUND:
 				{
 					float r = w + aa * 0.5f;
+					// Add connector before fan: bridge from body (v=1) to SDF (v=2)
+					float dlx = dy;
+					float dly = -dx;
+					*dst = { p1.x + dlx * w, p1.y + dly * w, u0, 1 };
+					dst++;
+					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+					*dst = { p1.x - dlx * w, p1.y - dly * w, u1, 1 };
+					dst++;
+					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+					Vertex* before = dst;
 					dst = nvgSdfCapFan(dst, sdst, p1.x, p1.y, dx, dy, r, aa, 1.0f);
+					sdst += (sz)(dst - before) * 4;
 				}
 			}
 		}
