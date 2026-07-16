@@ -370,7 +370,8 @@ fn int GlContext.convertPaint(&self, GlFragUniforms* frag, Paint* paint, Scissor
 		}
 	}
 	else {
-		frag.type = (NsvgShader.FILLGRAD);
+		frag.type = NsvgShader.FILLGRAD;
+		frag.texType = (int)paint.gradientType;
 		frag.radius = paint.radius;
 		frag.feather = paint.feather;
 		invxform = paint.form.inverse();
@@ -712,15 +713,23 @@ fn int glnvgRenderCreate(void* up) @local {
 		void main(void) {
 			vec4 result;
 			float scissor = scissorMask(fpos);
-		#ifdef EDGE_AA
+	#ifdef EDGE_AA
 			float strokeAlpha = strokeMask();
 			if (strokeAlpha < strokeThr) discard;
-		#else
+	#else
 			float strokeAlpha = 1.0;
-		#endif
+	#endif
 			if (type == 0) {
 				vec2 pt = (paintMat * vec3(fpos,1.0)).xy;
-				float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);
+				float d;
+				if (texType == 0) {
+					d = clamp(pt.x / max(extent.x, 1e-6), 0.0, 1.0);
+				} else if (texType == 1) {
+					float dist = length(pt);
+					d = clamp((dist - radius + feather * 0.5) / feather, 0.0, 1.0);
+				} else {
+					d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);
+				}
 				vec4 color = mix(innerCol,outerCol,d);
 				color *= strokeAlpha * scissor;
 				result = color;

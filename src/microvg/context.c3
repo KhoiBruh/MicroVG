@@ -222,20 +222,26 @@ fn Paint MicroVG.linearGradient(
 Color icol, Color ocol
 ) {
 	Paint p;
-	float large = 1e5f;
+	mem::clear(&p, Paint::size);
+	p.gradientType = GradientType.LINEAR;
 
 	Vec2 d = { ex - sx, ey - sy };
 	float len = d.length();
+	if (len < 1e-6f) {
+		p.form.identity();
+		p.innerColor = icol;
+		p.outerColor = ocol;
+		p.feather = 1.0f;
+		return p;
+	}
 	d = d.normalize();
 
-	Vec2 s = { sx, sy };
-
-	p.form.linear = { d.y, -d.x, d.x, d.y };
-	p.form.trans = s - d * large;
-	p.extent = { large, large + len * 0.5f };
+	p.form.linear = { d.x, d.y, -d.y, d.x };
+	p.form.trans = { sx, sy };
+	p.extent = { len, 0.0f };
 
 	p.radius = 0.0f;
-	p.feather = math::max(1.0f, len);
+	p.feather = 0.0f;
 	p.image = 0;
 
 	p.innerColor = icol;
@@ -249,6 +255,9 @@ fn Paint MicroVG.radialGradient(
 Color icol, Color ocol
 ) {
 	Paint p;
+	mem::clear(&p, Paint::size);
+	p.gradientType = GradientType.RADIAL;
+
 	float r = (inr + outr) * 0.5f;
 	float f = outr - inr;
 
@@ -272,6 +281,8 @@ fn Paint MicroVG.boxGradient(
 Color icol, Color ocol
 ) {
 	Paint p;
+	mem::clear(&p, Paint::size);
+	p.gradientType = GradientType.BOX;
 
 	p.form.identity();
 	p.form.trans = { x + w * 0.5f, y + h * 0.5f };
@@ -293,6 +304,7 @@ float angle, int image, float alpha
 ) {
 	Paint p;
 	mem::clear(&p, Paint::size);
+	p.gradientType = GradientType.LINEAR;
 
 	p.form.identity();
 	p.form.rotate(angle);

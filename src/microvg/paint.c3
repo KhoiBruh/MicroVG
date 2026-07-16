@@ -4,6 +4,12 @@ import std::math;
 
 alias Color = float[<4>];
 
+enum GradientType : char {
+	LINEAR,
+	RADIAL,
+	BOX
+}
+
 fn Color rgb(char r, char g, char b) => rgba(r, g, b, 255);
 
 fn Color rgbf(float r, float g, float b) => rgbaf(r, g, b, 1.0f);
@@ -76,6 +82,7 @@ struct Paint {
 	Color innerColor;
 	Color outerColor;
 	int image;
+	GradientType gradientType;
 }
 
 fn void Paint.color(&self, Color color) {
@@ -85,4 +92,5 @@ fn void Paint.color(&self, Color color) {
 	self.feather = 1.0f;
 	self.innerColor = color;
 	self.outerColor = color;
+	self.gradientType = GradientType.LINEAR;
 }
