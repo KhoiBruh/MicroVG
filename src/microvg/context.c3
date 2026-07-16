@@ -571,28 +571,50 @@ fn void nvgPolyReverse(Point* pts, int npts) {
 
 fn void MicroVG.tesselateBezier(&self,
 Vec2 p0, Vec2 p1, Vec2 p2, Vec2 p3,
-int level, PathPointFlags type
+PathPointFlags type
 ) {
-	if (level > 10) return;
+	Vec2 chord = p3 - p0;
+	float chord_len2 = chord.dot(chord);
 
-	Vec2 p01 = p0.half(p1);
-	Vec2 p12 = p1.half(p2);
-	Vec2 p23 = p2.half(p3);
-	Vec2 p012 = p01.half(p12);
-	Vec2 p123 = p12.half(p23);
-	Vec2 p0123 = p012.half(p123);
-
-	Vec2 d0 = p3 - p0;
-	float d2 = math::abs((p1 - p3).cross(d0));
-	float d3 = math::abs((p2 - p3).cross(d0));
-
-	if ((d2 + d3) * (d2 + d3) < self.tessTol * d0.dot(d0)) {
-		self.addPoint(p3, type);
-		return;
+	float max_dev = 0.0f;
+	if (chord_len2 > 1e-12f) {
+		float chord_len = math::sqrt(chord_len2);
+		float dev1 = math::abs((p1 - p0).cross(chord)) / chord_len;
+		float dev2 = math::abs((p2 - p0).cross(chord)) / chord_len;
+		max_dev = math::max(dev1, dev2);
 	}
 
-	self.tesselateBezier(p0, p01, p012, p0123, level + 1, (PathPointFlags)0);
-	self.tesselateBezier(p0123, p123, p23, p3, level + 1, type);
+	int nsteps;
+	if (max_dev <= self.tessTol) {
+		nsteps = 2;
+	}
+	else {
+		nsteps = (int)math::ceil(math::sqrt(max_dev / self.tessTol));
+	}
+	nsteps = math::clamp(nsteps, 2, 4096);
+
+	float h = 1.0f / (float)nsteps;
+	float h2 = h * h;
+	float h3 = h2 * h;
+
+	Vec2 pa = p0;
+	Vec2 pb = (p1 - p0) * 3.0f;
+	Vec2 pc = (p2 - p1 * 2.0f + p0) * 3.0f;
+	Vec2 pd = p3 - p2 * 3.0f + p1 * 3.0f - p0;
+
+	Vec2 f = pa;
+	Vec2 df = pb * h + pc * h2 + pd * h3;
+	Vec2 d2f = pc * (2.0f * h2) + pd * (6.0f * h3);
+	Vec2 d3f = pd * (6.0f * h3);
+
+	for (int i = 1; i < nsteps; i++) {
+		f = f + df;
+		df = df + d2f;
+		d2f = d2f + d3f;
+		self.addPoint(f, PT_NONE);
+	}
+
+	self.addPoint(p3, type);
 }
 
 fn void MicroVG.flattenPaths(&self) {
@@ -614,9 +636,9 @@ fn void MicroVG.flattenPaths(&self) {
 			case PathCommand.BEZIER:
 				Point* last = self.lastPoint();
 				if (last != null) self.tesselateBezier(
-					{ last.x, last.y },
-					cmd.p0, cmd.p1, cmd.p2,
-					0, PT_CORNER
+				{ last.x, last.y },
+				cmd.p0, cmd.p1, cmd.p2,
+				PT_CORNER
 				);
 
 			case PathCommand.CLOSE:

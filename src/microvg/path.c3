@@ -32,6 +32,7 @@ bitstruct PathPointFlags : char {
 	bool innerBevel : 3..3;
 }
 
+const PathPointFlags PT_NONE = { false, false, false, false };
 const PathPointFlags PT_CORNER = { .corner = true };
 const PathPointFlags PT_LEFT = { .left = true };
 const PathPointFlags PT_BEVEL = { .bevel = true };
