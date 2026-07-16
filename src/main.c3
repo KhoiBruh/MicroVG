@@ -51,7 +51,7 @@ fn void main(String[] args) {
     }
     io::printfn("OpenGL loaded (version tag %d)", loaded);
 
-    microvg::MicroVG* vg = glbackend::nvgCreateGl3(glbackend::NVG_ANTIALIAS | glbackend::NVG_STENCIL_STROKES);
+    microvg::MicroVG* vg = glbackend::nvgCreateGl3(glbackend::ANTIALIAS | glbackend::STENCIL_STROKES);
     defer vg.destroy();
 
     if (vg == null) {

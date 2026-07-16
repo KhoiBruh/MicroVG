@@ -27,6 +27,13 @@ fn Color Color.alphaf(self, float a) {
 	return self;
 }
 
+fn Color Color.premul(self) {
+	self.r *= self.a;
+	self.g *= self.a;
+	self.b *= self.a;
+	return self;
+}
+
 fn Color hsl(float h, float s, float l) => hsla(h, s, l, 255);
 
 fn Color hsla(float h, float s, float l, char a) {
