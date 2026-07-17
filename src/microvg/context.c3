@@ -944,6 +944,54 @@ float lw, float rw, float lu, float ru, float fringe
 	return dst;
 }
 
+fn Vertex* nvgRoundJoinBody(
+	Vertex* dst, Point* p0, Point* p1,
+	float w, float u0, float u1
+) @private {
+	float dlx0 = p0.dy;
+	float dly0 = -p0.dx;
+	float dlx1 = p1.dy;
+	float dly1 = -p1.dx;
+	float inner0x, inner0y, inner1x, inner1y;
+
+	if (p1.flags.left) {
+		nvgChooseBevel(p1.flags.innerBevel, p0, p1, w, &inner0x, &inner0y, &inner1x, &inner1y);
+		Vertex outer0 = { p1.x - dlx0 * w, p1.y - dly0 * w, u1, 1 };
+		Vertex inner0 = { inner0x, inner0y, u0, 1 };
+		Vertex inner1 = { inner1x, inner1y, u0, 1 };
+		Vertex outer1 = { p1.x - dlx1 * w, p1.y - dly1 * w, u1, 1 };
+
+		*dst = inner0; dst++;
+		*dst = outer0; dst++;
+		*dst = outer0; dst++;
+		*dst = inner0; dst++;
+		*dst = inner0; dst++;
+		*dst = { p1.x, p1.y, 0.5f, 1 }; dst++;
+		*dst = inner1; dst++;
+		*dst = inner1; dst++;
+		*dst = outer1; dst++;
+	}
+	else {
+		nvgChooseBevel(p1.flags.innerBevel, p0, p1, -w, &inner0x, &inner0y, &inner1x, &inner1y);
+		Vertex outer0 = { p1.x + dlx0 * w, p1.y + dly0 * w, u0, 1 };
+		Vertex inner0 = { inner0x, inner0y, u1, 1 };
+		Vertex inner1 = { inner1x, inner1y, u1, 1 };
+		Vertex outer1 = { p1.x + dlx1 * w, p1.y + dly1 * w, u0, 1 };
+
+		*dst = outer0; dst++;
+		*dst = inner0; dst++;
+		*dst = inner0; dst++;
+		*dst = inner0; dst++;
+		*dst = { p1.x, p1.y, 0.5f, 1 }; dst++;
+		*dst = inner1; dst++;
+		*dst = inner1; dst++;
+		*dst = outer1; dst++;
+		*dst = inner1; dst++;
+	}
+
+	return dst;
+}
+
 fn Vertex* nvgButtCapStart(
 Vertex* dst, Point* p,
 float dx, float dy, float w, float d,
@@ -1048,6 +1096,36 @@ fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLim
 	}
 }
 
+fn int nvgStrokeBodyVertexCount(MvgPath* path, Point* pts, LineCap lineCap, LineJoin lineJoin) @private {
+	if (path.count < 2) return 0;
+
+	int count = 0;
+	int start;
+	int end;
+	if (path.closed != 0) {
+		start = 0;
+		end = path.count;
+		count = 2;
+	}
+	else {
+		start = 1;
+		end = path.count - 1;
+		count = (lineCap == LineCap.ROUND) ? 4 : 8;
+		if (path.count == 2 && lineCap != LineCap.ROUND) count += 4;
+	}
+
+	for (int i = start; i < end; i++) {
+		Point* point = &pts[i];
+		if (point.flags.bevel || point.flags.innerBevel) {
+			count += (lineJoin == LineJoin.ROUND) ? 9 : 10;
+		}
+		else {
+			count += 2;
+		}
+	}
+	return count;
+}
+
 fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJoin lineJoin, float miterLimit) {
 	PathCache* cache = self.cache;
 	float aa = fringe;
@@ -1066,19 +1144,8 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 	int cverts = 0;
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
-		int loop = (path.closed == 0) ? 0 : 1;
-
-		cverts += path.count * 2;
-		cverts += path.nbevel * 5 * 2;
-
-		if (loop) {
-			cverts += 2;
-		}
-		else {
-			if (lineCap != LineCap.ROUND) {
-				cverts += 12;
-			}
-		}
+		Point* pts = &cache.points[path.first];
+		cverts += nvgStrokeBodyVertexCount(path, pts, lineCap, lineJoin);
 	}
 
 	Vertex* verts = self.allocTempVerts(cverts);
@@ -1097,13 +1164,8 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 		loop = (path.closed == 0) ? 0 : 1;
 
-		int sdCount = path.count * 2 + path.nbevel * 10;
-		if (loop) {
-			sdCount += 2;
-		}
-		else {
-			if (lineCap != LineCap.ROUND) sdCount += 12;
-		}
+		int bodyCount = nvgStrokeBodyVertexCount(path, pts, lineCap, lineJoin);
+		int sdCount = bodyCount;
 
 		path.strokeData = mem::malloc((sz)sdCount * 4 * float::size);
 		float* sdst = path.strokeData;
@@ -1239,7 +1301,12 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		for (int j = s; j < e; j++) {
 			if ((p1.flags.bevel || p1.flags.innerBevel)) {
 				Vertex* before = dst;
-				dst = nvgBevelJoin(dst, p0, p1, w, w, u0, u1, aa);
+				if (lineJoin == LineJoin.ROUND) {
+					dst = nvgRoundJoinBody(dst, p0, p1, w, u0, u1);
+				}
+				else {
+					dst = nvgBevelJoin(dst, p0, p1, w, w, u0, u1, aa);
+				}
 				int n = (int)(dst - before);
 				for (int k = 0; k < n; k++) { sdst[0]=0; sdst[1]=0; sdst[2]=aa; sdst[3]=0; sdst += 4; }
 			}
@@ -1300,6 +1367,8 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		}
 
 		path.nstroke = (int)(dst - verts);
+		assert(path.nstroke == bodyCount);
+		assert((int)(sdst - path.strokeData) == bodyCount * 4);
 
 		verts = dst;
 	}
