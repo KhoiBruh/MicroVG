@@ -49,7 +49,7 @@ fn void main(String[] args) {
     }
     io::printfn("OpenGL loaded (version tag %d)", loaded);
 
-    microvg::MicroVG* vg = glbackend::nvgCreateGl3(glbackend::ANTIALIAS | glbackend::STENCIL_STROKES);
+    microvg::MicroVG* vg = glbackend::nvgCreateGl3(glbackend::ANTIALIAS);
     defer vg.destroy();
 
     if (vg == null) {
@@ -266,6 +266,34 @@ fn void drawScene(microvg::MicroVG* vg, float w, float h, float t) {
     vg.fill();
     vg.strokeColor(microvg::rgba(255, 255, 255, 150));
     vg.strokeWidth(2.0f);
+    vg.stroke();
+
+    vg.beginPath();
+    vg.moveTo(920.0f, 390.0f);
+    vg.lineTo(980.0f, 390.0f);
+    vg.strokeColor(microvg::rgba(255, 255, 255, 220));
+    vg.strokeWidth(2.0f);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
+
+    vg.beginPath();
+    vg.moveTo(930.0f, 430.0f);
+    vg.lineTo(950.0f, 470.0f);
+    vg.lineTo(910.0f, 490.0f);
+    vg.strokeColor(microvg::rgba(255, 180, 0, 255));
+    vg.strokeWidth(12.0f);
+    vg.lineJoin(LineJoin.ROUND);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
+
+    vg.beginPath();
+    vg.moveTo(930.0f, 540.0f);
+    vg.lineTo(950.0f, 510.0f);
+    vg.lineTo(910.0f, 510.0f);
+    vg.strokeColor(microvg::rgba(0, 220, 255, 255));
+    vg.strokeWidth(12.0f);
+    vg.lineJoin(LineJoin.ROUND);
+    vg.lineCap(LineCap.ROUND);
     vg.stroke();
 
     vg.save();
