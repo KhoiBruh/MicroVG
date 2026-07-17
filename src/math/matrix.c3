@@ -12,14 +12,15 @@ const Mat2x3 IDENTITY_2X3 = {
 	{ 0, 0 }
 };
 
-fn Vec2 Mat2x3.transform(self, Vec2 v) => self * v;
+fn Mat2x3* Mat2x3.identity(&self) {
+	*self = IDENTITY_2X3;
+	return self;
+}
 
 fn Vec2 Mat2x3.apply(self, Vec2 v) @operator(*) => {
 	self.linear.x * v.x + self.linear.z * v.y + self.trans.x,
 	self.linear.y * v.x + self.linear.w * v.y + self.trans.y
 };
-
-fn void Mat2x3.identity(&self) => *self = IDENTITY_2X3;
 
 fn void Mat2x3.translate(&self, float x, float y) {
 	self.trans.x += self.linear.x * x + self.linear.z * y;
@@ -96,4 +97,10 @@ fn Mat2x3 Mat2x3.inverse(self) {
 			(self.linear.y * self.trans.x - self.linear.x * self.trans.y) * invdet
 		}
 	};
+}
+
+fn void Mat2x3.toMat3x4(self, float* m) {
+	m[0] = self.linear.x; m[1] = self.linear.y; m[2] = 0; m[3] = 0;
+	m[4] = self.linear.z; m[5] = self.linear.w; m[6] = 0; m[7] = 0;
+	m[8] = self.trans.x; m[9] = self.trans.y; m[10] = 1; m[11] = 0;
 }

@@ -38,7 +38,7 @@ fn void MicroVG.setPxRatio(&self, float ratio) {
 
 fn State* MicroVG.getState(&self) => &self.states[self.nstates - 1];
 
-fn MicroVG* nvgCreateInternal(Params* params) {
+fn MicroVG* createInternal(Params* params) {
 	MicroVG* vg = mem::calloc(MicroVG::size);
 	if (vg == null) return null;
 
@@ -162,18 +162,18 @@ fn void MicroVG.globalAlpha(&self, float alpha) {
 
 fn void MicroVG.resetTransform(&self) {
 	State* state = self.getState();
-	state.form.identity();
+	state.identity();
 }
 
-fn void MicroVG.translate(&self, float x, float y) => self.getState().form.translate(x, y);
+fn void MicroVG.translate(&self, float x, float y) => self.getState().translate(x, y);
 
-fn void MicroVG.rotate(&self, float angle) => self.getState().form.rotate(angle);
+fn void MicroVG.rotate(&self, float angle) => self.getState().rotate(angle);
 
-fn void MicroVG.skewX(&self, float angle) => self.getState().form.skewX(angle);
+fn void MicroVG.skewX(&self, float angle) => self.getState().skewX(angle);
 
-fn void MicroVG.skewY(&self, float angle) => self.getState().form.skewY(angle);
+fn void MicroVG.skewY(&self, float angle) => self.getState().skewY(angle);
 
-fn void MicroVG.scale(&self, float x, float y) => self.getState().form.scale(x, y);
+fn void MicroVG.scale(&self, float x, float y) => self.getState().scale(x, y);
 
 fn void MicroVG.currentTransform(&self, float* form) {
 	State* state = self.getState();
@@ -335,17 +335,6 @@ fn void MicroVG.scissor(&self, float x, float y, float w, float h) {
 	state.scissor.extent = { w * 0.5f, h * 0.5f };
 }
 
-fn Vec4 nvgIsectRect(
-float ax, float ay, float aw, float ah,
-float bx, float by, float bw, float bh
-) {
-	float minx = math::max(ax, bx);
-	float miny = math::max(ay, by);
-	float maxx = math::min(ax + aw, bx + bw);
-	float maxy = math::min(ay + ah, by + bh);
-	return { minx, miny, math::max(0.0f, maxx - minx), math::max(0.0f, maxy - miny) };
-}
-
 fn void MicroVG.intersectScissor(&self, float x, float y, float w, float h) {
 	State* state = self.getState();
 
@@ -362,7 +351,7 @@ fn void MicroVG.intersectScissor(&self, float x, float y, float w, float h) {
 	float tex = ex.x * math::abs(pform.linear.x) + ex.y * math::abs(pform.linear.z);
 	float tey = ex.x * math::abs(pform.linear.y) + ex.y * math::abs(pform.linear.w);
 
-	Vec4 r = nvgIsectRect(pform.trans.x - tex, pform.trans.y - tey, tex * 2, tey * 2, x, y, w, h);
+	Vec4 r = isectRect(pform.trans.x - tex, pform.trans.y - tey, tex * 2, tey * 2, x, y, w, h);
 	self.scissor(r.x, r.y, r.z, r.w);
 }
 
@@ -393,28 +382,6 @@ BlendFactor srcAlpha, BlendFactor dstAlpha
 
 	State* state = self.getState();
 	state.compositeOp = op;
-}
-
-fn bool nvgPtEquals(Vec2 a, Vec2 b, float tol) {
-	Vec2 d = b - a;
-	return d.dot(d) < tol * tol;
-}
-
-fn float nvgDistPtSeg(Vec2 p, Vec2 q0, Vec2 q1) {
-	Vec2 pq = q1 - q0;
-	Vec2 d = p - q0;
-	float t = d.dot(pq);
-	float dd = pq.dot(pq);
-	if (dd > 0) t /= dd;
-	if (t < 0) {
-		t = 0;
-	}
-	else if (t > 1) {
-		t = 1;
-	}
-
-	Vec2 r = q0 + pq * t - p;
-	return r.dot(r);
 }
 
 fn void MicroVG.appendCommands(&self, PathCmd* cmds, int ncmds) {
@@ -502,7 +469,7 @@ fn void MicroVG.addPoint(&self, Vec2 pt, PathPointFlags flags) {
 
 	if (path.count > 0 && self.cache.npoints > 0) {
 		Point* lastPt = self.lastPoint();
-		if (nvgPtEquals( { lastPt.x, lastPt.y }, pt, self.distTol)) {
+		if (ptEquals( { lastPt.x, lastPt.y }, pt, self.distTol)) {
 			lastPt.flags = lastPt.flags | flags;
 			return;
 		}
@@ -548,32 +515,6 @@ fn Vertex* MicroVG.allocTempVerts(&self, int nverts) {
 	}
 
 	return self.cache.verts;
-}
-
-fn float nvgTriarea2(Vec2 a, Vec2 b, Vec2 c) => (c - a).cross(b - a);
-
-fn float nvgPolyArea(Point* pts, int npts) {
-	float area = 0;
-	for (int i = 2; i < npts; i++) {
-		Point* a = &pts[0];
-		Point* b = &pts[i - 1];
-		Point* c = &pts[i];
-		area += nvgTriarea2( { a.x, a.y }, { b.x, b.y }, { c.x, c.y });
-	}
-
-	return area * 0.5f;
-}
-
-fn void nvgPolyReverse(Point* pts, int npts) {
-	int i = 0;
-	int j = npts - 1;
-	while (i < j) {
-		Point tmp = pts[i];
-		pts[i] = pts[j];
-		pts[j] = tmp;
-		i++;
-		j--;
-	}
 }
 
 fn void MicroVG.tesselateBezier(&self,
@@ -664,7 +605,7 @@ fn void MicroVG.flattenPaths(&self) {
 
 		Point* p0 = &pts[path.count - 1];
 		Point* p1 = &pts[0];
-		if (path.count > 1 && nvgPtEquals( { p0.x, p0.y }, { p1.x, p1.y }, self.distTol)) {
+		if (path.count > 1 && ptEquals( { p0.x, p0.y }, { p1.x, p1.y }, self.distTol)) {
 			path.count--;
 			p0 = &pts[path.count - 1];
 			path.closed = 1;
@@ -673,15 +614,15 @@ fn void MicroVG.flattenPaths(&self) {
 		if (path.count < 2) continue;
 
 		if (path.count > 2) {
-			float area = nvgPolyArea(pts, path.count);
-			if (path.winding == Winding.CCW && area < 0.0f) nvgPolyReverse(pts, path.count);
-			if (path.winding == Winding.CW && area > 0.0f) nvgPolyReverse(pts, path.count);
+			float area = polyArea(pts, path.count);
+			if (path.winding == Winding.CCW && area < 0.0f) polyReverse(pts, path.count);
+			if (path.winding == Winding.CW && area > 0.0f) polyReverse(pts, path.count);
 		}
 
 		for (int k = 0; k < path.count; k++) {
 			p0.dx = p1.x - p0.x;
 			p0.dy = p1.y - p0.y;
-			p0.len = nvgNormalize(&p0.dx, &p0.dy);
+			p0.len = normalize(&p0.dx, &p0.dy);
 			cache.bounds = {
 				math::min(cache.bounds.x, p0.x),
 				math::min(cache.bounds.y, p0.y),
@@ -694,12 +635,7 @@ fn void MicroVG.flattenPaths(&self) {
 	}
 }
 
-fn int nvgCurveDivs(float r, float arc, float tol) {
-	float da = math::acos(r / (r + tol)) * 2.0f;
-	return math::max(2, (int)math::ceil(arc / da));
-}
-
-fn void nvgChooseBevel(
+fn void chooseBevel(
 bool bevel, Point* p0, Point* p1, float w,
 float* x0, float* y0, float* x1, float* y1
 ) {
@@ -717,7 +653,7 @@ float* x0, float* y0, float* x1, float* y1
 	}
 }
 
-fn Vertex* nvgRoundJoin(
+fn Vertex* roundJoin(
 Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, int ncap, float fringe
 ) {
@@ -728,7 +664,7 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 
 	if (p1.flags.left) {
 		float lx0, ly0, lx1, ly1;
-		nvgChooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
+		chooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 		float a0 = math::atan2(-dly0, -dlx0);
 		float a1 = math::atan2(-dly1, -dlx1);
 		if (a1 > a0) a1 -= PI * 2;
@@ -757,7 +693,7 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
-		nvgChooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
+		chooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 		float a0 = math::atan2(dly0, dlx0);
 		float a1 = math::atan2(dly1, dlx1);
 		if (a1 < a0) a1 += PI * 2;
@@ -788,7 +724,7 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 	return dst;
 }
 
-fn Vertex* nvgBevelJoin(
+fn Vertex* bevelJoin(
 Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, float fringe
 ) {
@@ -799,7 +735,7 @@ float lw, float rw, float lu, float ru, float fringe
 
 	if (p1.flags.left) {
 		float lx0, ly0, lx1, ly1;
-		nvgChooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
+		chooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 
 		*dst = { lx0, ly0, lu, 1 };
 		dst++;
@@ -844,7 +780,7 @@ float lw, float rw, float lu, float ru, float fringe
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
-		nvgChooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
+		chooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 
 		*dst = { p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1 };
 		dst++;
@@ -891,7 +827,7 @@ float lw, float rw, float lu, float ru, float fringe
 	return dst;
 }
 
-fn Vertex* nvgButtCapStart(
+fn Vertex* buttCapStart(
 Vertex* dst, Point* p,
 float dx, float dy, float w, float d,
 float aa, float u0, float u1
@@ -913,7 +849,7 @@ float aa, float u0, float u1
 	return dst;
 }
 
-fn Vertex* nvgButtCapEnd(
+fn Vertex* buttCapEnd(
 Vertex* dst, Point* p,
 float dx, float dy, float w, float d,
 float aa, float u0, float u1
@@ -935,7 +871,7 @@ float aa, float u0, float u1
 	return dst;
 }
 
-fn Vertex* nvgRoundCapStart(
+fn Vertex* roundCapStart(
 Vertex* dst, Point* p,
 float dx, float dy, float w, int ncap,
 float aa, float u0, float u1
@@ -963,7 +899,7 @@ float aa, float u0, float u1
 	return dst;
 }
 
-fn Vertex* nvgRoundCapEnd(
+fn Vertex* roundCapEnd(
 Vertex* dst, Point* p,
 float dx, float dy, float w, int ncap,
 float aa, float u0, float u1
@@ -1061,7 +997,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 	float aa = fringe;
 	float u0 = 0.0f;
 	float u1 = 1.0f;
-	int ncap = nvgCurveDivs(w, PI, self.tessTol);
+	int ncap = curveDivs(w, PI, self.tessTol);
 
 	w += aa * 0.5f;
 
@@ -1137,27 +1073,27 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		if (loop == 0) {
 			dx = p1.x - p0.x;
 			dy = p1.y - p0.y;
-			nvgNormalize(&dx, &dy);
+			normalize(&dx, &dy);
 
 			switch (lineCap) {
 				case LineCap.BUTT:
-					dst = nvgButtCapStart(dst, p0, dx, dy, w, -aa * 0.5f, aa, u0, u1);
+					dst = buttCapStart(dst, p0, dx, dy, w, -aa * 0.5f, aa, u0, u1);
 
 				case LineCap.SQUARE:
-					dst = nvgButtCapStart(dst, p0, dx, dy, w, w - aa, aa, u0, u1);
+					dst = buttCapStart(dst, p0, dx, dy, w, w - aa, aa, u0, u1);
 
 				case LineCap.ROUND:
-					dst = nvgRoundCapStart(dst, p0, dx, dy, w, ncap, aa, u0, u1);
+					dst = roundCapStart(dst, p0, dx, dy, w, ncap, aa, u0, u1);
 			}
 		}
 
 		for (int j = s; j < e; j++) {
 			if ((p1.flags.bevel || p1.flags.innerBevel)) {
 				if (lineJoin == LineJoin.ROUND) {
-					dst = nvgRoundJoin(dst, p0, p1, w, w, u0, u1, ncap, aa);
+					dst = roundJoin(dst, p0, p1, w, w, u0, u1, ncap, aa);
 				}
 				else {
-					dst = nvgBevelJoin(dst, p0, p1, w, w, u0, u1, aa);
+					dst = bevelJoin(dst, p0, p1, w, w, u0, u1, aa);
 				}
 			}
 			else {
@@ -1179,17 +1115,17 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		else {
 			dx = p1.x - p0.x;
 			dy = p1.y - p0.y;
-			nvgNormalize(&dx, &dy);
+			normalize(&dx, &dy);
 
 			switch (lineCap) {
 				case LineCap.BUTT:
-					dst = nvgButtCapEnd(dst, p1, dx, dy, w, -aa * 0.5f, aa, u0, u1);
+					dst = buttCapEnd(dst, p1, dx, dy, w, -aa * 0.5f, aa, u0, u1);
 
 				case LineCap.SQUARE:
-					dst = nvgButtCapEnd(dst, p1, dx, dy, w, w - aa, aa, u0, u1);
+					dst = buttCapEnd(dst, p1, dx, dy, w, w - aa, aa, u0, u1);
 
 				case LineCap.ROUND:
-					dst = nvgRoundCapEnd(dst, p1, dx, dy, w, ncap, aa, u0, u1);
+					dst = roundCapEnd(dst, p1, dx, dy, w, ncap, aa, u0, u1);
 			}
 		}
 
@@ -1288,7 +1224,7 @@ fn bool earClipFill(MvgPath* path, Vertex* fanVerts, int nfan) @local {
 	int* tri_indices = mem::malloc((sz)max_indices * int::size);
 	if (tri_indices == null) return false;
 
-	int 	ntri = earClipTriangulate(fanVerts, nfan, tri_indices);
+	int ntri = earClipTriangulate(fanVerts, nfan, tri_indices);
 	if (ntri == 0) {
 		mem::free(tri_indices);
 		return false;
@@ -1322,9 +1258,7 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
 		cverts += path.count + path.nbevel + 1;
-		if (fringe) {
-			cverts += (path.count + path.nbevel * 5 + 1) * 2;
-		}
+		if (fringe) cverts += (path.count + path.nbevel * 5 + 1) * 2;
 	}
 
 	Vertex* verts = self.allocTempVerts(cverts);
@@ -1410,7 +1344,7 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 
 			for (int j = 0; j < path.count; j++) {
 				if ((p1.flags.bevel || p1.flags.innerBevel)) {
-					dst = nvgBevelJoin(dst, p0, p1, lw, rw, lu, ru, self.fringeWidth);
+					dst = bevelJoin(dst, p0, p1, lw, rw, lu, ru, self.fringeWidth);
 				}
 				else {
 					*dst = { p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1 };
@@ -1478,9 +1412,9 @@ fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radiu
 	if (self.ncommands == 0) return;
 
 	if (
-	nvgPtEquals( { x0, y0 }, { x1, y1 }, self.distTol) ||
-	nvgPtEquals( { x1, y1 }, { x2, y2 }, self.distTol) ||
-	nvgDistPtSeg( { x1, y1 }, { x0, y0 }, { x2, y2 }) < self.distTol * self.distTol ||
+	ptEquals( { x0, y0 }, { x1, y1 }, self.distTol) ||
+	ptEquals( { x1, y1 }, { x2, y2 }, self.distTol) ||
+	distPtSeg( { x1, y1 }, { x0, y0 }, { x2, y2 }) < self.distTol * self.distTol ||
 	radius < self.distTol
 	) {
 		self.lineTo(x1, y1);
@@ -1491,8 +1425,8 @@ fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radiu
 	float dy0 = y0 - y1;
 	float dx1 = x2 - x1;
 	float dy1 = y2 - y1;
-	nvgNormalize(&dx0, &dy0);
-	nvgNormalize(&dx1, &dy1);
+	normalize(&dx0, &dy0);
+	normalize(&dx1, &dy1);
 	float a = math::acos(dx0 * dx1 + dy0 * dy1);
 	float d = radius / math::tan(a / 2.0f);
 
@@ -1502,7 +1436,7 @@ fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radiu
 	}
 
 	float cx, cy, a0, a1;
-	int dir;
+	Winding dir;
 
 	Vec2 v0 = { dx0, dy0 };
 	Vec2 v1 = { dx1, dy1 };
@@ -1511,14 +1445,14 @@ fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radiu
 		cy = y1 + dy0 * d + -dx0 * radius;
 		a0 = math::atan2(dx0, -dy0);
 		a1 = math::atan2(-dx1, dy1);
-		dir = (int)Winding.CW;
+		dir = Winding.CW;
 	}
 	else {
 		cx = x1 + dx0 * d + -dy0 * radius;
 		cy = y1 + dy0 * d + dx0 * radius;
 		a0 = math::atan2(-dx0, dy0);
 		a1 = math::atan2(dx1, -dy1);
-		dir = (int)Winding.CCW;
+		dir = Winding.CCW;
 	}
 
 	self.arc(cx, cy, radius, a0, a1, dir);
@@ -1529,12 +1463,12 @@ fn void MicroVG.closePath(&self) {
 	self.appendCommands(&cmd, 1);
 }
 
-fn void MicroVG.pathWinding(&self, int dir) {
-	PathCmd cmd = { .cmd = PathCommand.WINDING, .p0 = { (float)dir, 0.0f } };
+fn void MicroVG.pathWinding(&self, Winding dir) {
+	PathCmd cmd = { .cmd = PathCommand.WINDING, .p0 = { dir.ordinal, 0.0f } };
 	self.appendCommands(&cmd, 1);
 }
 
-fn void MicroVG.arc(&self, float cx, float cy, float r, float a0, float a1, int dir) {
+fn void MicroVG.arc(&self, float cx, float cy, float r, float a0, float a1, Winding dir) {
 	float a, da, hda, kappa;
 	float dx, dy, x, y;
 	float tanx, tany, px, py;
@@ -1544,7 +1478,7 @@ fn void MicroVG.arc(&self, float cx, float cy, float r, float a0, float a1, int 
 	PathCommand firstCmd = self.ncommands > 0 ? PathCommand.LINE : PathCommand.MOVE;
 
 	da = a1 - a0;
-	if (dir == (int)Winding.CW) {
+	if (dir == Winding.CW) {
 		if (math::abs(da) >= PI * 2) {
 			da = PI * 2;
 		}
@@ -1565,7 +1499,7 @@ fn void MicroVG.arc(&self, float cx, float cy, float r, float a0, float a1, int 
 	hda = (da / (float)ndivs) / 2.0f;
 	kappa = math::abs(4.0f / 3.0f * (1.0f - math::cos(hda)) / math::sin(hda));
 
-	if (dir == (int)Winding.CCW) kappa = -kappa;
+	if (dir == Winding.CCW) kappa = -kappa;
 
 	ncmds = 0;
 	for (int i = 0; i <= ndivs; i++) {
@@ -1615,24 +1549,24 @@ self.roundedRectVarying(x, y, w, h, r, r, r, r);
 
 fn void MicroVG.roundedRectVarying(
 &self, float x, float y, float w, float h,
-float radTopLeft, float radTopRight,
-float radBottomRight, float radBottomLeft
+float topLeft, float topRight,
+float bottomRight, float bottomLeft
 ) {
-	if (radTopLeft < 0.1f && radTopRight < 0.1f && radBottomRight < 0.1f && radBottomLeft < 0.1f) {
+	if (topLeft < 0.1f && topRight < 0.1f && bottomRight < 0.1f && bottomLeft < 0.1f) {
 		self.rect(x, y, w, h);
 		return;
 	}
 
 	float halfw = math::abs(w) * 0.5f;
 	float halfh = math::abs(h) * 0.5f;
-	float rxBL = math::min(radBottomLeft, halfw) * ((w) >= 0.0f ? 1.0f : -1.0f);
-	float ryBL = math::min(radBottomLeft, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
-	float rxBR = math::min(radBottomRight, halfw) * ((w) >= 0.0f ? 1.0f : -1.0f);
-	float ryBR = math::min(radBottomRight, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
-	float rxTR = math::min(radTopRight, halfw) * ((w) >= 0.0f ? 1.0f : -1.0f);
-	float ryTR = math::min(radTopRight, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
-	float rxTL = math::min(radTopLeft, halfw) * ((w) >= 0.0f ? 1.0f : -1.0f);
-	float ryTL = math::min(radTopLeft, halfh) * ((h) >= 0.0f ? 1.0f : -1.0f);
+	float rxBL = math::min(bottomLeft, halfw) * w.sign();
+	float ryBL = math::min(bottomLeft, halfh) * h.sign();
+	float rxBR = math::min(bottomRight, halfw) * w.sign();
+	float ryBR = math::min(bottomRight, halfh) * h.sign();
+	float rxTR = math::min(topRight, halfw) * w.sign();
+	float ryTR = math::min(topRight, halfh) * h.sign();
+	float rxTL = math::min(topLeft, halfw) * w.sign();
+	float ryTL = math::min(topLeft, halfh) * h.sign();
 
 	PathCmd[*] cmds = {
 		{ .cmd = PathCommand.MOVE, .p0 = { x, y + ryTL } },

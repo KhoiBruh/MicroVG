@@ -11,7 +11,7 @@ const int STENCIL_STROKES = 1 << 1;
 const int DEBUG = 1 << 2;
 const int IMAGE_NODELETE = 1 << 16;
 
-const int GLNVG_FRAG_BINDING = 0;
+const int FRAG_BINDING = 0;
 
 enum GlLoc : char {
 	VIEWSIZE,
@@ -202,28 +202,28 @@ fn int GlContext.deleteTexture(&self, int id) {
 	return 0;
 }
 
-fn void glnvgDumpShaderError(uint shader, char* name, char* type) @local {
-	char[513] str = {};
+fn void dumpShaderError(uint shader, ZString name, ZString type) @local {
+	ZString[513] str = {};
 	int len = 0;
-	gl::getShaderInfoLog(shader, 512, &len, &str[0]);
+	gl::getShaderInfoLog(shader, 512, &len, str[0]);
 	if (len > 512) len = 512;
-	str[len] = 0;
-	io::eprintfn("Shader %s/%s error:\n%s", ((ZString)name).str_view(), ((ZString)type).str_view(), ((ZString)&str[0]).str_view());
+	str[len] = "";
+	io::eprintfn("Shader %s/%s error:\n%s", name.str_view(), type.str_view(), str[0].str_view());
 }
 
-fn void glnvgDumpProgramError(uint prog, char* name) @local {
-	char[513] str = {};
+fn void dumpProgramError(uint prog, ZString name) @local {
+	ZString[513] str = {};
 	int len = 0;
-	gl::getProgramInfoLog(prog, 512, &len, &str[0]);
+	gl::getProgramInfoLog(prog, 512, &len, str[0]);
 	if (len > 512) len = 512;
-	str[len] = 0;
-	io::eprintfn("Program %s error:\n%s", ((ZString)name).str_view(), ((ZString)&str[0]).str_view());
+	str[len] = "";
+	io::eprintfn("Program %s error:\n%s", name.str_view(), str[0].str_view());
 }
 
-fn void GlContext.checkError(&self, char* str) {
+fn void GlContext.checkError(&self, ZString str) {
 	if ((self.flags & DEBUG) == 0) return;
 	GLenum err = gl::getError();
-	if (err != GL_NO_ERROR) io::eprintfn("Error %08x after %s", err, ((ZString)str).str_view());
+	if (err != GL_NO_ERROR) io::eprintfn("Error %08x after %s", err, str.str_view());
 }
 
 fn int GlContext.allocCall(&self) => self.callsBuf.alloc(1);
@@ -234,10 +234,10 @@ fn int GlContext.allocVerts(&self, int n) => self.vertsBuf.alloc(n);
 
 fn int GlContext.allocFragUniforms(&self, int n) => self.uniformBuf.alloc(n * self.fragSize);
 
-fn int glnvgCreateShader(GlShader* shader, char* name, char* header, char* opts, char* vshader, char* fshader) @local {
+fn int createShader(GlShader* shader, ZString name, ZString header, ZString opts, ZString vshader, ZString fshader) @local {
 	int status;
 	uint prog, vert, frag;
-	char*[3] str;
+	ZString[3] str;
 	str[0] = header;
 	str[1] = opts != null ? opts : "";
 	mem::clear(shader, GlShader::size);
@@ -253,14 +253,14 @@ fn int glnvgCreateShader(GlShader* shader, char* name, char* header, char* opts,
 	gl::compileShader(vert);
 	gl::getShaderiv(vert, GL_COMPILE_STATUS, &status);
 	if (status != GL_TRUE) {
-		glnvgDumpShaderError(vert, name, "vert");
+		dumpShaderError(vert, name, "vert");
 		return 0;
 	}
 
 	gl::compileShader(frag);
 	gl::getShaderiv(frag, GL_COMPILE_STATUS, &status);
 	if (status != GL_TRUE) {
-		glnvgDumpShaderError(frag, name, "frag");
+		dumpShaderError(frag, name, "frag");
 		return 0;
 	}
 
@@ -273,7 +273,7 @@ fn int glnvgCreateShader(GlShader* shader, char* name, char* header, char* opts,
 	gl::linkProgram(prog);
 	gl::getProgramiv(prog, GL_LINK_STATUS, &status);
 	if (status != GL_TRUE) {
-		glnvgDumpProgramError(prog, name);
+		dumpProgramError(prog, name);
 		return 0;
 	}
 
@@ -284,31 +284,16 @@ fn int glnvgCreateShader(GlShader* shader, char* name, char* header, char* opts,
 	return 1;
 }
 
-fn void glnvgDeleteShader(GlShader* shader) @local {
+fn void deleteShader(GlShader* shader) @local {
 	if (shader.prog != 0) gl::deleteProgram(shader.prog);
 	if (shader.vert != 0) gl::deleteShader(shader.vert);
 	if (shader.frag != 0) gl::deleteShader(shader.frag);
 }
 
-fn void glnvgGetUniforms(GlShader* shader) @local {
+fn void getUniforms(GlShader* shader) @local {
 	shader.loc[GlLoc.VIEWSIZE] = gl::getUniformLocation(shader.prog, "viewSize");
 	shader.loc[GlLoc.TEX] = gl::getUniformLocation(shader.prog, "tex");
 	shader.loc[GlLoc.FRAG] = (int) gl::getUniformBlockIndex(shader.prog, "frag");
-}
-
-fn void glnvgXformToMat3x4(float* m3, Mat2x3* t) @local {
-	m3[0] = t.linear.x;
-	m3[1] = t.linear.y;
-	m3[2] = 0.0f;
-	m3[3] = 0.0f;
-	m3[4] = t.linear.z;
-	m3[5] = t.linear.w;
-	m3[6] = 0.0f;
-	m3[7] = 0.0f;
-	m3[8] = t.trans.x;
-	m3[9] = t.trans.y;
-	m3[10] = 1.0f;
-	m3[11] = 0.0f;
 }
 
 fn int GlContext.convertPaint(&self, GlFragUniforms* frag, Paint* paint, Scissor* scissor, float width, float fringe, float strokeThr) {
@@ -329,7 +314,7 @@ fn int GlContext.convertPaint(&self, GlFragUniforms* frag, Paint* paint, Scissor
 	}
 	else {
 		invxform = scissor.form.inverse();
-		glnvgXformToMat3x4(&frag.scissorMat[0], &invxform);
+		invxform.toMat3x4(&frag.scissorMat[0]);
 		frag.scissorExt.x = scissor.extent.x;
 		frag.scissorExt.y = scissor.extent.y;
 		frag.scissorScale.x = math::sqrt(scissor.form.linear.x * scissor.form.linear.x + scissor.form.linear.z * scissor.form.linear.z) / fringe;
@@ -347,16 +332,13 @@ fn int GlContext.convertPaint(&self, GlFragUniforms* frag, Paint* paint, Scissor
 			Mat2x3 m1;
 			Mat2x3 m2;
 
-			m1.identity();
-			m1.translate(0.0f, frag.extent.y * 0.5f);
+			m1.identity().translate(0.0f, frag.extent.y * 0.5f);
 			paint.form = m1 * paint.form;
 
-			m2.identity();
-			m2.scale(1.0f, -1.0f);
+			m2.identity().scale(1.0f, -1.0f);
 			m2 = m1 * m2;
 
-			m1.identity();
-			m1.translate(0.0f, -frag.extent.y * 0.5f);
+			m1.identity().translate(0.0f, -frag.extent.y * 0.5f);
 			m1 = m2 * m1;
 
 			invxform = m1.inverse();
@@ -380,18 +362,16 @@ fn int GlContext.convertPaint(&self, GlFragUniforms* frag, Paint* paint, Scissor
 		invxform = paint.form.inverse();
 	}
 
-	glnvgXformToMat3x4(&frag.paintMat[0], &invxform);
+	invxform.toMat3x4(&frag.paintMat[0]);
 
 	return 1;
 }
 
-fn GlFragUniforms* GlContext.fragUniformPtr(&self, int i) {
-	return (GlFragUniforms*)(self.uniformBuf.data + i);
-}
+fn GlFragUniforms* GlContext.fragUniformPtr(&self, int i) => (GlFragUniforms*) (self.uniformBuf.data + i);
 
 fn void GlContext.setUniforms(&self, int uniformOffset, int image) {
 	GlTexture* tex = null;
-	gl::bindBufferRange(GL_UNIFORM_BUFFER, GLNVG_FRAG_BINDING, self.fragBuf, uniformOffset, GlFragUniforms::size);
+	gl::bindBufferRange(GL_UNIFORM_BUFFER, FRAG_BINDING, self.fragBuf, uniformOffset, GlFragUniforms::size);
 
 	if (image != 0) tex = self.findTexture(image);
 	if (tex == null) tex = self.findTexture(self.dummyTex);
@@ -523,7 +503,7 @@ fn void GlContext.triangles(&self, GlCall* call) {
 	gl::drawArrays(GL_TRIANGLES, call.triangleOffset, call.triangleCount);
 }
 
-fn void glnvgRenderCancel(void* up) @local {
+fn void renderCancel(void* up) @local {
 	GlContext* gl = up;
 	gl.callsBuf.reset();
 	gl.pathsBuf.reset();
@@ -532,7 +512,7 @@ fn void glnvgRenderCancel(void* up) @local {
 	gl.strokeDataBuf.reset();
 }
 
-fn GLenum glConvertBlendFuncFactor(BlendFactor factor) @local {
+fn GLenum convertBlendFactor(BlendFactor factor) @local {
 	switch (factor) {
 		case BlendFactor.ZERO: return GL_ZERO;
 		case BlendFactor.ONE: return GL_ONE;
@@ -549,12 +529,12 @@ fn GLenum glConvertBlendFuncFactor(BlendFactor factor) @local {
 	}
 }
 
-fn GlBlend glBlendCompositeOp(CompositeOpState op) @local {
+fn GlBlend blendCompositeOp(CompositeOpState op) @local {
 	GlBlend blend = {
-		glConvertBlendFuncFactor(op.srcRGB),
-		glConvertBlendFuncFactor(op.dstRGB),
-		glConvertBlendFuncFactor(op.srcAlpha),
-		glConvertBlendFuncFactor(op.dstAlpha)
+		convertBlendFactor(op.srcRGB),
+		convertBlendFactor(op.dstRGB),
+		convertBlendFactor(op.srcAlpha),
+		convertBlendFactor(op.dstAlpha)
 	};
 
 	if (
@@ -570,7 +550,7 @@ fn GlBlend glBlendCompositeOp(CompositeOpState op) @local {
 	return blend;
 }
 
-fn int glnvgMaxVertCount(MvgPath* paths, int npaths) @local {
+fn int maxVertCount(MvgPath* paths, int npaths) @local {
 	int count = 0;
 	for (int i = 0; i < npaths; i++) {
 		count += paths[i].nfill;
@@ -579,7 +559,7 @@ fn int glnvgMaxVertCount(MvgPath* paths, int npaths) @local {
 	return count;
 }
 
-fn int glnvgRenderCreate(void* up) @local {
+fn int renderCreate(void* up) @local {
 	GlContext* gl = up;
 	int align = 4;
 
@@ -588,50 +568,49 @@ fn int glnvgRenderCreate(void* up) @local {
 	gl.vertsBuf.init(Vertex::size, 4096);
 	gl.uniformBuf.init(1, 16384);
 	gl.strokeDataBuf.init(16, 4096);
-	gl.vertsBuf.init(Vertex::size, 4096);
 
-	char* shaderHeader = `
+	ZString shaderHeader = `
 		#version 150 core
 		#define NANOVG_GL3 1
 		#define USE_UNIFORMBUFFER 1
 	`;
 
-	char* fillVertShader = $embed("shaders/fill.vert.glsl");
-	char* fillFragShader = $embed("shaders/fill.frag.glsl");
+	ZString fillVertShader = $embed("shaders/fill.vert.glsl");
+	ZString fillFragShader = $embed("shaders/fill.frag.glsl");
 
 	gl.checkError("init");
 
 	if (gl.flags & ANTIALIAS) {
-		if (glnvgCreateShader(&gl.shader, "shader", shaderHeader, "#define EDGE_AA 1\n", fillVertShader, fillFragShader) == 0) {
+		if (createShader(&gl.shader, "shader", shaderHeader, "#define EDGE_AA 1\n", fillVertShader, fillFragShader) == 0) {
 			return 0;
 		}
 	}
 	else {
-		if (glnvgCreateShader(&gl.shader, "shader", shaderHeader, null, fillVertShader, fillFragShader) == 0) {
+		if (createShader(&gl.shader, "shader", shaderHeader, null, fillVertShader, fillFragShader) == 0) {
 			return 0;
 		}
 	}
 
 	gl.checkError("uniform locations");
-	glnvgGetUniforms(&gl.shader);
+	getUniforms(&gl.shader);
 
 	gl::genVertexArrays(1, &gl.vertArr);
 	gl::genBuffers(1, &gl.vertBuf);
 	gl::genBuffers(1, &gl.strokeBuf);
 
-	gl::uniformBlockBinding(gl.shader.prog, (GLuint) gl.shader.loc[GlLoc.FRAG], GLNVG_FRAG_BINDING);
+	gl::uniformBlockBinding(gl.shader.prog, (GLuint) gl.shader.loc[GlLoc.FRAG], FRAG_BINDING);
 	gl::genBuffers(1, &gl.fragBuf);
 	gl::getIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
 	gl.fragSize = (int)(GlFragUniforms::size) + align - (int)(GlFragUniforms::size) % align;
 
-	gl.dummyTex = glnvgRenderCreateTexture(gl, TextureType.ALPHA, 1, 1, 0, null);
+	gl.dummyTex = renderCreateTexture(gl, TextureType.ALPHA, 1, 1, 0, null);
 
 	gl.checkError("create done");
 
 	return 1;
 }
 
-fn int glnvgRenderCreateTexture(void* up, TextureType type, int w, int h, int imageFlags, char* data) @local {
+fn int renderCreateTexture(void* up, TextureType type, int w, int h, int imageFlags, char* data) @local {
 	GlContext* gl = up;
 	GlTexture* tex = gl.allocTexture();
 
@@ -707,12 +686,12 @@ fn int glnvgRenderCreateTexture(void* up, TextureType type, int w, int h, int im
 	return tex.id;
 }
 
-fn int glnvgRenderDeleteTexture(void* up, int image) @local {
+fn int renderDeleteTexture(void* up, int image) @local {
 	GlContext* gl = up;
 	return gl.deleteTexture(image);
 }
 
-fn int glnvgRenderUpdateTexture(void* up, int image, int x, int y, int w, int h, char* data) @local {
+fn int renderUpdateTexture(void* up, int image, int x, int y, int w, int h, char* data) @local {
 	GlContext* gl = up;
 	GlTexture* tex = gl.findTexture(image);
 
@@ -741,7 +720,7 @@ fn int glnvgRenderUpdateTexture(void* up, int image, int x, int y, int w, int h,
 	return 1;
 }
 
-fn int glnvgRenderGetTextureSize(void* up, int image, int* w, int* h) @local {
+fn int renderGetTextureSize(void* up, int image, int* w, int* h) @local {
 	GlContext* gl = up;
 	GlTexture* tex = gl.findTexture(image);
 	if (tex == null) return 0;
@@ -750,13 +729,13 @@ fn int glnvgRenderGetTextureSize(void* up, int image, int* w, int* h) @local {
 	return 1;
 }
 
-fn void glnvgRenderViewport(void* up, float width, float height, float devicePixelRatio) @local {
+fn void renderViewport(void* up, float width, float height, float devicePixelRatio) @local {
 	GlContext* gl = up;
 	gl.view.x = width;
 	gl.view.y = height;
 }
 
-fn void glnvgRenderFlush(void* up) @local {
+fn void renderFlush(void* up) @local {
 	GlContext* gl = up;
 
 	if (gl.callsBuf.count > 0) {
@@ -837,7 +816,7 @@ fn void glnvgRenderFlush(void* up) @local {
 	gl.strokeDataBuf.reset();
 }
 
-fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, float fringe, float* bounds, MvgPath* paths, int npaths) @local {
+fn void renderFill(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, float fringe, float* bounds, MvgPath* paths, int npaths) @local {
 	GlContext* gl = up;
 	bool convex = (npaths == 1 && paths[0].convex);
 	bool earClip = !convex && npaths == 1 && paths[0].triFill != null;
@@ -897,7 +876,7 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 	call.pathOffset = pathOff;
 	call.pathCount = npaths;
 	call.image = paint.image;
-	call.blendFunc = glBlendCompositeOp(compositeOp);
+	call.blendFunc = blendCompositeOp(compositeOp);
 
 	int voff = vertOff;
 	for (int i = 0; i < npaths; i++) {
@@ -953,9 +932,9 @@ fn void glnvgRenderFill(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 	}
 }
 
-fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, float fringe, float strokeWidth, MvgPath* paths, int npaths) @local {
+fn void renderStroke(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, float fringe, float strokeWidth, MvgPath* paths, int npaths) @local {
 	GlContext* gl = up;
-	int maxverts = glnvgMaxVertCount(paths, npaths);
+	int maxverts = maxVertCount(paths, npaths);
 	int uniCount = (gl.flags & STENCIL_STROKES) ? 2 : 1;
 
 	int callIdx = gl.allocCall();
@@ -997,7 +976,7 @@ fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, 
 	call.pathOffset = pathOff;
 	call.pathCount = npaths;
 	call.image = paint.image;
-	call.blendFunc = glBlendCompositeOp(compositeOp);
+	call.blendFunc = blendCompositeOp(compositeOp);
 	call.uniformOffset = uniByteOff;
 
 	int voff = vertOff;
@@ -1022,7 +1001,7 @@ fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, 
 	}
 }
 
-fn void glnvgRenderTriangles(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, Vertex* verts, int nverts, float fringe) @local {
+fn void renderTriangles(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, Vertex* verts, int nverts, float fringe) @local {
 	GlContext* gl = up;
 
 	int callIdx = gl.allocCall();
@@ -1053,7 +1032,7 @@ fn void glnvgRenderTriangles(void* up, Paint* paint, CompositeOpState compositeO
 	mem::clear(call, GlCall::size);
 	call.type = (GlCallType.TRIANGLES);
 	call.image = paint.image;
-	call.blendFunc = glBlendCompositeOp(compositeOp);
+	call.blendFunc = blendCompositeOp(compositeOp);
 	call.triangleOffset = vertOff;
 	call.triangleCount = nverts;
 	call.uniformOffset = uniByteOff;
@@ -1065,11 +1044,11 @@ fn void glnvgRenderTriangles(void* up, Paint* paint, CompositeOpState compositeO
 	frag.type = NsvgShader.IMG;
 }
 
-fn void glnvgRenderDelete(void* up) @local {
+fn void renderDelete(void* up) @local {
 	GlContext* gl = up;
 	if (gl == null) return;
 
-	glnvgDeleteShader(&gl.shader);
+	deleteShader(&gl.shader);
 
 	if (gl.fragBuf != 0) gl::deleteBuffers(1, &gl.fragBuf);
 	if (gl.vertArr != 0) gl::deleteVertexArrays(1, &gl.vertArr);
@@ -1092,31 +1071,31 @@ fn void glnvgRenderDelete(void* up) @local {
 	mem::free(gl);
 }
 
-fn MicroVG* nvgCreateGl3(int flags) {
+fn MicroVG* createGL3(int flags) {
 	Params params;
 	MicroVG* ctx = null;
 	GlContext* gl = mem::calloc(GlContext::size);
 	if (gl == null) return null;
 
 	mem::clear(&params, Params::size);
-	params.renderCreate = &glnvgRenderCreate;
-	params.renderCreateTexture = &glnvgRenderCreateTexture;
-	params.renderDeleteTexture = &glnvgRenderDeleteTexture;
-	params.renderUpdateTexture = &glnvgRenderUpdateTexture;
-	params.renderGetTextureSize = &glnvgRenderGetTextureSize;
-	params.renderViewport = &glnvgRenderViewport;
-	params.renderCancel = &glnvgRenderCancel;
-	params.renderFlush = &glnvgRenderFlush;
-	params.renderFill = &glnvgRenderFill;
-	params.renderStroke = &glnvgRenderStroke;
-	params.renderTriangles = &glnvgRenderTriangles;
-	params.renderDelete = &glnvgRenderDelete;
+	params.renderCreate = &renderCreate;
+	params.renderCreateTexture = &renderCreateTexture;
+	params.renderDeleteTexture = &renderDeleteTexture;
+	params.renderUpdateTexture = &renderUpdateTexture;
+	params.renderGetTextureSize = &renderGetTextureSize;
+	params.renderViewport = &renderViewport;
+	params.renderCancel = &renderCancel;
+	params.renderFlush = &renderFlush;
+	params.renderFill = &renderFill;
+	params.renderStroke = &renderStroke;
+	params.renderTriangles = &renderTriangles;
+	params.renderDelete = &renderDelete;
 	params.userPtr = gl;
 	params.edgeAA = (flags & ANTIALIAS) ? 1 : 0;
 
 	gl.flags = flags;
 
-	ctx = microvg::nvgCreateInternal(&params);
+	ctx = microvg::createInternal(&params);
 	if (ctx == null) return null;
 
 	return ctx;

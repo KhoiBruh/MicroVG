@@ -49,7 +49,7 @@ fn void main(String[] args) {
     }
     io::printfn("OpenGL loaded (version tag %d)", loaded);
 
-    microvg::MicroVG* vg = glbackend::nvgCreateGl3(glbackend::ANTIALIAS);
+    microvg::MicroVG* vg = glbackend::createGL3(glbackend::ANTIALIAS);
     defer vg.destroy();
 
     if (vg == null) {
@@ -194,7 +194,7 @@ fn void drawScene(microvg::MicroVG* vg, float w, float h, float t) {
     vg.stroke();
 
     vg.beginPath();
-    vg.arc(160.0f, 440.0f, 50.0f, microvg::toRad(0.0f), microvg::toRad(270.0f), (int)Winding.CW);
+    vg.arcTo(160.0f, 440.0f, 50.0f, microvg::toRad(0.0f), microvg::toRad(30.0f));
     vg.strokeColor(microvg::rgba(255, 128, 0, 255));
     vg.strokeWidth(4.0f);
     vg.lineCap(LineCap.ROUND);

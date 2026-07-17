@@ -27,6 +27,7 @@ struct Scissor {
 }
 
 struct State {
+	inline Mat2x3 form;
 	CompositeOpState compositeOp;
 	int shapeAA;
 	Paint fill;
@@ -36,7 +37,6 @@ struct State {
 	LineJoin lineJoin;
 	LineCap lineCap;
 	float alpha;
-	Mat2x3 form;
 	Scissor scissor;
 }
 
@@ -94,11 +94,5 @@ fn CompositeOpState CompositeOp.state(self) {
 			dfactor = BlendFactor.ZERO;
 	}
 
-	CompositeOpState state;
-	state.srcRGB = sfactor;
-	state.dstRGB = dfactor;
-	state.srcAlpha = sfactor;
-	state.dstAlpha = dfactor;
-
-	return state;
+	return { sfactor, dfactor, sfactor, dfactor };
 }
