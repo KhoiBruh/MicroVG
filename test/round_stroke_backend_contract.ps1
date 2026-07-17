@@ -19,3 +19,15 @@ Require-Match $fragment 'float roundStrokeCoverage\(' 'round coverage helper'
 Require-Match $fragment 'float scissorCoverage\(' 'scissor coverage helper'
 Require-Match $fragment 'vec4 paintColor\(' 'shared paint helper'
 if ($fragment -match 'ftcoord\.y > 1\.5') { throw 'Legacy round-stroke mode convention remains' }
+
+$strokeMatch = [regex]::Match($backend, '(?s)fn void GlContext\.stroke\(&self, GlCall\* call\) \{.*?(?=\nfn void GlContext\.triangles)')
+if (!$strokeMatch.Success) { throw 'Missing stroke execution path' }
+$stroke = $strokeMatch.Value
+$defaultStart = $stroke.IndexOf("`telse {")
+$defaultEnd = $stroke.IndexOf("`n`t}`n`n`tgl::enable", $defaultStart)
+if ($defaultStart -lt 0 -or $defaultEnd -lt 0) { throw 'Round strokes must remain inside the default non-stencil path' }
+$defaultStroke = $stroke.Substring($defaultStart, $defaultEnd - $defaultStart)
+$roundDraw = 'gl::drawArrays\(GL_TRIANGLES, paths\[i\]\.roundStrokeOffset, paths\[i\]\.roundStrokeCount\);'
+Require-Match $defaultStroke "(?s)GL_TRIANGLE_STRIP.*?$roundDraw" 'round triangles immediately follow each default body range'
+if ($stroke.Substring(0, $defaultStart) -match $roundDraw) { throw 'Stencil stroke path must not render round triangles' }
+if ($stroke.Substring($defaultEnd) -match $roundDraw) { throw 'Round triangles must not be rendered after the default path loop' }

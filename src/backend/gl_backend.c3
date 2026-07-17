@@ -513,13 +513,9 @@ fn void GlContext.stroke(&self, GlCall* call) {
 		self.checkError("stroke fill");
 		for (int i = 0; i < npaths; i++) {
 			gl::drawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
-		}
-	}
-
-	self.setUniforms(call.uniformOffset, call.image);
-	for (int i = 0; i < npaths; i++) {
-		if (paths[i].roundStrokeCount > 0) {
-			gl::drawArrays(GL_TRIANGLES, paths[i].roundStrokeOffset, paths[i].roundStrokeCount);
+			if (paths[i].roundStrokeCount > 0) {
+				gl::drawArrays(GL_TRIANGLES, paths[i].roundStrokeOffset, paths[i].roundStrokeCount);
+			}
 		}
 	}
 
