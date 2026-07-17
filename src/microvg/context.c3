@@ -697,6 +697,26 @@ fn void MicroVG.flattenPaths(&self) {
 }
 
 const int SDF_JOIN_SEGS = 5;
+const float SDF_MAX_SECTOR_ANGLE = PI * 0.25f;
+
+fn int sdfSectorDivisions(float sweep, float max_angle) {
+	if (sweep == 0.0f || max_angle <= 0.0f) return 1;
+	float sector_angle = math::min(max_angle, SDF_MAX_SECTOR_ANGLE);
+	return math::max(1, (int)math::ceil(math::abs(sweep) / sector_angle));
+}
+
+fn float sdfSectorRadius(float outer_radius, float delta) {
+	return outer_radius / math::cos(delta * 0.5f);
+}
+
+fn Vec2 sdfCapPoint(Vec2 endpoint, Vec2 direction, float radius, float angle) {
+	float axial = math::cos(angle) * radius;
+	float lateral = math::sin(angle) * radius;
+	return {
+		endpoint.x + direction.x * axial - direction.y * lateral,
+		endpoint.y + direction.y * axial + direction.x * lateral
+	};
+}
 
 fn Vertex* nvgSdfJoinFan(
 	Vertex* dst, float* sdst, float cx, float cy,
