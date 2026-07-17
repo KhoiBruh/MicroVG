@@ -54,6 +54,13 @@ fn void assertRoundStrokeFinite(MvgPath* path) @private {
 	}
 }
 
+fn void assertRoundStrokeRadii(MvgPath* path, float inner_radius, float outer_radius) @private {
+	for (int i = 0; i < path.nroundStroke; i++) {
+		assert(math::abs(path.roundStroke[i].u - inner_radius) < 0.0001f);
+		assert(math::abs(path.roundStroke[i].v - outer_radius) < 0.0001f);
+	}
+}
+
 fn void prepareSdfStrokePath(MicroVG* vg) @private {
 	MvgPath* path = &vg.cache.paths[0];
 	Point* p0 = &vg.cache.points[path.first + path.count - 1];
@@ -102,6 +109,19 @@ fn void testRoundCapsAreNotInsertedIntoBodyStrip() @test {
 		assert(path.roundStrokeData[i * 4 + 3] == 1.0f);
 	}
 	assertRoundStrokeFinite(path);
+	assertRoundStrokeRadii(path, 5.0f, 6.0f);
+
+	MicroVG zeroAaVg = {};
+	zeroAaVg.cache = allocPathCache();
+	assert(zeroAaVg.cache != null);
+	defer zeroAaVg.cache.delete();
+	zeroAaVg.setPxRatio(1.0f);
+	zeroAaVg.addPath();
+	zeroAaVg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
+	zeroAaVg.addPoint({ 20.0f, 0.0f }, PT_CORNER);
+	prepareSdfStrokePath(&zeroAaVg);
+	assert(zeroAaVg.expandStroke(5.0f, 0.0f, LineCap.ROUND, LineJoin.MITER, 10.0f) == 1);
+	assertRoundStrokeRadii(&zeroAaVg.cache.paths[0], 5.0f, 5.0f);
 }
 
 fn void testRoundLeftJoinSweepsOuterSector() @test {
@@ -122,6 +142,7 @@ fn void testRoundLeftJoinSweepsOuterSector() @test {
 	assert(path.nroundStroke > 0);
 	assert(path.nroundStroke % 3 == 0);
 	assert(path.nroundStroke == sdfRoundStrokeVertexCount(path, &vg.cache.points[path.first], LineCap.BUTT, LineJoin.ROUND));
+	assertRoundStrokeRadii(path, 5.0f, 6.0f);
 
 	bool has_positive_x = false;
 	bool has_positive_y = false;
@@ -159,6 +180,7 @@ fn void testRoundRightJoinSweepsOuterSector() @test {
 	assert(path.nroundStroke > 0);
 	assert(path.nroundStroke % 3 == 0);
 	assert(path.nroundStroke == sdfRoundStrokeVertexCount(path, &vg.cache.points[path.first], LineCap.BUTT, LineJoin.ROUND));
+	assertRoundStrokeRadii(path, 5.0f, 6.0f);
 
 	bool has_positive_x = false;
 	bool has_negative_y = false;

@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $backend = Get-Content -Raw (Join-Path $PSScriptRoot '..\src\backend\gl_backend.c3')
+$context = Get-Content -Raw (Join-Path $PSScriptRoot '..\src\microvg\context.c3')
 $fragment = Get-Content -Raw (Join-Path $PSScriptRoot '..\src\backend\shaders\fill.frag.glsl')
 
 function Require-Match([string]$Text, [string]$Pattern, [string]$Name) {
@@ -13,13 +14,17 @@ Require-Match $backend 'copy\.roundStrokeOffset = voff;\s*copy\.roundStrokeCount
 Require-Match $backend 'mem::copy\(gl\.vertsBuf\.at\(voff\), path\.roundStroke, Vertex::size \* path\.nroundStroke\);' 'round vertices copied at range offset'
 Require-Match $backend 'mem::copy\(gl\.strokeDataBuf\.at\(sdoff\), path\.roundStrokeData, \(sz\)16 \* path\.nroundStroke\);' 'round metadata copied at aligned data offset'
 Require-Match $backend 'gl::drawArrays\(GL_TRIANGLES, paths\[i\]\.roundStrokeOffset, paths\[i\]\.roundStrokeCount\);' 'round ranges rendered as triangles'
+Require-Match $context '\*dst = \{ x, y, inner_radius, outer_radius \};' 'round vertices encode analytic radii in texture coordinates'
 Require-Match $fragment 'fstroke\.w > 0\.5' 'explicit round stroke mode'
 Require-Match $fragment 'float bodyStrokeCoverage\(' 'body coverage helper'
 Require-Match $fragment 'float roundStrokeCoverage\(' 'round coverage helper'
-Require-Match $fragment 'if \(fstroke\.z <= 0\.0\) return 1\.0;' 'round coverage hard fallback for zero AA'
+Require-Match $fragment 'float inner = ftcoord\.x;' 'round coverage reads analytic inner radius'
+Require-Match $fragment 'float outer = ftcoord\.y;' 'round coverage reads analytic outer radius'
+Require-Match $fragment 'if \(outer <= inner\) return 1\.0 - step\(outer, dist\);' 'round coverage uses hard radius when AA span is zero'
 Require-Match $fragment 'float scissorCoverage\(' 'scissor coverage helper'
 Require-Match $fragment 'vec4 paintColor\(' 'shared paint helper'
 if ($fragment -match 'ftcoord\.y > 1\.5') { throw 'Legacy round-stroke mode convention remains' }
+if ($fragment -match 'fstroke\.z <= 0\.0') { throw 'Legacy zero-AA proxy coverage remains' }
 
 $strokeMatch = [regex]::Match($backend, '(?s)fn void GlContext\.stroke\(&self, GlCall\* call\) \{.*?(?=\nfn void GlContext\.triangles)')
 if (!$strokeMatch.Success) { throw 'Missing stroke execution path' }

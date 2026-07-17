@@ -761,8 +761,8 @@ fn int sdfRoundStrokeVertexCount(MvgPath* path, Point* pts, LineCap lineCap, Lin
 	return count;
 }
 
-fn void sdfWriteRoundVertex(Vertex* dst, float* sdst, float x, float y, float cx, float cy, float aa) @private {
-	*dst = { x, y, 0.5f, 1.0f };
+fn void sdfWriteRoundVertex(Vertex* dst, float* sdst, float x, float y, float cx, float cy, float aa, float inner_radius, float outer_radius) @private {
+	*dst = { x, y, inner_radius, outer_radius };
 	sdst[0] = cx;
 	sdst[1] = cy;
 	sdst[2] = aa;
@@ -771,7 +771,7 @@ fn void sdfWriteRoundVertex(Vertex* dst, float* sdst, float x, float y, float cx
 
 fn Vertex* nvgSdfRoundCapTriangles(
 	Vertex* dst, float* sdst, Point* center,
-	float outward_x, float outward_y, float outer_radius, float aa
+	float outward_x, float outward_y, float outer_radius, float inner_radius, float aa
 ) @private {
 	float normal_x = outward_y;
 	float normal_y = -outward_x;
@@ -784,17 +784,17 @@ fn Vertex* nvgSdfRoundCapTriangles(
 	float dx = bx + outward_x * outer_radius;
 	float dy = by + outward_y * outer_radius;
 
-	sdfWriteRoundVertex(dst, sdst, ax, ay, center.x, center.y, aa); dst++; sdst += 4;
-	sdfWriteRoundVertex(dst, sdst, cx, cy, center.x, center.y, aa); dst++; sdst += 4;
-	sdfWriteRoundVertex(dst, sdst, bx, by, center.x, center.y, aa); dst++; sdst += 4;
-	sdfWriteRoundVertex(dst, sdst, bx, by, center.x, center.y, aa); dst++; sdst += 4;
-	sdfWriteRoundVertex(dst, sdst, cx, cy, center.x, center.y, aa); dst++; sdst += 4;
-	sdfWriteRoundVertex(dst, sdst, dx, dy, center.x, center.y, aa); dst++;
+	sdfWriteRoundVertex(dst, sdst, ax, ay, center.x, center.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, cx, cy, center.x, center.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, bx, by, center.x, center.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, bx, by, center.x, center.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, cx, cy, center.x, center.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, dx, dy, center.x, center.y, aa, inner_radius, outer_radius); dst++;
 	return dst;
 }
 
 fn Vertex* nvgSdfRoundJoinTriangles(
-	Vertex* dst, float* sdst, Point* p0, Point* p1, float outer_radius, float aa
+	Vertex* dst, float* sdst, Point* p0, Point* p1, float outer_radius, float inner_radius, float aa
 ) @private {
 	float a0, a1;
 	sdfRoundJoinAngles(p0, p1, &a0, &a1);
@@ -810,14 +810,14 @@ fn Vertex* nvgSdfRoundJoinTriangles(
 		float x1 = p1.x + math::cos(end) * sector_radius;
 		float y1 = p1.y + math::sin(end) * sector_radius;
 
-		sdfWriteRoundVertex(dst, sdst, p1.x, p1.y, p1.x, p1.y, aa); dst++; sdst += 4;
+		sdfWriteRoundVertex(dst, sdst, p1.x, p1.y, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
 		if (delta < 0.0f) {
-			sdfWriteRoundVertex(dst, sdst, x1, y1, p1.x, p1.y, aa); dst++; sdst += 4;
-			sdfWriteRoundVertex(dst, sdst, x0, y0, p1.x, p1.y, aa); dst++; sdst += 4;
+			sdfWriteRoundVertex(dst, sdst, x1, y1, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+			sdfWriteRoundVertex(dst, sdst, x0, y0, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
 		}
 		else {
-			sdfWriteRoundVertex(dst, sdst, x0, y0, p1.x, p1.y, aa); dst++; sdst += 4;
-			sdfWriteRoundVertex(dst, sdst, x1, y1, p1.x, p1.y, aa); dst++; sdst += 4;
+			sdfWriteRoundVertex(dst, sdst, x0, y0, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+			sdfWriteRoundVertex(dst, sdst, x1, y1, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
 		}
 	}
 	return dst;
@@ -1131,17 +1131,18 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 			Vertex* roundDst = path.roundStroke;
 			float* roundData = path.roundStrokeData;
 			float outer_radius = w + aa * 0.5f;
+			float inner_radius = math::max(0.0f, outer_radius - aa);
 			if (loop == 0 && lineCap == LineCap.ROUND) {
 				float start_dx = pts[1].x - pts[0].x;
 				float start_dy = pts[1].y - pts[0].y;
 				nvgNormalize(&start_dx, &start_dy);
-				roundDst = nvgSdfRoundCapTriangles(roundDst, roundData, &pts[0], -start_dx, -start_dy, outer_radius, aa);
+				roundDst = nvgSdfRoundCapTriangles(roundDst, roundData, &pts[0], -start_dx, -start_dy, outer_radius, inner_radius, aa);
 				roundData += 6 * 4;
 
 				float end_dx = pts[path.count - 1].x - pts[path.count - 2].x;
 				float end_dy = pts[path.count - 1].y - pts[path.count - 2].y;
 				nvgNormalize(&end_dx, &end_dy);
-				roundDst = nvgSdfRoundCapTriangles(roundDst, roundData, &pts[path.count - 1], end_dx, end_dy, outer_radius, aa);
+				roundDst = nvgSdfRoundCapTriangles(roundDst, roundData, &pts[path.count - 1], end_dx, end_dy, outer_radius, inner_radius, aa);
 				roundData += 6 * 4;
 			}
 			if (lineJoin == LineJoin.ROUND) {
@@ -1154,7 +1155,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 						float a0, a1;
 						sdfRoundJoinAngles(join_p0, join_p1, &a0, &a1);
 						int divisions = sdfSectorDivisions(a1 - a0, SDF_MAX_SECTOR_ANGLE);
-						roundDst = nvgSdfRoundJoinTriangles(roundDst, roundData, join_p0, join_p1, outer_radius, aa);
+						roundDst = nvgSdfRoundJoinTriangles(roundDst, roundData, join_p0, join_p1, outer_radius, inner_radius, aa);
 						roundData += (sz)(divisions * 3 * 4);
 					}
 				}
