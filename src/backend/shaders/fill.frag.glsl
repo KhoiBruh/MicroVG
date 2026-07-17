@@ -67,6 +67,7 @@ float scissorCoverage(vec2 p) {
 float bodyStrokeCoverage() {
 	return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y);
 }
+#endif
 
 float roundStrokeCoverage() {
 	float inner = ftcoord.x;
@@ -75,7 +76,6 @@ float roundStrokeCoverage() {
 	if (outer <= inner) return 1.0 - step(outer, dist);
 	return 1.0 - smoothstep(inner, outer, dist);
 }
-#endif
 
 vec4 paintColor() {
 	if (type == 0) {
@@ -120,11 +120,17 @@ vec4 paintColor() {
 void main(void) {
 	vec4 result = paintColor();
 	float scissor = scissorCoverage(fpos);
+	float strokeCoverage = 1.0;
+	if (fstroke.w > 0.5) {
+		strokeCoverage = roundStrokeCoverage();
+	}
 #ifdef EDGE_AA
-	float strokeCoverage = fstroke.w > 0.5 ? roundStrokeCoverage() : bodyStrokeCoverage();
-	if (fstroke.w <= 0.5 && strokeCoverage < strokeThr) discard;
-	if (type == 0 || type == 1) result *= strokeCoverage;
+	else {
+		strokeCoverage = bodyStrokeCoverage();
+		if (strokeCoverage < strokeThr) discard;
+	}
 #endif
+	if (type == 0 || type == 1) result *= strokeCoverage;
 	if (type != 2) result *= scissor;
 #ifdef NANOVG_GL3
 	outColor = result;

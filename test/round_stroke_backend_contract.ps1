@@ -18,6 +18,7 @@ Require-Match $context '\*dst = \{ x, y, inner_radius, outer_radius \};' 'round 
 Require-Match $fragment 'fstroke\.w > 0\.5' 'explicit round stroke mode'
 Require-Match $fragment 'float bodyStrokeCoverage\(' 'body coverage helper'
 Require-Match $fragment 'float roundStrokeCoverage\(' 'round coverage helper'
+Require-Match $fragment '(?s)#ifdef EDGE_AA\s*float bodyStrokeCoverage\(\).*?\}\s*#endif\s*float roundStrokeCoverage\(' 'round coverage is available without edge AA'
 Require-Match $fragment 'float inner = ftcoord\.x;' 'round coverage reads analytic inner radius'
 Require-Match $fragment 'float outer = ftcoord\.y;' 'round coverage reads analytic outer radius'
 Require-Match $fragment 'if \(outer <= inner\) return 1\.0 - step\(outer, dist\);' 'round coverage uses hard radius when AA span is zero'
@@ -25,6 +26,11 @@ Require-Match $fragment 'float scissorCoverage\(' 'scissor coverage helper'
 Require-Match $fragment 'vec4 paintColor\(' 'shared paint helper'
 if ($fragment -match 'ftcoord\.y > 1\.5') { throw 'Legacy round-stroke mode convention remains' }
 if ($fragment -match 'fstroke\.z <= 0\.0') { throw 'Legacy zero-AA proxy coverage remains' }
+
+$mainMatch = [regex]::Match($fragment, '(?s)void main\(void\) \{.*?\n\}')
+if (!$mainMatch.Success) { throw 'Missing fragment main function' }
+$main = $mainMatch.Value
+Require-Match $main '(?s)float strokeCoverage = 1\.0;\s*if \(fstroke\.w > 0\.5\) \{\s*strokeCoverage = roundStrokeCoverage\(\);\s*\}\s*#ifdef EDGE_AA.*?#endif\s*if \(type == 0 \|\| type == 1\) result \*= strokeCoverage;' 'round coverage applies independently of edge AA'
 
 $strokeMatch = [regex]::Match($backend, '(?s)fn void GlContext\.stroke\(&self, GlCall\* call\) \{.*?(?=\nfn void GlContext\.triangles)')
 if (!$strokeMatch.Success) { throw 'Missing stroke execution path' }
