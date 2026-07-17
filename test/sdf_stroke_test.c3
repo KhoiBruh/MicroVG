@@ -90,8 +90,8 @@ fn bool trianglesOverlapPositiveArea(Vec2[3] a, Vec2[3] b) @private {
 	return true;
 }
 
-fn void assertBodyExcludesOuterSector(MvgPath* path, Vec2 center, Vec2 outer0, Vec2 outer1) @private {
-	Vec2[3] sector = { center, outer0, outer1 };
+fn void assertBodyAndRoundStrokeDoNotOverlap(MvgPath* path) @private {
+	assert(path.nroundStroke % 3 == 0);
 	for (int i = 0; i + 2 < path.nstroke; i++) {
 		Vec2[3] body = {
 			{ path.stroke[i].x, path.stroke[i].y },
@@ -99,7 +99,15 @@ fn void assertBodyExcludesOuterSector(MvgPath* path, Vec2 center, Vec2 outer0, V
 			{ path.stroke[i + 2].x, path.stroke[i + 2].y }
 		};
 		if (math::abs(triangleArea2(body[0], body[1], body[2])) <= 0.0001f) continue;
-		assert(!trianglesOverlapPositiveArea(body, sector));
+		for (int j = 0; j < path.nroundStroke; j += 3) {
+			Vec2[3] round = {
+				{ path.roundStroke[j].x, path.roundStroke[j].y },
+				{ path.roundStroke[j + 1].x, path.roundStroke[j + 1].y },
+				{ path.roundStroke[j + 2].x, path.roundStroke[j + 2].y }
+			};
+			if (math::abs(triangleArea2(round[0], round[1], round[2])) <= 0.0001f) continue;
+			assert(!trianglesOverlapPositiveArea(body, round));
+		}
 	}
 }
 
@@ -216,7 +224,7 @@ fn void testRoundLeftJoinSweepsOuterSector() @test {
 	assert(has_positive_x);
 	assert(has_positive_y);
 	assertRoundStrokeFinite(path);
-	assertBodyExcludesOuterSector(path, { 10.0f, 0.0f }, { 10.0f, 4.0f }, { 14.0f, 0.0f });
+	assertBodyAndRoundStrokeDoNotOverlap(path);
 	assert(path.nstroke == 17);
 }
 
@@ -256,11 +264,11 @@ fn void testRoundRightJoinSweepsOuterSector() @test {
 	assert(has_positive_x);
 	assert(has_negative_y);
 	assertRoundStrokeFinite(path);
-	assertBodyExcludesOuterSector(path, { 10.0f, 0.0f }, { 10.0f, -4.0f }, { 14.0f, 0.0f });
+	assertBodyAndRoundStrokeDoNotOverlap(path);
 	assert(path.nstroke == 17);
 }
 
-fn void testClosedRoundJoinsHaveExactBodyAndSectorCounts() @test {
+fn void assertClosedRoundJoinMeshDoesNotOverlap(bool reverse) @private {
 	MicroVG vg = {};
 	vg.cache = allocPathCache();
 	assert(vg.cache != null);
@@ -268,19 +276,34 @@ fn void testClosedRoundJoinsHaveExactBodyAndSectorCounts() @test {
 	vg.setPxRatio(1.0f);
 	vg.addPath();
 	vg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
-	vg.addPoint({ 10.0f, 0.0f }, PT_CORNER);
-	vg.addPoint({ 10.0f, 10.0f }, PT_CORNER);
-	vg.addPoint({ 0.0f, 10.0f }, PT_CORNER);
+	if (reverse) {
+		vg.addPoint({ 0.0f, 10.0f }, PT_CORNER);
+		vg.addPoint({ 10.0f, 10.0f }, PT_CORNER);
+		vg.addPoint({ 10.0f, 0.0f }, PT_CORNER);
+	} else {
+		vg.addPoint({ 10.0f, 0.0f }, PT_CORNER);
+		vg.addPoint({ 10.0f, 10.0f }, PT_CORNER);
+		vg.addPoint({ 0.0f, 10.0f }, PT_CORNER);
+	}
 	vg.cache.paths[0].closed = 1;
 	prepareSdfStrokePath(&vg);
 
 	assert(vg.expandStroke(5.0f, 1.0f, LineCap.BUTT, LineJoin.ROUND, 10.0f) == 1);
 	MvgPath* path = &vg.cache.paths[0];
+	assertBodyAndRoundStrokeDoNotOverlap(path);
 	assert(path.nstroke == 38);
 	assert(path.nroundStroke == 24);
 	assert(path.nroundStroke % 3 == 0);
 	assertBodyFiniteAndBounded(path, 20.0f);
 	assertRoundStrokeFinite(path);
+}
+
+fn void testClosedCounterClockwiseRoundJoinsDoNotOverlapSectors() @test {
+	assertClosedRoundJoinMeshDoesNotOverlap(false);
+}
+
+fn void testClosedClockwiseRoundJoinsDoNotOverlapSectors() @test {
+	assertClosedRoundJoinMeshDoesNotOverlap(true);
 }
 
 fn void testShortRoundJoinHasExactFiniteBoundedBody() @test {
@@ -291,13 +314,14 @@ fn void testShortRoundJoinHasExactFiniteBoundedBody() @test {
 	vg.setPxRatio(1.0f);
 	vg.addPath();
 	vg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
-	vg.addPoint({ 0.02f, 0.0f }, PT_CORNER);
-	vg.addPoint({ 0.02f, -10.0f }, PT_CORNER);
+	vg.addPoint({ 4.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 4.0f, -10.0f }, PT_CORNER);
 	prepareSdfStrokePath(&vg);
 
 	assert(vg.expandStroke(5.0f, 1.0f, LineCap.BUTT, LineJoin.ROUND, 10.0f) == 1);
 	MvgPath* path = &vg.cache.paths[0];
 	assert(vg.cache.points[path.first + 1].flags.innerBevel);
+	assertBodyAndRoundStrokeDoNotOverlap(path);
 	assert(path.nstroke == 17);
 	assert(path.nroundStroke == 6);
 	assertBodyFiniteAndBounded(path, 20.0f);
