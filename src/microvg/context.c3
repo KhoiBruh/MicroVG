@@ -955,7 +955,7 @@ fn Vertex* nvgRoundJoinBody(
 	float inner0x, inner0y, inner1x, inner1y;
 
 	if (p1.flags.left) {
-		nvgChooseBevel(p1.flags.innerBevel, p0, p1, w, &inner0x, &inner0y, &inner1x, &inner1y);
+		nvgChooseBevel(true, p0, p1, w, &inner0x, &inner0y, &inner1x, &inner1y);
 		Vertex outer0 = { p1.x - dlx0 * w, p1.y - dly0 * w, u1, 1 };
 		Vertex inner0 = { inner0x, inner0y, u0, 1 };
 		Vertex inner1 = { inner1x, inner1y, u0, 1 };
@@ -972,7 +972,7 @@ fn Vertex* nvgRoundJoinBody(
 		*dst = outer1; dst++;
 	}
 	else {
-		nvgChooseBevel(p1.flags.innerBevel, p0, p1, -w, &inner0x, &inner0y, &inner1x, &inner1y);
+		nvgChooseBevel(true, p0, p1, -w, &inner0x, &inner0y, &inner1x, &inner1y);
 		Vertex outer0 = { p1.x + dlx0 * w, p1.y + dly0 * w, u0, 1 };
 		Vertex inner0 = { inner0x, inner0y, u1, 1 };
 		Vertex inner1 = { inner1x, inner1y, u1, 1 };

@@ -90,6 +90,46 @@ fn bool trianglesOverlapPositiveArea(Vec2[3] a, Vec2[3] b) @private {
 	return true;
 }
 
+fn bool pointInTriangle(Vec2 point, Vec2[3] triangle) @private {
+	float a = triangleArea2(triangle[0], triangle[1], point);
+	float b = triangleArea2(triangle[1], triangle[2], point);
+	float c = triangleArea2(triangle[2], triangle[0], point);
+	bool has_negative = a < -0.0001f || b < -0.0001f || c < -0.0001f;
+	bool has_positive = a > 0.0001f || b > 0.0001f || c > 0.0001f;
+	return !(has_negative && has_positive);
+}
+
+fn bool strokeMeshesCoverPoint(MvgPath* path, Vec2 point) @private {
+	for (int i = 0; i + 2 < path.nstroke; i++) {
+		Vec2[3] triangle = {
+			{ path.stroke[i].x, path.stroke[i].y },
+			{ path.stroke[i + 1].x, path.stroke[i + 1].y },
+			{ path.stroke[i + 2].x, path.stroke[i + 2].y }
+		};
+		if (math::abs(triangleArea2(triangle[0], triangle[1], triangle[2])) > 0.0001f && pointInTriangle(point, triangle)) return true;
+	}
+	for (int i = 0; i < path.nroundStroke; i += 3) {
+		Vec2[3] triangle = {
+			{ path.roundStroke[i].x, path.roundStroke[i].y },
+			{ path.roundStroke[i + 1].x, path.roundStroke[i + 1].y },
+			{ path.roundStroke[i + 2].x, path.roundStroke[i + 2].y }
+		};
+		if (math::abs(triangleArea2(triangle[0], triangle[1], triangle[2])) > 0.0001f && pointInTriangle(point, triangle)) return true;
+	}
+	return false;
+}
+
+fn void assertRoundJoinDiskCovered(MvgPath* path, Vec2 center, float radius) @private {
+	for (int iy = -19; iy <= 19; iy++) {
+		for (int ix = -19; ix <= 19; ix++) {
+			Vec2 point = { center.x + (float)ix * 0.5f, center.y + (float)iy * 0.5f };
+			float dx = point.x - center.x;
+			float dy = point.y - center.y;
+			if (dx * dx + dy * dy <= radius * radius) assert(strokeMeshesCoverPoint(path, point));
+		}
+	}
+}
+
 fn void assertBodyAndRoundStrokeDoNotOverlap(MvgPath* path) @private {
 	assert(path.nroundStroke % 3 == 0);
 	for (int i = 0; i + 2 < path.nstroke; i++) {
@@ -492,4 +532,40 @@ fn void testInnerBevelOnlyBodyCountMatchesEmission() @test {
 	assert(!join.flags.bevel);
 	assert(path.nstroke == 18);
 	assertBodyFiniteAndBounded(path, 20.0f);
+}
+
+fn void testThickLeftRoundJoinCoversExpectedDisk() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+	vg.addPoint({ 930.0f, 430.0f }, PT_CORNER);
+	vg.addPoint({ 950.0f, 470.0f }, PT_CORNER);
+	vg.addPoint({ 980.0f, 450.0f }, PT_CORNER);
+	prepareSdfStrokePath(&vg);
+
+	assert(vg.expandStroke(10.0f, 1.0f, LineCap.ROUND, LineJoin.ROUND, 10.0f) == 1);
+	MvgPath* path = &vg.cache.paths[0];
+	assert(vg.cache.points[path.first + 1].flags.left);
+	assertRoundJoinDiskCovered(path, { 950.0f, 470.0f }, 9.5f);
+}
+
+fn void testThickRightRoundJoinCoversExpectedDisk() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+	vg.addPoint({ 930.0f, 540.0f }, PT_CORNER);
+	vg.addPoint({ 950.0f, 510.0f }, PT_CORNER);
+	vg.addPoint({ 980.0f, 520.0f }, PT_CORNER);
+	prepareSdfStrokePath(&vg);
+
+	assert(vg.expandStroke(10.0f, 1.0f, LineCap.ROUND, LineJoin.ROUND, 10.0f) == 1);
+	MvgPath* path = &vg.cache.paths[0];
+	assert(!vg.cache.points[path.first + 1].flags.left);
+	assertRoundJoinDiskCovered(path, { 950.0f, 510.0f }, 9.5f);
 }
