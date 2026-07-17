@@ -664,11 +664,13 @@ fn void MicroVG.flattenPaths(&self) {
 
 		Point* p0 = &pts[path.count - 1];
 		Point* p1 = &pts[0];
-		if (nvgPtEquals( { p0.x, p0.y }, { p1.x, p1.y }, self.distTol)) {
+		if (path.count > 1 && nvgPtEquals( { p0.x, p0.y }, { p1.x, p1.y }, self.distTol)) {
 			path.count--;
 			p0 = &pts[path.count - 1];
 			path.closed = 1;
 		}
+
+		if (path.count < 2) continue;
 
 		if (path.count > 2) {
 			float area = nvgPolyArea(pts, path.count);
@@ -997,6 +999,11 @@ fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLim
 
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
+		if (path.count < 2) {
+			path.nbevel = 0;
+			path.convex = false;
+			continue;
+		}
 		Point* pts = &cache.points[path.first];
 		Point* p0 = &pts[path.count - 1];
 		Point* p1 = &pts[0];
@@ -1068,6 +1075,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 	int cverts = 0;
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
+		if (path.count < 2) continue;
 		int loop = (path.closed == 0) ? 0 : 1;
 
 		if (lineJoin == LineJoin.ROUND) {
@@ -1087,8 +1095,11 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		}
 	}
 
-	Vertex* verts = self.allocTempVerts(cverts);
-	if (verts == null) return 0;
+	Vertex* verts = cache.verts;
+	if (cverts > 0) {
+		verts = self.allocTempVerts(cverts);
+		if (verts == null) return 0;
+	}
 
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
@@ -1100,6 +1111,11 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 		path.fill = null;
 		path.nfill = 0;
+		if (path.count < 2) {
+			path.stroke = null;
+			path.nstroke = 0;
+			continue;
+		}
 
 		loop = (path.closed == 0) ? 0 : 1;
 		Vertex* dst = verts;
