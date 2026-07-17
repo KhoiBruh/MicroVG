@@ -1122,7 +1122,7 @@ fn int nvgStrokeBodyVertexCount(MvgPath* path, Point* pts, LineCap lineCap, Line
 	for (int i = start; i < end; i++) {
 		Point* point = &pts[i];
 		if (point.flags.bevel || point.flags.innerBevel) {
-			count += (lineJoin == LineJoin.ROUND) ? 9 : 10;
+			count += (lineJoin == LineJoin.ROUND) ? 9 : (point.flags.bevel ? 8 : 10);
 		}
 		else {
 			count += 2;

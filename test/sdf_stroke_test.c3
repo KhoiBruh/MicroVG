@@ -432,3 +432,64 @@ fn void testShortRoundJoinHasExactFiniteBoundedBody() @test {
 	assertBodyFiniteAndBounded(path, 20.0f);
 	assertRoundStrokeFinite(path);
 }
+
+fn void testBevelJoinBodyCountMatchesEmission() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+	vg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 10.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 10.0f, 10.0f }, PT_CORNER);
+	prepareSdfStrokePath(&vg);
+
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.BUTT, LineJoin.BEVEL, 10.0f) == 1);
+	MvgPath* path = &vg.cache.paths[0];
+	Point* join = &vg.cache.points[path.first + 1];
+	assert(join.flags.bevel);
+	assert(path.nstroke == 16);
+	assertBodyFiniteAndBounded(path, 20.0f);
+}
+
+fn void testMiterLimitForcedBevelBodyCountMatchesEmission() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+	vg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 10.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 10.0f, 10.0f }, PT_CORNER);
+	prepareSdfStrokePath(&vg);
+
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.BUTT, LineJoin.MITER, 1.0f) == 1);
+	MvgPath* path = &vg.cache.paths[0];
+	Point* join = &vg.cache.points[path.first + 1];
+	assert(join.flags.bevel);
+	assert(path.nstroke == 16);
+	assertBodyFiniteAndBounded(path, 20.0f);
+}
+
+fn void testInnerBevelOnlyBodyCountMatchesEmission() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+	vg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 4.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 4.0f, 10.0f }, PT_CORNER);
+	prepareSdfStrokePath(&vg);
+
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.BUTT, LineJoin.MITER, 10.0f) == 1);
+	MvgPath* path = &vg.cache.paths[0];
+	Point* join = &vg.cache.points[path.first + 1];
+	assert(join.flags.innerBevel);
+	assert(!join.flags.bevel);
+	assert(path.nstroke == 18);
+	assertBodyFiniteAndBounded(path, 20.0f);
+}
