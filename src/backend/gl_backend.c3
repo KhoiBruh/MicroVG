@@ -74,6 +74,8 @@ struct GlPath {
 	int fillCount;
 	int strokeOffset;
 	int strokeCount;
+	int roundStrokeOffset;
+	int roundStrokeCount;
 }
 
 struct GlFragUniforms {
@@ -514,6 +516,13 @@ fn void GlContext.stroke(&self, GlCall* call) {
 		}
 	}
 
+	self.setUniforms(call.uniformOffset, call.image);
+	for (int i = 0; i < npaths; i++) {
+		if (paths[i].roundStrokeCount > 0) {
+			gl::drawArrays(GL_TRIANGLES, paths[i].roundStrokeOffset, paths[i].roundStrokeCount);
+		}
+	}
+
 	gl::enable(gl::GL_CULL_FACE);
 }
 
@@ -575,6 +584,7 @@ fn int glnvgMaxVertCount(MvgPath* paths, int npaths) @local {
 	for (int i = 0; i < npaths; i++) {
 		count += paths[i].nfill;
 		count += paths[i].nstroke;
+		count += paths[i].nroundStroke;
 	}
 	return count;
 }
@@ -1017,6 +1027,19 @@ fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, 
 			}
 			sdoff += path.nstroke;
 			voff += path.nstroke;
+		}
+		if (path.nroundStroke) {
+			copy.roundStrokeOffset = voff;
+			copy.roundStrokeCount = path.nroundStroke;
+			mem::copy(gl.vertsBuf.at(voff), path.roundStroke, Vertex::size * path.nroundStroke);
+			if (path.roundStrokeData != null) {
+				mem::copy(gl.strokeDataBuf.at(sdoff), path.roundStrokeData, (sz)16 * path.nroundStroke);
+			}
+			else {
+				mem::clear(gl.strokeDataBuf.at(sdoff), (sz)16 * path.nroundStroke);
+			}
+			sdoff += path.nroundStroke;
+			voff += path.nroundStroke;
 		}
 	}
 
