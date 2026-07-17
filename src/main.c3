@@ -279,7 +279,7 @@ fn void drawScene(microvg::MicroVG* vg, float w, float h, float t) {
     vg.beginPath();
     vg.moveTo(930.0f, 430.0f);
     vg.lineTo(950.0f, 470.0f);
-    vg.lineTo(920.0f, 450.0f);
+    vg.lineTo(980.0f, 450.0f);
     vg.strokeColor(microvg::rgba(255, 180, 0, 255));
     vg.strokeWidth(12.0f);
     vg.lineJoin(LineJoin.ROUND);
@@ -289,7 +289,7 @@ fn void drawScene(microvg::MicroVG* vg, float w, float h, float t) {
     vg.beginPath();
     vg.moveTo(930.0f, 540.0f);
     vg.lineTo(950.0f, 510.0f);
-    vg.lineTo(970.0f, 470.0f);
+    vg.lineTo(980.0f, 520.0f);
     vg.strokeColor(microvg::rgba(0, 220, 255, 255));
     vg.strokeWidth(12.0f);
     vg.lineJoin(LineJoin.ROUND);
