@@ -19,6 +19,10 @@ fn void testSdfSectorRadiusCircumscribesArc() @test {
 		float boundary_radius = sector_radius * math::cos(delta * 0.5f) / math::cos(angle);
 		assert(boundary_radius >= outer_radius);
 	}
+
+	float large_delta_radius = sdfSectorRadius(outer_radius, PI);
+	assert(math::is_finite(large_delta_radius));
+	assert(large_delta_radius > 0.0f);
 }
 
 fn void testSdfCapPointStaysInOutwardEndpointHalfPlane() @test {
@@ -31,4 +35,10 @@ fn void testSdfCapPointStaysInOutwardEndpointHalfPlane() @test {
 		float outward_distance = (point.x - endpoint.x) * direction.x + (point.y - endpoint.y) * direction.y;
 		assert(outward_distance >= -0.0001f);
 	}
+}
+
+fn void testSdfCapPointUsesClockwiseNormal() @test {
+	Vec2 point = sdfCapPoint({ 0.0f, 0.0f }, { 1.0f, 0.0f }, 5.0f, PI * 0.5f);
+	assert(math::abs(point.x) < 0.0001f);
+	assert(point.y < 0.0f);
 }

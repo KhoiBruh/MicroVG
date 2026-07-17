@@ -697,24 +697,25 @@ fn void MicroVG.flattenPaths(&self) {
 }
 
 const int SDF_JOIN_SEGS = 5;
-const float SDF_MAX_SECTOR_ANGLE = PI * 0.25f;
+const float SDF_MAX_SECTOR_ANGLE @private = PI * 0.25f;
 
-fn int sdfSectorDivisions(float sweep, float max_angle) {
+fn int sdfSectorDivisions(float sweep, float max_angle) @private {
 	if (sweep == 0.0f || max_angle <= 0.0f) return 1;
 	float sector_angle = math::min(max_angle, SDF_MAX_SECTOR_ANGLE);
 	return math::max(1, (int)math::ceil(math::abs(sweep) / sector_angle));
 }
 
-fn float sdfSectorRadius(float outer_radius, float delta) {
-	return outer_radius / math::cos(delta * 0.5f);
+fn float sdfSectorRadius(float outer_radius, float delta) @private {
+	float denominator = math::max(0.001f, math::cos(math::abs(delta) * 0.5f));
+	return outer_radius / denominator;
 }
 
-fn Vec2 sdfCapPoint(Vec2 endpoint, Vec2 direction, float radius, float angle) {
+fn Vec2 sdfCapPoint(Vec2 endpoint, Vec2 direction, float radius, float angle) @private {
 	float axial = math::cos(angle) * radius;
 	float lateral = math::sin(angle) * radius;
 	return {
-		endpoint.x + direction.x * axial - direction.y * lateral,
-		endpoint.y + direction.y * axial + direction.x * lateral
+		endpoint.x + direction.x * axial + direction.y * lateral,
+		endpoint.y + direction.y * axial - direction.x * lateral
 	};
 }
 
