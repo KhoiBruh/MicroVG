@@ -69,6 +69,7 @@ float bodyStrokeCoverage() {
 }
 
 float roundStrokeCoverage() {
+	if (fstroke.z <= 0.0) return 1.0;
 	float inner = fstroke.z * (strokeMult - 0.5);
 	float outer = fstroke.z * (strokeMult + 0.5);
 	return 1.0 - smoothstep(inner, outer, length(fpos - fstroke.xy));

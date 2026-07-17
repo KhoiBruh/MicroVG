@@ -507,6 +507,13 @@ fn void GlContext.stroke(&self, GlCall* call) {
 		gl::colorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
 		gl::disable(GL_STENCIL_TEST);
+		self.setUniforms(call.uniformOffset, call.image);
+		self.checkError("stroke round");
+		for (int i = 0; i < npaths; i++) {
+			if (paths[i].roundStrokeCount > 0) {
+				gl::drawArrays(GL_TRIANGLES, paths[i].roundStrokeOffset, paths[i].roundStrokeCount);
+			}
+		}
 	}
 	else {
 		self.setUniforms(call.uniformOffset, call.image);

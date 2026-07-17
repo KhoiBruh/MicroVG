@@ -16,6 +16,7 @@ Require-Match $backend 'gl::drawArrays\(GL_TRIANGLES, paths\[i\]\.roundStrokeOff
 Require-Match $fragment 'fstroke\.w > 0\.5' 'explicit round stroke mode'
 Require-Match $fragment 'float bodyStrokeCoverage\(' 'body coverage helper'
 Require-Match $fragment 'float roundStrokeCoverage\(' 'round coverage helper'
+Require-Match $fragment 'if \(fstroke\.z <= 0\.0\) return 1\.0;' 'round coverage hard fallback for zero AA'
 Require-Match $fragment 'float scissorCoverage\(' 'scissor coverage helper'
 Require-Match $fragment 'vec4 paintColor\(' 'shared paint helper'
 if ($fragment -match 'ftcoord\.y > 1\.5') { throw 'Legacy round-stroke mode convention remains' }
@@ -23,11 +24,18 @@ if ($fragment -match 'ftcoord\.y > 1\.5') { throw 'Legacy round-stroke mode conv
 $strokeMatch = [regex]::Match($backend, '(?s)fn void GlContext\.stroke\(&self, GlCall\* call\) \{.*?(?=\nfn void GlContext\.triangles)')
 if (!$strokeMatch.Success) { throw 'Missing stroke execution path' }
 $stroke = $strokeMatch.Value
-$defaultStart = $stroke.IndexOf("`telse {")
+$stencilStart = $stroke.IndexOf("`tif (self.flags & STENCIL_STROKES) {")
+$defaultStart = $stroke.IndexOf("`telse {", $stencilStart)
 $defaultEnd = $stroke.IndexOf("`n`t}`n`n`tgl::enable", $defaultStart)
-if ($defaultStart -lt 0 -or $defaultEnd -lt 0) { throw 'Round strokes must remain inside the default non-stencil path' }
+if ($stencilStart -lt 0 -or $defaultStart -lt 0 -or $defaultEnd -lt 0) { throw 'Missing stroke execution branch boundary' }
+$stencilStroke = $stroke.Substring($stencilStart, $defaultStart - $stencilStart)
 $defaultStroke = $stroke.Substring($defaultStart, $defaultEnd - $defaultStart)
 $roundDraw = 'gl::drawArrays\(GL_TRIANGLES, paths\[i\]\.roundStrokeOffset, paths\[i\]\.roundStrokeCount\);'
 Require-Match $defaultStroke "(?s)GL_TRIANGLE_STRIP.*?$roundDraw" 'round triangles immediately follow each default body range'
-if ($stroke.Substring(0, $defaultStart) -match $roundDraw) { throw 'Stencil stroke path must not render round triangles' }
-if ($stroke.Substring($defaultEnd) -match $roundDraw) { throw 'Round triangles must not be rendered after the default path loop' }
+$stencilCleanup = $stencilStroke.IndexOf('gl::disable(GL_STENCIL_TEST);')
+if ($stencilCleanup -lt 0) { throw 'Stencil cleanup is missing' }
+if ($stencilStroke.Substring(0, $stencilCleanup) -match $roundDraw) { throw 'Round triangles must not be added to stencil passes' }
+Require-Match $stencilStroke.Substring($stencilCleanup) "(?s)gl::disable\(GL_STENCIL_TEST\);.*?self\.setUniforms\(call\.uniformOffset, call\.image\);.*?$roundDraw" 'round triangles render after stencil cleanup'
+if (([regex]::Matches($defaultStroke, $roundDraw)).Count -ne 1) { throw 'Default stroke path must draw each round range once' }
+if (([regex]::Matches($stencilStroke, $roundDraw)).Count -ne 1) { throw 'Stencil stroke path must draw each round range once after cleanup' }
+if (([regex]::Matches($stroke, $roundDraw)).Count -ne 2) { throw 'Stroke execution must contain exactly one round draw per runtime branch' }
