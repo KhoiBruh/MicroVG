@@ -74,8 +74,6 @@ struct GlPath {
 	int fillCount;
 	int strokeOffset;
 	int strokeCount;
-	int roundStrokeOffset;
-	int roundStrokeCount;
 }
 
 struct GlFragUniforms {
@@ -507,22 +505,12 @@ fn void GlContext.stroke(&self, GlCall* call) {
 		gl::colorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
 		gl::disable(GL_STENCIL_TEST);
-		self.setUniforms(call.uniformOffset, call.image);
-		self.checkError("stroke round");
-		for (int i = 0; i < npaths; i++) {
-			if (paths[i].roundStrokeCount > 0) {
-				gl::drawArrays(GL_TRIANGLES, paths[i].roundStrokeOffset, paths[i].roundStrokeCount);
-			}
-		}
 	}
 	else {
 		self.setUniforms(call.uniformOffset, call.image);
 		self.checkError("stroke fill");
 		for (int i = 0; i < npaths; i++) {
 			gl::drawArrays(GL_TRIANGLE_STRIP, paths[i].strokeOffset, paths[i].strokeCount);
-			if (paths[i].roundStrokeCount > 0) {
-				gl::drawArrays(GL_TRIANGLES, paths[i].roundStrokeOffset, paths[i].roundStrokeCount);
-			}
 		}
 	}
 
@@ -587,7 +575,6 @@ fn int glnvgMaxVertCount(MvgPath* paths, int npaths) @local {
 	for (int i = 0; i < npaths; i++) {
 		count += paths[i].nfill;
 		count += paths[i].nstroke;
-		count += paths[i].nroundStroke;
 	}
 	return count;
 }
@@ -1022,27 +1009,7 @@ fn void glnvgRenderStroke(void* up, Paint* paint, CompositeOpState compositeOp, 
 			copy.strokeOffset = voff;
 			copy.strokeCount = path.nstroke;
 			mem::copy(gl.vertsBuf.at(voff), path.stroke, Vertex::size * path.nstroke);
-			if (path.strokeData != null) {
-				mem::copy(gl.strokeDataBuf.at(sdoff), path.strokeData, (sz)16 * path.nstroke);
-			}
-			else {
-				mem::clear(gl.strokeDataBuf.at(sdoff), (sz)16 * path.nstroke);
-			}
-			sdoff += path.nstroke;
 			voff += path.nstroke;
-		}
-		if (path.nroundStroke) {
-			copy.roundStrokeOffset = voff;
-			copy.roundStrokeCount = path.nroundStroke;
-			mem::copy(gl.vertsBuf.at(voff), path.roundStroke, Vertex::size * path.nroundStroke);
-			if (path.roundStrokeData != null) {
-				mem::copy(gl.strokeDataBuf.at(sdoff), path.roundStrokeData, (sz)16 * path.nroundStroke);
-			}
-			else {
-				mem::clear(gl.strokeDataBuf.at(sdoff), (sz)16 * path.nroundStroke);
-			}
-			sdoff += path.nroundStroke;
-			voff += path.nroundStroke;
 		}
 	}
 

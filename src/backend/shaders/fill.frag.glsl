@@ -28,13 +28,11 @@
 	uniform sampler2D tex;
 	in vec2 ftcoord;
 	in vec2 fpos;
-	in vec4 fstroke;
 	out vec4 outColor;
 #else
 	uniform sampler2D tex;
 	varying vec2 ftcoord;
 	varying vec2 fpos;
-	varying vec4 fstroke;
 #endif
 #ifndef USE_UNIFORMBUFFER
 	#define scissorMat mat3(frag[0].xyz, frag[1].xyz, frag[2].xyz)
@@ -58,26 +56,27 @@ float sdroundrect(vec2 pt, vec2 ext, float rad) {
 	return min(max(d.x,d.y),0.0) + length(max(d,0.0)) - rad;
 }
 
-float scissorCoverage(vec2 p) {
+float scissorMask(vec2 p) {
 	vec2 sc = (abs((scissorMat * vec3(p,1.0)).xy) - scissorExt);
 	sc = vec2(0.5,0.5) - sc * scissorScale;
 	return clamp(sc.x,0.0,1.0) * clamp(sc.y,0.0,1.0);
 }
 #ifdef EDGE_AA
-float bodyStrokeCoverage() {
+float strokeMask() {
 	return min(1.0, (1.0-abs(ftcoord.x*2.0-1.0))*strokeMult) * min(1.0, ftcoord.y);
 }
 #endif
 
-float roundStrokeCoverage() {
-	float inner = ftcoord.x;
-	float outer = ftcoord.y;
-	float dist = length(fpos - fstroke.xy);
-	if (outer <= inner) return 1.0 - step(outer, dist);
-	return 1.0 - smoothstep(inner, outer, dist);
-}
-
-vec4 paintColor() {
+void main(void) {
+	vec4 result;
+	float scissor = scissorMask(fpos);
+#ifdef EDGE_AA
+	float strokeAlpha;
+	strokeAlpha = strokeMask();
+	if (strokeAlpha < strokeThr) discard;
+#else
+	float strokeAlpha = 1.0;
+#endif
 	if (type == 0) {
 		vec2 pt = (paintMat * vec3(fpos,1.0)).xy;
 		float d;
@@ -90,7 +89,8 @@ vec4 paintColor() {
 			d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);
 		}
 		vec4 color = mix(innerCol,outerCol,d);
-		return color;
+		color *= strokeAlpha * scissor;
+		result = color;
 	} else if (type == 1) {
 		vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;
 #ifdef NANOVG_GL3
@@ -101,9 +101,10 @@ vec4 paintColor() {
 		if (texType == 1) color = vec4(color.xyz*color.w,color.w);
 		if (texType == 2) color = vec4(color.x);
 		color *= innerCol;
-		return color;
+		color *= strokeAlpha * scissor;
+		result = color;
 	} else if (type == 2) {
-		return vec4(1,1,1,1);
+		result = vec4(1,1,1,1);
 	} else if (type == 3) {
 #ifdef NANOVG_GL3
 		vec4 color = texture(tex, ftcoord);
@@ -112,26 +113,9 @@ vec4 paintColor() {
 #endif
 		if (texType == 1) color = vec4(color.xyz*color.w,color.w);
 		if (texType == 2) color = vec4(color.x);
-		return color * innerCol;
+		color *= scissor;
+		result = color * innerCol;
 	}
-	return vec4(0,0,0,0);
-}
-
-void main(void) {
-	vec4 result = paintColor();
-	float scissor = scissorCoverage(fpos);
-	float strokeCoverage = 1.0;
-	if (fstroke.w > 0.5) {
-		strokeCoverage = roundStrokeCoverage();
-	}
-#ifdef EDGE_AA
-	else {
-		strokeCoverage = bodyStrokeCoverage();
-		if (strokeCoverage < strokeThr) discard;
-	}
-#endif
-	if (type == 0 || type == 1) result *= strokeCoverage;
-	if (type != 2) result *= scissor;
 #ifdef NANOVG_GL3
 	outColor = result;
 #else

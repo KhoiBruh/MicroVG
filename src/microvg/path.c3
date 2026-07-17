@@ -52,12 +52,8 @@ struct MvgPath {
 	int nfill;
 	Vertex* stroke;
 	int nstroke;
-	Vertex* roundStroke;
-	int nroundStroke;
 	Vertex* triFill;
 	int ntriFill;
-	float* strokeData;
-	float* roundStrokeData;
 	Winding winding;
 	bool convex;
 }
@@ -89,9 +85,6 @@ fn void PathCache.delete(&self) {
 	if (self.paths != null) {
 		for (int i = 0; i < self.npaths; i++) {
 			if (self.paths[i].triFill != null) mem::free(self.paths[i].triFill);
-			if (self.paths[i].strokeData != null) mem::free(self.paths[i].strokeData);
-			if (self.paths[i].roundStroke != null) mem::free(self.paths[i].roundStroke);
-			if (self.paths[i].roundStrokeData != null) mem::free(self.paths[i].roundStrokeData);
 		}
 		mem::free(self.paths);
 	}
