@@ -677,7 +677,7 @@ fn void MicroVG.flattenPaths(&self) {
 
 		Point* p0 = &pts[path.count - 1];
 		Point* p1 = &pts[0];
-		if (nvgPtEquals( { p0.x, p0.y }, { p1.x, p1.y }, self.distTol)) {
+		if (path.count > 1 && nvgPtEquals( { p0.x, p0.y }, { p1.x, p1.y }, self.distTol)) {
 			path.count--;
 			p0 = &pts[path.count - 1];
 			path.closed = 1;
@@ -1044,6 +1044,11 @@ fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLim
 
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
+		if (path.count < 2) {
+			path.nbevel = 0;
+			path.convex = false;
+			continue;
+		}
 		Point* pts = &cache.points[path.first];
 		Point* p0 = &pts[path.count - 1];
 		Point* p1 = &pts[0];
@@ -1144,23 +1149,38 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 	int cverts = 0;
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
+		if (path.count < 2) continue;
 		Point* pts = &cache.points[path.first];
 		cverts += nvgStrokeBodyVertexCount(path, pts, lineCap, lineJoin);
 	}
 
-	Vertex* verts = self.allocTempVerts(cverts);
-	if (verts == null) return 0;
+	Vertex* verts = cache.verts;
+	if (cverts > 0) {
+		verts = self.allocTempVerts(cverts);
+		if (verts == null) return 0;
+	}
 
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
+		path.fill = null;
+		path.nfill = 0;
+		if (path.count < 2) {
+			path.stroke = null;
+			path.nstroke = 0;
+			if (path.strokeData != null) mem::free(path.strokeData);
+			path.strokeData = null;
+			if (path.roundStroke != null) mem::free(path.roundStroke);
+			path.roundStroke = null;
+			if (path.roundStrokeData != null) mem::free(path.roundStrokeData);
+			path.roundStrokeData = null;
+			path.nroundStroke = 0;
+			continue;
+		}
 		Point* pts = &cache.points[path.first];
 		Point* p0;
 		Point* p1;
 		int s, e, loop;
 		float dx, dy;
-
-		path.fill = null;
-		path.nfill = 0;
 
 		loop = (path.closed == 0) ? 0 : 1;
 

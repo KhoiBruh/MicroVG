@@ -138,6 +138,111 @@ fn void prepareSdfStrokePath(MicroVG* vg) @private {
 	}
 }
 
+fn void assertPathHasNoStrokeGeometry(MvgPath* path) @private {
+	assert(path.nstroke == 0);
+	assert(path.stroke == null);
+	assert(path.strokeData == null);
+	assert(path.nroundStroke == 0);
+	assert(path.roundStroke == null);
+	assert(path.roundStrokeData == null);
+}
+
+fn void testOpenMoveOnlyPathProducesNoStrokeGeometry() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	defer if (vg.commands != null) mem::free(vg.commands);
+	vg.save();
+	vg.reset();
+	vg.setPxRatio(1.0f);
+	vg.moveTo(0.0f, 0.0f);
+	vg.lineTo(10.0f, 0.0f);
+	vg.moveTo(20.0f, 20.0f);
+	vg.flattenPaths();
+
+	assert(vg.cache.npaths == 2);
+	assert(vg.cache.paths[1].count < 2);
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.ROUND, LineJoin.ROUND, 10.0f) == 1);
+	assert(vg.cache.paths[0].nstroke == 4);
+	assert(vg.cache.paths[0].nroundStroke == 12);
+	assertPathHasNoStrokeGeometry(&vg.cache.paths[1]);
+}
+
+fn void testClosedMoveOnlyPathProducesNoStrokeGeometry() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	defer if (vg.commands != null) mem::free(vg.commands);
+	vg.save();
+	vg.reset();
+	vg.setPxRatio(1.0f);
+	vg.moveTo(0.0f, 0.0f);
+	vg.lineTo(10.0f, 0.0f);
+	vg.moveTo(20.0f, 20.0f);
+	vg.closePath();
+	vg.flattenPaths();
+
+	assert(vg.cache.npaths == 2);
+	assert(vg.cache.paths[1].count < 2);
+	assert(vg.cache.paths[1].closed != 0);
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.ROUND, LineJoin.ROUND, 10.0f) == 1);
+	assert(vg.cache.paths[0].nstroke == 4);
+	assert(vg.cache.paths[0].nroundStroke == 12);
+	assertPathHasNoStrokeGeometry(&vg.cache.paths[1]);
+}
+
+fn void testEmptyCachedPathProducesNoStrokeGeometry() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+
+	assert(vg.cache.paths[0].count == 0);
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.ROUND, LineJoin.ROUND, 10.0f) == 1);
+	assertPathHasNoStrokeGeometry(&vg.cache.paths[0]);
+}
+
+fn void testSinglePointCachedPathProducesNoStrokeGeometry() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+	vg.addPoint({ 2.0f, 3.0f }, PT_CORNER);
+	prepareSdfStrokePath(&vg);
+
+	assert(vg.cache.paths[0].count == 1);
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.ROUND, LineJoin.ROUND, 10.0f) == 1);
+	assertPathHasNoStrokeGeometry(&vg.cache.paths[0]);
+}
+
+fn void testDegeneratePathClearsPreviousStrokeAllocations() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+	vg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 10.0f, 0.0f }, PT_CORNER);
+	prepareSdfStrokePath(&vg);
+
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.ROUND, LineJoin.ROUND, 10.0f) == 1);
+	MvgPath* path = &vg.cache.paths[0];
+	assert(path.strokeData != null);
+	assert(path.roundStroke != null);
+	assert(path.roundStrokeData != null);
+
+	path.count = 1;
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.ROUND, LineJoin.ROUND, 10.0f) == 1);
+	assertPathHasNoStrokeGeometry(path);
+}
+
 fn void testRoundCapsAreNotInsertedIntoBodyStrip() @test {
 	MicroVG vg = {};
 	vg.cache = allocPathCache();
