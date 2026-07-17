@@ -56,6 +56,7 @@ fn void assertRoundStrokeFinite(MvgPath* path) @private {
 
 fn void assertRoundStrokeRadii(MvgPath* path, float inner_radius, float outer_radius) @private {
 	for (int i = 0; i < path.nroundStroke; i++) {
+		if (path.roundStrokeData[i * 4 + 3] < 0.5f) continue;
 		assert(math::abs(path.roundStroke[i].u - inner_radius) < 0.0001f);
 		assert(math::abs(path.roundStroke[i].v - outer_radius) < 0.0001f);
 	}
@@ -72,6 +73,10 @@ fn bool trianglesOverlapPositiveArea(Vec2[3] a, Vec2[3] b) @private {
 			Vec2 p0 = (*triangle)[i];
 			Vec2 p1 = (*triangle)[(i + 1) % 3];
 			Vec2 axis = { -(p1.y - p0.y), p1.x - p0.x };
+			float axis_length = math::sqrt(axis.x * axis.x + axis.y * axis.y);
+			if (axis_length <= 0.0001f) continue;
+			axis.x /= axis_length;
+			axis.y /= axis_length;
 			float amin = a[0].x * axis.x + a[0].y * axis.y;
 			float amax = amin;
 			float bmin = b[0].x * axis.x + b[0].y * axis.y;
@@ -139,6 +144,15 @@ fn void assertBodyAndRoundStrokeDoNotOverlap(MvgPath* path) @private {
 			{ path.stroke[i + 2].x, path.stroke[i + 2].y }
 		};
 		if (math::abs(triangleArea2(body[0], body[1], body[2])) <= 0.0001f) continue;
+		for (int j = i + 2; j + 2 < path.nstroke; j++) {
+			Vec2[3] other = {
+				{ path.stroke[j].x, path.stroke[j].y },
+				{ path.stroke[j + 1].x, path.stroke[j + 1].y },
+				{ path.stroke[j + 2].x, path.stroke[j + 2].y }
+			};
+			if (math::abs(triangleArea2(other[0], other[1], other[2])) <= 0.0001f) continue;
+			assert(!trianglesOverlapPositiveArea(body, other));
+		}
 		for (int j = 0; j < path.nroundStroke; j += 3) {
 			Vec2[3] round = {
 				{ path.roundStroke[j].x, path.roundStroke[j].y },
@@ -149,6 +163,18 @@ fn void assertBodyAndRoundStrokeDoNotOverlap(MvgPath* path) @private {
 			assert(!trianglesOverlapPositiveArea(body, round));
 		}
 	}
+}
+
+fn void assertRoundTriangleModes(MvgPath* path, int expected_body_triangles) @private {
+	int body_triangles = 0;
+	for (int i = 0; i < path.nroundStroke; i += 3) {
+		float mode = path.roundStrokeData[i * 4 + 3];
+		assert(mode == path.roundStrokeData[(i + 1) * 4 + 3]);
+		assert(mode == path.roundStrokeData[(i + 2) * 4 + 3]);
+		if (mode < 0.5f) { body_triangles++; }
+		else { assert(mode == 1.0f); }
+	}
+	assert(body_triangles == expected_body_triangles);
 }
 
 fn void assertBodyFiniteAndBounded(MvgPath* path, float limit) @private {
@@ -356,8 +382,7 @@ fn void testRoundLeftJoinSweepsOuterSector() @test {
 	bool has_positive_x = false;
 	bool has_positive_y = false;
 	for (int i = 0; i < path.nroundStroke; i += 3) {
-		assert(math::abs(path.roundStroke[i].x - 10.0f) < 0.0001f);
-		assert(math::abs(path.roundStroke[i].y) < 0.0001f);
+		if (path.roundStrokeData[i * 4 + 3] < 0.5f) continue;
 		for (int j = 1; j < 3; j++) {
 			Vertex vertex = path.roundStroke[i + j];
 			assert(vertex.x >= 9.9999f);
@@ -370,7 +395,7 @@ fn void testRoundLeftJoinSweepsOuterSector() @test {
 	assert(has_positive_y);
 	assertRoundStrokeFinite(path);
 	assertBodyAndRoundStrokeDoNotOverlap(path);
-	assert(path.nstroke == 17);
+	assert(path.nstroke == 14);
 }
 
 fn void testRoundRightJoinSweepsOuterSector() @test {
@@ -396,8 +421,7 @@ fn void testRoundRightJoinSweepsOuterSector() @test {
 	bool has_positive_x = false;
 	bool has_negative_y = false;
 	for (int i = 0; i < path.nroundStroke; i += 3) {
-		assert(math::abs(path.roundStroke[i].x - 10.0f) < 0.0001f);
-		assert(math::abs(path.roundStroke[i].y) < 0.0001f);
+		if (path.roundStrokeData[i * 4 + 3] < 0.5f) continue;
 		for (int j = 1; j < 3; j++) {
 			Vertex vertex = path.roundStroke[i + j];
 			assert(vertex.x >= 9.9999f);
@@ -410,7 +434,7 @@ fn void testRoundRightJoinSweepsOuterSector() @test {
 	assert(has_negative_y);
 	assertRoundStrokeFinite(path);
 	assertBodyAndRoundStrokeDoNotOverlap(path);
-	assert(path.nstroke == 17);
+	assert(path.nstroke == 14);
 }
 
 fn void assertClosedRoundJoinMeshDoesNotOverlap(bool reverse) @private {
@@ -422,13 +446,13 @@ fn void assertClosedRoundJoinMeshDoesNotOverlap(bool reverse) @private {
 	vg.addPath();
 	vg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
 	if (reverse) {
-		vg.addPoint({ 0.0f, 10.0f }, PT_CORNER);
-		vg.addPoint({ 10.0f, 10.0f }, PT_CORNER);
-		vg.addPoint({ 10.0f, 0.0f }, PT_CORNER);
+		vg.addPoint({ 0.0f, 30.0f }, PT_CORNER);
+		vg.addPoint({ 30.0f, 30.0f }, PT_CORNER);
+		vg.addPoint({ 30.0f, 0.0f }, PT_CORNER);
 	} else {
-		vg.addPoint({ 10.0f, 0.0f }, PT_CORNER);
-		vg.addPoint({ 10.0f, 10.0f }, PT_CORNER);
-		vg.addPoint({ 0.0f, 10.0f }, PT_CORNER);
+		vg.addPoint({ 30.0f, 0.0f }, PT_CORNER);
+		vg.addPoint({ 30.0f, 30.0f }, PT_CORNER);
+		vg.addPoint({ 0.0f, 30.0f }, PT_CORNER);
 	}
 	vg.cache.paths[0].closed = 1;
 	prepareSdfStrokePath(&vg);
@@ -436,10 +460,10 @@ fn void assertClosedRoundJoinMeshDoesNotOverlap(bool reverse) @private {
 	assert(vg.expandStroke(5.0f, 1.0f, LineCap.BUTT, LineJoin.ROUND, 10.0f) == 1);
 	MvgPath* path = &vg.cache.paths[0];
 	assertBodyAndRoundStrokeDoNotOverlap(path);
-	assert(path.nstroke == 38);
-	assert(path.nroundStroke == 24);
+	assert(path.nstroke == 26);
+	assert(path.nroundStroke == 72);
 	assert(path.nroundStroke % 3 == 0);
-	assertBodyFiniteAndBounded(path, 20.0f);
+	assertBodyFiniteAndBounded(path, 40.0f);
 	assertRoundStrokeFinite(path);
 }
 
@@ -466,11 +490,11 @@ fn void testShortRoundJoinHasExactFiniteBoundedBody() @test {
 	assert(vg.expandStroke(5.0f, 1.0f, LineCap.BUTT, LineJoin.ROUND, 10.0f) == 1);
 	MvgPath* path = &vg.cache.paths[0];
 	assert(vg.cache.points[path.first + 1].flags.innerBevel);
-	assertBodyAndRoundStrokeDoNotOverlap(path);
-	assert(path.nstroke == 17);
-	assert(path.nroundStroke == 6);
+	assert(path.nstroke == 14);
+	assert(path.nroundStroke == 21);
 	assertBodyFiniteAndBounded(path, 20.0f);
 	assertRoundStrokeFinite(path);
+	assertRoundTriangleModes(path, 2);
 }
 
 fn void testBevelJoinBodyCountMatchesEmission() @test {
@@ -546,9 +570,14 @@ fn void testThickLeftRoundJoinCoversExpectedDisk() @test {
 	vg.addPoint({ 980.0f, 450.0f }, PT_CORNER);
 	prepareSdfStrokePath(&vg);
 
-	assert(vg.expandStroke(10.0f, 1.0f, LineCap.ROUND, LineJoin.ROUND, 10.0f) == 1);
+	assert(vg.expandStroke(10.0f, 1.0f, LineCap.BUTT, LineJoin.ROUND, 10.0f) == 1);
 	MvgPath* path = &vg.cache.paths[0];
 	assert(vg.cache.points[path.first + 1].flags.left);
+	assertBodyAndRoundStrokeDoNotOverlap(path);
+	assertRoundTriangleModes(path, 1);
+	assert(math::abs(path.roundStroke[1].u - 0.5f) < 0.0001f);
+	assert(math::abs(path.roundStroke[2].u - 0.5f) < 0.0001f);
+	assertRoundStrokeRadii(path, 10.0f, 11.0f);
 	assertRoundJoinDiskCovered(path, { 950.0f, 470.0f }, 9.5f);
 }
 
@@ -564,8 +593,13 @@ fn void testThickRightRoundJoinCoversExpectedDisk() @test {
 	vg.addPoint({ 980.0f, 520.0f }, PT_CORNER);
 	prepareSdfStrokePath(&vg);
 
-	assert(vg.expandStroke(10.0f, 1.0f, LineCap.ROUND, LineJoin.ROUND, 10.0f) == 1);
+	assert(vg.expandStroke(10.0f, 1.0f, LineCap.BUTT, LineJoin.ROUND, 10.0f) == 1);
 	MvgPath* path = &vg.cache.paths[0];
 	assert(!vg.cache.points[path.first + 1].flags.left);
+	assertBodyAndRoundStrokeDoNotOverlap(path);
+	assertRoundTriangleModes(path, 1);
+	assert(math::abs(path.roundStroke[1].u - 0.5f) < 0.0001f);
+	assert(math::abs(path.roundStroke[2].u - 0.5f) < 0.0001f);
+	assertRoundStrokeRadii(path, 10.0f, 11.0f);
 	assertRoundJoinDiskCovered(path, { 950.0f, 510.0f }, 9.5f);
 }

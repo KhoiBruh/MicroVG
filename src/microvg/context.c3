@@ -756,7 +756,8 @@ fn int sdfRoundStrokeVertexCount(MvgPath* path, Point* pts, LineCap lineCap, Lin
 
 		float a0, a1;
 		sdfRoundJoinAngles(p0, p1, &a0, &a1);
-		count += sdfSectorDivisions(a1 - a0, SDF_MAX_SECTOR_ANGLE) * 3;
+		count += sdfSectorDivisions(a1 - a0, SDF_MAX_SECTOR_ANGLE) * 6 + 6;
+		if (p1.flags.innerBevel) count += 3;
 	}
 	return count;
 }
@@ -794,33 +795,61 @@ fn Vertex* nvgSdfRoundCapTriangles(
 }
 
 fn Vertex* nvgSdfRoundJoinTriangles(
-	Vertex* dst, float* sdst, Point* p0, Point* p1, float outer_radius, float inner_radius, float aa
+	Vertex* dst, float* sdst, Point* p0, Point* p1,
+	float w, float u0, float u1, float outer_radius, float inner_radius, float aa
 ) @private {
 	float a0, a1;
 	sdfRoundJoinAngles(p0, p1, &a0, &a1);
 	int divisions = sdfSectorDivisions(a1 - a0, SDF_MAX_SECTOR_ANGLE);
 	float delta = (a1 - a0) / (float)divisions;
-	float sector_radius = sdfSectorRadius(outer_radius, delta);
+	float inner0x, inner0y, inner1x, inner1y;
+	nvgChooseBevel(p1.flags.innerBevel, p0, p1, p1.flags.left ? w : -w, &inner0x, &inner0y, &inner1x, &inner1y);
+	float outer0x = p1.x + math::cos(a0) * w;
+	float outer0y = p1.y + math::sin(a0) * w;
+	float outer1x = p1.x + math::cos(a1) * w;
+	float outer1y = p1.y + math::sin(a1) * w;
+	float inner_u = p1.flags.left ? u0 : u1;
+
+	sdfWriteBodyVertex(dst, sdst, inner0x, inner0y, inner_u, aa); dst++; sdst += 4;
+	sdfWriteBodyVertex(dst, sdst, outer0x, outer0y, 0.5f, aa); dst++; sdst += 4;
+	sdfWriteBodyVertex(dst, sdst, outer1x, outer1y, 0.5f, aa); dst++; sdst += 4;
+	if (p1.flags.innerBevel) {
+		sdfWriteBodyVertex(dst, sdst, inner0x, inner0y, inner_u, aa); dst++; sdst += 4;
+		sdfWriteBodyVertex(dst, sdst, outer1x, outer1y, 0.5f, aa); dst++; sdst += 4;
+		sdfWriteBodyVertex(dst, sdst, inner1x, inner1y, inner_u, aa); dst++; sdst += 4;
+	}
 
 	for (int i = 0; i < divisions; i++) {
 		float start = a0 + delta * (float)i;
 		float end = start + delta;
-		float x0 = p1.x + math::cos(start) * sector_radius;
-		float y0 = p1.y + math::sin(start) * sector_radius;
-		float x1 = p1.x + math::cos(end) * sector_radius;
-		float y1 = p1.y + math::sin(end) * sector_radius;
+		float mid = (start + end) * 0.5f;
+		float tangent_radius = sdfSectorRadius(outer_radius, delta);
+		float ex0 = p1.x + math::cos(start) * outer_radius;
+		float ey0 = p1.y + math::sin(start) * outer_radius;
+		float tx = p1.x + math::cos(mid) * tangent_radius;
+		float ty = p1.y + math::sin(mid) * tangent_radius;
+		float ex1 = p1.x + math::cos(end) * outer_radius;
+		float ey1 = p1.y + math::sin(end) * outer_radius;
 
-		sdfWriteRoundVertex(dst, sdst, p1.x, p1.y, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
-		if (delta < 0.0f) {
-			sdfWriteRoundVertex(dst, sdst, x1, y1, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
-			sdfWriteRoundVertex(dst, sdst, x0, y0, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
-		}
-		else {
-			sdfWriteRoundVertex(dst, sdst, x0, y0, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
-			sdfWriteRoundVertex(dst, sdst, x1, y1, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
-		}
+		sdfWriteRoundVertex(dst, sdst, outer0x, outer0y, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+		sdfWriteRoundVertex(dst, sdst, ex0, ey0, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+		sdfWriteRoundVertex(dst, sdst, tx, ty, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+		sdfWriteRoundVertex(dst, sdst, outer0x, outer0y, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+		sdfWriteRoundVertex(dst, sdst, tx, ty, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+		sdfWriteRoundVertex(dst, sdst, ex1, ey1, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
 	}
+	sdfWriteRoundVertex(dst, sdst, outer0x, outer0y, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, p1.x + math::cos(a1) * outer_radius, p1.y + math::sin(a1) * outer_radius, p1.x, p1.y, aa, inner_radius, outer_radius); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, outer1x, outer1y, p1.x, p1.y, aa, inner_radius, outer_radius); dst++;
 	return dst;
+}
+
+fn void sdfWriteBodyVertex(Vertex* dst, float* sdst, float x, float y, float u, float aa) @private {
+	*dst = { x, y, u, 1.0f };
+	sdst[0] = 0.0f;
+	sdst[1] = 0.0f;
+	sdst[2] = aa;
+	sdst[3] = 0.0f;
 }
 
 fn void nvgChooseBevel(
@@ -955,38 +984,24 @@ fn Vertex* nvgRoundJoinBody(
 	float inner0x, inner0y, inner1x, inner1y;
 
 	if (p1.flags.left) {
-		nvgChooseBevel(true, p0, p1, w, &inner0x, &inner0y, &inner1x, &inner1y);
+		nvgChooseBevel(p1.flags.innerBevel, p0, p1, w, &inner0x, &inner0y, &inner1x, &inner1y);
 		Vertex outer0 = { p1.x - dlx0 * w, p1.y - dly0 * w, u1, 1 };
 		Vertex inner0 = { inner0x, inner0y, u0, 1 };
 		Vertex inner1 = { inner1x, inner1y, u0, 1 };
 		Vertex outer1 = { p1.x - dlx1 * w, p1.y - dly1 * w, u1, 1 };
 
-		*dst = inner0; dst++;
-		*dst = outer0; dst++;
-		*dst = outer0; dst++;
-		*dst = inner0; dst++;
-		*dst = inner0; dst++;
-		*dst = { p1.x, p1.y, 0.5f, 1 }; dst++;
-		*dst = inner1; dst++;
-		*dst = inner1; dst++;
-		*dst = outer1; dst++;
+		*dst = inner0; dst++; *dst = outer0; dst++; *dst = outer0; dst++;
+		*dst = inner1; dst++; *dst = inner1; dst++; *dst = outer1; dst++;
 	}
 	else {
-		nvgChooseBevel(true, p0, p1, -w, &inner0x, &inner0y, &inner1x, &inner1y);
+		nvgChooseBevel(p1.flags.innerBevel, p0, p1, -w, &inner0x, &inner0y, &inner1x, &inner1y);
 		Vertex outer0 = { p1.x + dlx0 * w, p1.y + dly0 * w, u0, 1 };
 		Vertex inner0 = { inner0x, inner0y, u1, 1 };
 		Vertex inner1 = { inner1x, inner1y, u1, 1 };
 		Vertex outer1 = { p1.x + dlx1 * w, p1.y + dly1 * w, u0, 1 };
 
-		*dst = outer0; dst++;
-		*dst = inner0; dst++;
-		*dst = inner0; dst++;
-		*dst = inner0; dst++;
-		*dst = { p1.x, p1.y, 0.5f, 1 }; dst++;
-		*dst = inner1; dst++;
-		*dst = inner1; dst++;
-		*dst = outer1; dst++;
-		*dst = inner1; dst++;
+		*dst = outer0; dst++; *dst = inner0; dst++; *dst = inner0; dst++;
+		*dst = outer1; dst++; *dst = outer1; dst++; *dst = inner1; dst++;
 	}
 
 	return dst;
@@ -1122,7 +1137,7 @@ fn int nvgStrokeBodyVertexCount(MvgPath* path, Point* pts, LineCap lineCap, Line
 	for (int i = start; i < end; i++) {
 		Point* point = &pts[i];
 		if (point.flags.bevel || point.flags.innerBevel) {
-			count += (lineJoin == LineJoin.ROUND) ? 9 : (point.flags.bevel ? 8 : 10);
+			count += (lineJoin == LineJoin.ROUND) ? 6 : (point.flags.bevel ? 8 : 10);
 		}
 		else {
 			count += 2;
@@ -1237,8 +1252,8 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 						float a0, a1;
 						sdfRoundJoinAngles(join_p0, join_p1, &a0, &a1);
 						int divisions = sdfSectorDivisions(a1 - a0, SDF_MAX_SECTOR_ANGLE);
-						roundDst = nvgSdfRoundJoinTriangles(roundDst, roundData, join_p0, join_p1, outer_radius, inner_radius, aa);
-						roundData += (sz)(divisions * 3 * 4);
+						roundDst = nvgSdfRoundJoinTriangles(roundDst, roundData, join_p0, join_p1, w, u0, u1, outer_radius, inner_radius, aa);
+						roundData += (sz)((divisions * 6 + 6 + (join_p1.flags.innerBevel ? 3 : 0)) * 4);
 					}
 				}
 			}
