@@ -469,6 +469,15 @@ fn void MicroVG.clearPathCache(&self) {
 			mem::free(self.cache.paths[i].strokeData);
 			self.cache.paths[i].strokeData = null;
 		}
+		if (self.cache.paths[i].roundStroke != null) {
+			mem::free(self.cache.paths[i].roundStroke);
+			self.cache.paths[i].roundStroke = null;
+		}
+		if (self.cache.paths[i].roundStrokeData != null) {
+			mem::free(self.cache.paths[i].roundStrokeData);
+			self.cache.paths[i].roundStrokeData = null;
+		}
+		self.cache.paths[i].nroundStroke = 0;
 	}
 	self.cache.npoints = 0;
 	self.cache.npaths = 0;
@@ -696,7 +705,6 @@ fn void MicroVG.flattenPaths(&self) {
 	}
 }
 
-const int SDF_JOIN_SEGS = 5;
 const float SDF_MAX_SECTOR_ANGLE @private = PI * 0.25f;
 
 fn int sdfSectorDivisions(float sweep, float max_angle) @private {
@@ -719,52 +727,99 @@ fn Vec2 sdfCapPoint(Vec2 endpoint, Vec2 direction, float radius, float angle) @p
 	};
 }
 
-fn Vertex* nvgSdfJoinFan(
-	Vertex* dst, float* sdst, float cx, float cy,
-	float a0, float a1, float r, float aa
-) {
-	for (int i = 0; i <= SDF_JOIN_SEGS; i++) {
-		float a = a0 + (a1 - a0) * (float)i / (float)SDF_JOIN_SEGS;
-		*dst = { cx + math::cos(a) * r, cy + math::sin(a) * r, 0.5f, 2.0f };
-		dst++;
-		sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-		*dst = { cx, cy, 0.5f, 2.0f };
-		dst++;
-		sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+fn void sdfRoundJoinAngles(Point* p0, Point* p1, float* a0, float* a1) @private {
+	if (p1.flags.left) {
+		a0[0] = math::atan2(p0.dx, -p0.dy);
+		a1[0] = math::atan2(p1.dx, -p1.dy);
+		if (a1[0] > a0[0]) a1[0] -= PI * 2.0f;
 	}
-	*dst = { cx + math::cos(a1) * r, cy + math::sin(a1) * r, 0.5f, 2.0f };
-	dst++;
-	sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-	*dst = { cx, cy, 0.5f, 2.0f };
-	dst++;
-	sdst[0] = cx; sdst[1] = cy; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+	else {
+		a0[0] = math::atan2(-p0.dx, p0.dy);
+		a1[0] = math::atan2(-p1.dx, p1.dy);
+		if (a1[0] < a0[0]) a1[0] += PI * 2.0f;
+	}
+}
+
+fn int sdfRoundStrokeVertexCount(MvgPath* path, Point* pts, LineCap lineCap, LineJoin lineJoin) @private {
+	if (path.count < 2) return 0;
+
+	int count = 0;
+	if (path.closed == 0 && lineCap == LineCap.ROUND) count += 12;
+	if (lineJoin != LineJoin.ROUND) return count;
+
+	int start = (path.closed == 0) ? 1 : 0;
+	int end = (path.closed == 0) ? path.count - 1 : path.count;
+	for (int i = start; i < end; i++) {
+		Point* p0 = (i == 0) ? &pts[path.count - 1] : &pts[i - 1];
+		Point* p1 = &pts[i];
+		if (!(p1.flags.bevel || p1.flags.innerBevel)) continue;
+
+		float a0, a1;
+		sdfRoundJoinAngles(p0, p1, &a0, &a1);
+		count += sdfSectorDivisions(a1 - a0, SDF_MAX_SECTOR_ANGLE) * 3;
+	}
+	return count;
+}
+
+fn void sdfWriteRoundVertex(Vertex* dst, float* sdst, float x, float y, float cx, float cy, float aa) @private {
+	*dst = { x, y, 0.5f, 1.0f };
+	sdst[0] = cx;
+	sdst[1] = cy;
+	sdst[2] = aa;
+	sdst[3] = 1.0f;
+}
+
+fn Vertex* nvgSdfRoundCapTriangles(
+	Vertex* dst, float* sdst, Point* center,
+	float outward_x, float outward_y, float outer_radius, float aa
+) @private {
+	float normal_x = outward_y;
+	float normal_y = -outward_x;
+	float ax = center.x + normal_x * outer_radius;
+	float ay = center.y + normal_y * outer_radius;
+	float bx = center.x - normal_x * outer_radius;
+	float by = center.y - normal_y * outer_radius;
+	float cx = ax + outward_x * outer_radius;
+	float cy = ay + outward_y * outer_radius;
+	float dx = bx + outward_x * outer_radius;
+	float dy = by + outward_y * outer_radius;
+
+	sdfWriteRoundVertex(dst, sdst, ax, ay, center.x, center.y, aa); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, cx, cy, center.x, center.y, aa); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, bx, by, center.x, center.y, aa); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, bx, by, center.x, center.y, aa); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, cx, cy, center.x, center.y, aa); dst++; sdst += 4;
+	sdfWriteRoundVertex(dst, sdst, dx, dy, center.x, center.y, aa); dst++;
 	return dst;
 }
 
-fn Vertex* nvgSdfCapFan(
-	Vertex* dst, float* sdst, float px, float py,
-	float dx, float dy, float r, float aa, float sign
-) {
-	for (int i = 0; i <= SDF_JOIN_SEGS; i++) {
-		float a = i * PI / (float)SDF_JOIN_SEGS;
-		float ax = math::cos(a) * r;
-		float ay = math::sin(a) * r;
-		*dst = { px - dy * ax + dx * ay * sign, py + dx * ax + dy * ay * sign, 0.5f, 2.0f };
-		dst++;
-		sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-		*dst = { px, py, 0.5f, 2.0f };
-		dst++;
-		sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
+fn Vertex* nvgSdfRoundJoinTriangles(
+	Vertex* dst, float* sdst, Point* p0, Point* p1, float outer_radius, float aa
+) @private {
+	float a0, a1;
+	sdfRoundJoinAngles(p0, p1, &a0, &a1);
+	int divisions = sdfSectorDivisions(a1 - a0, SDF_MAX_SECTOR_ANGLE);
+	float delta = (a1 - a0) / (float)divisions;
+	float sector_radius = sdfSectorRadius(outer_radius, delta);
+
+	for (int i = 0; i < divisions; i++) {
+		float start = a0 + delta * (float)i;
+		float end = start + delta;
+		float x0 = p1.x + math::cos(start) * sector_radius;
+		float y0 = p1.y + math::sin(start) * sector_radius;
+		float x1 = p1.x + math::cos(end) * sector_radius;
+		float y1 = p1.y + math::sin(end) * sector_radius;
+
+		sdfWriteRoundVertex(dst, sdst, p1.x, p1.y, p1.x, p1.y, aa); dst++; sdst += 4;
+		if (delta < 0.0f) {
+			sdfWriteRoundVertex(dst, sdst, x1, y1, p1.x, p1.y, aa); dst++; sdst += 4;
+			sdfWriteRoundVertex(dst, sdst, x0, y0, p1.x, p1.y, aa); dst++; sdst += 4;
+		}
+		else {
+			sdfWriteRoundVertex(dst, sdst, x0, y0, p1.x, p1.y, aa); dst++; sdst += 4;
+			sdfWriteRoundVertex(dst, sdst, x1, y1, p1.x, p1.y, aa); dst++; sdst += 4;
+		}
 	}
-	float ae = PI;
-	float ax_last = math::cos(ae) * r;
-	float ay_last = math::sin(ae) * r;
-	*dst = { px - dy * ax_last + dx * ay_last * sign, py + dx * ax_last + dy * ay_last * sign, 0.5f, 2.0f };
-	dst++;
-	sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-	*dst = { px, py, 0.5f, 2.0f };
-	dst++;
-	sdst[0] = px; sdst[1] = py; sdst[2] = aa; sdst[3] = 0; sdst += 4;
 	return dst;
 }
 
@@ -1009,31 +1064,18 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 	self.calculateJoins(w, lineJoin, miterLimit);
 
 	int cverts = 0;
-	int cstrokeData = 0;
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
 		int loop = (path.closed == 0) ? 0 : 1;
 
 		cverts += path.count * 2;
-
-		if (lineJoin == LineJoin.ROUND) {
-			cverts += path.nbevel * (SDF_JOIN_SEGS * 2 + 4 + 4);
-		}
-		else {
-			cverts += path.nbevel * 5 * 2;
-		}
-
-		cstrokeData += path.nbevel * (SDF_JOIN_SEGS * 2 + 4 + 4);
+		cverts += path.nbevel * 5 * 2;
 
 		if (loop) {
 			cverts += 2;
 		}
 		else {
-			if (lineCap == LineCap.ROUND) {
-				cverts += (SDF_JOIN_SEGS * 2 + 4) * 2 + 4;
-				cstrokeData += (SDF_JOIN_SEGS * 2 + 4) * 2 + 4;
-			}
-			else {
+			if (lineCap != LineCap.ROUND) {
 				cverts += 12;
 			}
 		}
@@ -1055,22 +1097,71 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 		loop = (path.closed == 0) ? 0 : 1;
 
-		int sdCount = path.count * 2;
-		if (lineJoin == LineJoin.ROUND) {
-			sdCount += path.nbevel * (SDF_JOIN_SEGS * 2 + 4 + 4);
-		}
-		else {
-			sdCount += path.nbevel * 10;
-		}
+		int sdCount = path.count * 2 + path.nbevel * 10;
 		if (loop) {
 			sdCount += 2;
 		}
 		else {
-			sdCount += (lineCap == LineCap.ROUND) ? (SDF_JOIN_SEGS * 2 + 4) * 2 + 4 : 12;
+			if (lineCap != LineCap.ROUND) sdCount += 12;
 		}
 
 		path.strokeData = mem::malloc((sz)sdCount * 4 * float::size);
 		float* sdst = path.strokeData;
+		if (path.roundStroke != null) {
+			mem::free(path.roundStroke);
+			path.roundStroke = null;
+		}
+		if (path.roundStrokeData != null) {
+			mem::free(path.roundStrokeData);
+			path.roundStrokeData = null;
+		}
+		path.nroundStroke = sdfRoundStrokeVertexCount(path, pts, lineCap, lineJoin);
+		if (path.nroundStroke > 0) {
+			path.roundStroke = mem::malloc((sz)path.nroundStroke * Vertex::size);
+			path.roundStrokeData = mem::malloc((sz)path.nroundStroke * 4 * float::size);
+			if (path.roundStroke == null || path.roundStrokeData == null) {
+				if (path.roundStroke != null) mem::free(path.roundStroke);
+				if (path.roundStrokeData != null) mem::free(path.roundStrokeData);
+				path.roundStroke = null;
+				path.roundStrokeData = null;
+				path.nroundStroke = 0;
+				return 0;
+			}
+
+			Vertex* roundDst = path.roundStroke;
+			float* roundData = path.roundStrokeData;
+			float outer_radius = w + aa * 0.5f;
+			if (loop == 0 && lineCap == LineCap.ROUND) {
+				float start_dx = pts[1].x - pts[0].x;
+				float start_dy = pts[1].y - pts[0].y;
+				nvgNormalize(&start_dx, &start_dy);
+				roundDst = nvgSdfRoundCapTriangles(roundDst, roundData, &pts[0], -start_dx, -start_dy, outer_radius, aa);
+				roundData += 6 * 4;
+
+				float end_dx = pts[path.count - 1].x - pts[path.count - 2].x;
+				float end_dy = pts[path.count - 1].y - pts[path.count - 2].y;
+				nvgNormalize(&end_dx, &end_dy);
+				roundDst = nvgSdfRoundCapTriangles(roundDst, roundData, &pts[path.count - 1], end_dx, end_dy, outer_radius, aa);
+				roundData += 6 * 4;
+			}
+			if (lineJoin == LineJoin.ROUND) {
+				int join_start = (loop == 0) ? 1 : 0;
+				int join_end = (loop == 0) ? path.count - 1 : path.count;
+				for (int j = join_start; j < join_end; j++) {
+					Point* join_p0 = (j == 0) ? &pts[path.count - 1] : &pts[j - 1];
+					Point* join_p1 = &pts[j];
+					if (join_p1.flags.bevel || join_p1.flags.innerBevel) {
+						float a0, a1;
+						sdfRoundJoinAngles(join_p0, join_p1, &a0, &a1);
+						int divisions = sdfSectorDivisions(a1 - a0, SDF_MAX_SECTOR_ANGLE);
+						roundDst = nvgSdfRoundJoinTriangles(roundDst, roundData, join_p0, join_p1, outer_radius, aa);
+						roundData += (sz)(divisions * 3 * 4);
+					}
+				}
+			}
+			assert((int)(roundDst - path.roundStroke) == path.nroundStroke);
+			assert((int)(roundData - path.roundStrokeData) == path.nroundStroke * 4);
+		}
 
 		Vertex* dst = verts;
 		path.stroke = dst;
@@ -1112,11 +1203,6 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 				case LineCap.ROUND:
 				{
-					float r = w + aa * 0.5f;
-					Vertex* before = dst;
-					dst = nvgSdfCapFan(dst, sdst, p0.x, p0.y, dx, dy, r, aa, -1.0f);
-					sdst += (sz)(dst - before) * 4;
-					// Add connector vertices to bridge from SDF (v=2) to body (v=1)
 					float dlx = dy;
 					float dly = -dx;
 					*dst = { p0.x + dlx * w, p0.y + dly * w, u0, 1 };
@@ -1129,7 +1215,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 			}
 		}
 
-		if (loop == 0 && path.count == 2) {
+		if (loop == 0 && path.count == 2 && lineCap != LineCap.ROUND) {
 			float ndx = pts[1].x - pts[0].x;
 			float ndy = pts[1].y - pts[0].y;
 			nvgNormalize(&ndx, &ndy);
@@ -1151,53 +1237,10 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 		for (int j = s; j < e; j++) {
 			if ((p1.flags.bevel || p1.flags.innerBevel)) {
-				if (lineJoin == LineJoin.ROUND) {
-					float a0;
-					float a1;
-					if (p1.flags.left) {
-						// Left turn: fan on the right (outer) side
-						// Normal of p0: dlx0 = p0.dy, dly0 = -p0.dx
-						// Negated normal: -dlx0 = -p0.dy, -dly0 = p0.dx
-						a0 = math::atan2(p0.dx, -p0.dy);
-						a1 = math::atan2(p1.dx, -p1.dy);
-						if (a1 > a0) a1 -= PI * 2;
-					}
-					else {
-						// Right turn: fan on the left (outer) side
-						// Normal of p0: dlx0 = p0.dy, dly0 = -p0.dx
-						a0 = math::atan2(-p0.dx, p0.dy);
-						a1 = math::atan2(-p1.dx, p1.dy);
-						if (a1 < a0) a1 += PI * 2;
-					}
-					float r = w + aa * 0.5f;
-					// Add connector before fan: bridge from body (v=1) to SDF (v=2)
-					float dlx0 = p0.dy;
-					float dly0 = -p0.dx;
-					*dst = { p1.x + dlx0 * w, p1.y + dly0 * w, u0, 1 };
-					dst++;
-					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-					*dst = { p1.x - dlx0 * w, p1.y - dly0 * w, u1, 1 };
-					dst++;
-					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-					Vertex* before = dst;
-					dst = nvgSdfJoinFan(dst, sdst, p1.x, p1.y, a0, a1, r, aa);
-					sdst += (sz)(dst - before) * 4;
-					// Add connector after fan: bridge from SDF (v=2) to body (v=1)
-					float dlx1 = p1.dy;
-					float dly1 = -p1.dx;
-					*dst = { p1.x + dlx1 * w, p1.y + dly1 * w, u0, 1 };
-					dst++;
-					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-					*dst = { p1.x - dlx1 * w, p1.y - dly1 * w, u1, 1 };
-					dst++;
-					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-				}
-				else {
-					Vertex* before = dst;
-					dst = nvgBevelJoin(dst, p0, p1, w, w, u0, u1, aa);
-					int n = (int)(dst - before);
-					for (int k = 0; k < n; k++) { sdst[0]=0; sdst[1]=0; sdst[2]=aa; sdst[3]=0; sdst += 4; }
-				}
+				Vertex* before = dst;
+				dst = nvgBevelJoin(dst, p0, p1, w, w, u0, u1, aa);
+				int n = (int)(dst - before);
+				for (int k = 0; k < n; k++) { sdst[0]=0; sdst[1]=0; sdst[2]=aa; sdst[3]=0; sdst += 4; }
 			}
 			else {
 				*dst = { p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), u0, 1 };
@@ -1243,8 +1286,6 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 				case LineCap.ROUND:
 				{
-					float r = w + aa * 0.5f;
-					// Add connector before fan: bridge from body (v=1) to SDF (v=2)
 					float dlx = dy;
 					float dly = -dx;
 					*dst = { p1.x + dlx * w, p1.y + dly * w, u0, 1 };
@@ -1253,9 +1294,6 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 					*dst = { p1.x - dlx * w, p1.y - dly * w, u1, 1 };
 					dst++;
 					sdst[0] = 0; sdst[1] = 0; sdst[2] = aa; sdst[3] = 0; sdst += 4;
-					Vertex* before = dst;
-					dst = nvgSdfCapFan(dst, sdst, p1.x, p1.y, dx, dy, r, aa, 1.0f);
-					sdst += (sz)(dst - before) * 4;
 				}
 			}
 		}

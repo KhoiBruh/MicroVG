@@ -42,3 +42,138 @@ fn void testSdfCapPointUsesClockwiseNormal() @test {
 	assert(math::abs(point.x) < 0.0001f);
 	assert(point.y < 0.0f);
 }
+
+fn void assertRoundStrokeFinite(MvgPath* path) @private {
+	for (int i = 0; i < path.nroundStroke; i++) {
+		Vertex vertex = path.roundStroke[i];
+		assert(math::is_finite(vertex.x));
+		assert(math::is_finite(vertex.y));
+		assert(math::is_finite(vertex.u));
+		assert(math::is_finite(vertex.v));
+		for (int j = 0; j < 4; j++) assert(math::is_finite(path.roundStrokeData[i * 4 + j]));
+	}
+}
+
+fn void prepareSdfStrokePath(MicroVG* vg) @private {
+	MvgPath* path = &vg.cache.paths[0];
+	Point* p0 = &vg.cache.points[path.first + path.count - 1];
+	Point* p1 = &vg.cache.points[path.first];
+	for (int i = 0; i < path.count; i++) {
+		p0.dx = p1.x - p0.x;
+		p0.dy = p1.y - p0.y;
+		p0.len = nvgNormalize(&p0.dx, &p0.dy);
+		p0 = p1;
+		p1++;
+	}
+}
+
+fn void testRoundCapsAreNotInsertedIntoBodyStrip() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+	vg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 20.0f, 0.0f }, PT_CORNER);
+	prepareSdfStrokePath(&vg);
+
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.ROUND, LineJoin.MITER, 10.0f) == 1);
+	MvgPath* path = &vg.cache.paths[0];
+	assert(path.nstroke == 4);
+	assert(path.nroundStroke == 12);
+	assert(path.nroundStroke % 3 == 0);
+	assert(path.roundStroke != null);
+	assert(path.roundStrokeData != null);
+	assert(path.nroundStroke == sdfRoundStrokeVertexCount(path, &vg.cache.points[path.first], LineCap.ROUND, LineJoin.MITER));
+
+	for (int i = 0; i < 6; i++) {
+		assert(path.roundStroke[i].x <= 0.0001f);
+		assert(path.roundStrokeData[i * 4] == 0.0f);
+		assert(path.roundStrokeData[i * 4 + 1] == 0.0f);
+		assert(path.roundStrokeData[i * 4 + 2] == 1.0f);
+		assert(path.roundStrokeData[i * 4 + 3] == 1.0f);
+	}
+	for (int i = 6; i < 12; i++) {
+		assert(path.roundStroke[i].x >= 19.9999f);
+		assert(path.roundStrokeData[i * 4] == 20.0f);
+		assert(path.roundStrokeData[i * 4 + 1] == 0.0f);
+		assert(path.roundStrokeData[i * 4 + 2] == 1.0f);
+		assert(path.roundStrokeData[i * 4 + 3] == 1.0f);
+	}
+	assertRoundStrokeFinite(path);
+}
+
+fn void testRoundLeftJoinSweepsOuterSector() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+	vg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 10.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 10.0f, -10.0f }, PT_CORNER);
+	prepareSdfStrokePath(&vg);
+
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.BUTT, LineJoin.ROUND, 10.0f) == 1);
+	MvgPath* path = &vg.cache.paths[0];
+	assert(vg.cache.points[path.first + 1].flags.left);
+	assert(path.nroundStroke > 0);
+	assert(path.nroundStroke % 3 == 0);
+	assert(path.nroundStroke == sdfRoundStrokeVertexCount(path, &vg.cache.points[path.first], LineCap.BUTT, LineJoin.ROUND));
+
+	bool has_positive_x = false;
+	bool has_positive_y = false;
+	for (int i = 0; i < path.nroundStroke; i += 3) {
+		assert(math::abs(path.roundStroke[i].x - 10.0f) < 0.0001f);
+		assert(math::abs(path.roundStroke[i].y) < 0.0001f);
+		for (int j = 1; j < 3; j++) {
+			Vertex vertex = path.roundStroke[i + j];
+			assert(vertex.x >= 9.9999f);
+			assert(vertex.y >= -0.0001f);
+			if (vertex.x > 10.0001f) has_positive_x = true;
+			if (vertex.y > 0.0001f) has_positive_y = true;
+		}
+	}
+	assert(has_positive_x);
+	assert(has_positive_y);
+	assertRoundStrokeFinite(path);
+}
+
+fn void testRoundRightJoinSweepsOuterSector() @test {
+	MicroVG vg = {};
+	vg.cache = allocPathCache();
+	assert(vg.cache != null);
+	defer vg.cache.delete();
+	vg.setPxRatio(1.0f);
+	vg.addPath();
+	vg.addPoint({ 0.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 10.0f, 0.0f }, PT_CORNER);
+	vg.addPoint({ 10.0f, 10.0f }, PT_CORNER);
+	prepareSdfStrokePath(&vg);
+
+	assert(vg.expandStroke(5.0f, 1.0f, LineCap.BUTT, LineJoin.ROUND, 10.0f) == 1);
+	MvgPath* path = &vg.cache.paths[0];
+	assert(!vg.cache.points[path.first + 1].flags.left);
+	assert(path.nroundStroke > 0);
+	assert(path.nroundStroke % 3 == 0);
+	assert(path.nroundStroke == sdfRoundStrokeVertexCount(path, &vg.cache.points[path.first], LineCap.BUTT, LineJoin.ROUND));
+
+	bool has_positive_x = false;
+	bool has_negative_y = false;
+	for (int i = 0; i < path.nroundStroke; i += 3) {
+		assert(math::abs(path.roundStroke[i].x - 10.0f) < 0.0001f);
+		assert(math::abs(path.roundStroke[i].y) < 0.0001f);
+		for (int j = 1; j < 3; j++) {
+			Vertex vertex = path.roundStroke[i + j];
+			assert(vertex.x >= 9.9999f);
+			assert(vertex.y <= 0.0001f);
+			if (vertex.x > 10.0001f) has_positive_x = true;
+			if (vertex.y < -0.0001f) has_negative_y = true;
+		}
+	}
+	assert(has_positive_x);
+	assert(has_negative_y);
+	assertRoundStrokeFinite(path);
+}
