@@ -41,6 +41,12 @@ fn Vertex* Vertex.push_xyuv(&self, float x, float y, float u, float v) @inline {
 	return self + 1;
 }
 
+fn Vertex* Vertex.push_uv(&self, Vec2 pos, float u, float v) @inline {
+	self.pos = pos;
+	self.uv = { u, v };
+	return self + 1;
+}
+
 fn void MicroVG.setPxRatio(&self, float ratio) {
 	self.tessTol = 0.25f / ratio;
 	self.distTol = 0.01f / ratio;
@@ -806,10 +812,10 @@ float w, float d, float aa, Vec2 uv
 	Vec2 cap = pos - dir * d;
 	Vec2 normal = { dir.y, -dir.x };
 
-	dst = dst.push(cap + normal * w - dir * aa, { uv.x, 0 });
-	dst = dst.push(cap - normal * w - dir * aa, { uv.y, 0 });
-	dst = dst.push(cap + normal * w, { uv.x, 1 });
-	dst = dst.push(cap - normal * w, { uv.y, 1 });
+	dst = dst.push_uv(cap + normal * w - dir * aa, uv.x, 0);
+	dst = dst.push_uv(cap - normal * w - dir * aa, uv.y, 0);
+	dst = dst.push_uv(cap + normal * w, uv.x, 1);
+	dst = dst.push_uv(cap - normal * w, uv.y, 1);
 
 	return dst;
 }
@@ -821,10 +827,10 @@ float w, float d, float aa, Vec2 uv
 	Vec2 cap = pos + dir * d;
 	Vec2 normal = { dir.y, -dir.x };
 
-	dst = dst.push(cap + normal * w, { uv.x, 1 });
-	dst = dst.push(cap - normal * w, { uv.y, 1 });
-	dst = dst.push(cap + normal * w + dir * aa, { uv.x, 0 });
-	dst = dst.push(cap - normal * w + dir * aa, { uv.y, 0 });
+	dst = dst.push_uv(cap + normal * w, uv.x, 1);
+	dst = dst.push_uv(cap - normal * w, uv.y, 1);
+	dst = dst.push_uv(cap + normal * w + dir * aa, uv.x, 0);
+	dst = dst.push_uv(cap - normal * w + dir * aa, uv.y, 0);
 
 	return dst;
 }
@@ -838,12 +844,13 @@ float w, int ncap, float aa, Vec2 uv
 	for (int i = 0; i < ncap; i++) {
 		float a = i / (float)(ncap - 1) * PI;
 		Vec2 arc = { math::cos(a) * w, math::sin(a) * w };
-		dst = dst.push(pos - normal * arc.x - dir * arc.y, { uv.x, 1 });
-		dst = dst.push(pos, { 0.5f, 1 });
+
+		dst = dst.push_uv(pos - normal * arc.x - dir * arc.y, uv.x, 1);
+		dst = dst.push_uv(pos, 0.5f, 1);
 	}
 
-	dst = dst.push(pos + normal * w, { uv.x, 1 });
-	dst = dst.push(pos - normal * w, { uv.y, 1 });
+	dst = dst.push_uv(pos + normal * w, uv.x, 1);
+	dst = dst.push_uv(pos - normal * w, uv.y, 1);
 
 	return dst;
 }
@@ -854,14 +861,14 @@ float w, int ncap, float aa, Vec2 uv
 ) {
 	Vec2 normal = { dir.y, -dir.x };
 
-	dst = dst.push(pos + normal * w, { uv.x, 1 });
-	dst = dst.push(pos - normal * w, { uv.y, 1 });
+	dst = dst.push_uv(pos + normal * w, uv.x, 1);
+	dst = dst.push_uv(pos - normal * w, uv.y, 1);
 
 	for (int i = 0; i < ncap; i++) {
 		float a = i / (float)(ncap - 1) * PI;
 		Vec2 arc = { math::cos(a) * w, math::sin(a) * w };
-		dst = dst.push(pos, { 0.5f, 1 });
-		dst = dst.push(pos - normal * arc.x + dir * arc.y, { uv.x, 1 });
+		dst = dst.push_uv(pos, 0.5f, 1);
+		dst = dst.push_uv(pos - normal * arc.x + dir * arc.y, uv.x, 1);
 	}
 
 	return dst;
