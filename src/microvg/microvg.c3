@@ -29,6 +29,11 @@ struct MicroVG {
 	int textTriCount;
 }
 
+fn Vertex* Vertex.push(&self, float x, float y, float u, float v) @inline {
+	*self = { x, y, u, v };
+	return self + 1;
+}
+
 fn void MicroVG.setPxRatio(&self, float ratio) {
 	self.tessTol = 0.25f / ratio;
 	self.distTol = 0.01f / ratio;
@@ -669,10 +674,8 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 		float a1 = math::atan2(-dly1, -dlx1);
 		if (a1 > a0) a1 -= PI * 2;
 
-		*dst = { lx0, ly0, lu, 1 };
-		dst++;
-		*dst = { p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1 };
-		dst++;
+		dst = dst.push(lx0, ly0, lu, 1);
+		dst = dst.push(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a0 - a1) / PI) * ncap), 2, ncap);
 		for (int i = 0; i < n; i++) {
@@ -680,16 +683,12 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 			float a = a0 + u * (a1 - a0);
 			float rx = p1.x + math::cos(a) * rw;
 			float ry = p1.y + math::sin(a) * rw;
-			*dst = { p1.x, p1.y, 0.5f, 1 };
-			dst++;
-			*dst = { rx, ry, ru, 1 };
-			dst++;
+			dst = dst.push(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push(rx, ry, ru, 1);
 		}
 
-		*dst = { lx1, ly1, lu, 1 };
-		dst++;
-		*dst = { p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1 };
-		dst++;
+		dst = dst.push(lx1, ly1, lu, 1);
+		dst = dst.push(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
@@ -698,10 +697,8 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 		float a1 = math::atan2(dly1, dlx1);
 		if (a1 < a0) a1 += PI * 2;
 
-		*dst = { p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1 };
-		dst++;
-		*dst = { rx0, ry0, ru, 1 };
-		dst++;
+		dst = dst.push(p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1);
+		dst = dst.push(rx0, ry0, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a1 - a0) / PI) * ncap), 2, ncap);
 		for (int i = 0; i < n; i++) {
@@ -709,16 +706,12 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 			float a = a0 + u * (a1 - a0);
 			float lx = p1.x + math::cos(a) * lw;
 			float ly = p1.y + math::sin(a) * lw;
-			*dst = { lx, ly, lu, 1 };
-			dst++;
-			*dst = { p1.x, p1.y, 0.5f, 1 };
-			dst++;
+			dst = dst.push(lx, ly, lu, 1);
+			dst = dst.push(p1.x, p1.y, 0.5f, 1);
 		}
 
-		*dst = { p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1 };
-		dst++;
-		*dst = { rx1, ry1, ru, 1 };
-		dst++;
+		dst = dst.push(p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1);
+		dst = dst.push(rx1, ry1, ru, 1);
 	}
 
 	return dst;
@@ -737,91 +730,63 @@ float lw, float rw, float lu, float ru, float fringe
 		float lx0, ly0, lx1, ly1;
 		chooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 
-		*dst = { lx0, ly0, lu, 1 };
-		dst++;
-		*dst = { p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1 };
-		dst++;
+		dst = dst.push(lx0, ly0, lu, 1);
+		dst = dst.push(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
 		if (p1.flags.bevel) {
-			*dst = { lx0, ly0, lu, 1 };
-			dst++;
-			*dst = { p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1 };
-			dst++;
+			dst = dst.push(lx0, ly0, lu, 1);
+			dst = dst.push(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
-			*dst = { lx1, ly1, lu, 1 };
-			dst++;
-			*dst = { p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1 };
-			dst++;
+			dst = dst.push(lx1, ly1, lu, 1);
+			dst = dst.push(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
 		}
 		else {
 			float rx0 = p1.x - p1.dmx * rw;
 			float ry0 = p1.y - p1.dmy * rw;
 
-			*dst = { p1.x, p1.y, 0.5f, 1 };
-			dst++;
-			*dst = { p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1 };
-			dst++;
+			dst = dst.push(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
-			*dst = { rx0, ry0, ru, 1 };
-			dst++;
-			*dst = { rx0, ry0, ru, 1 };
-			dst++;
+			dst = dst.push(rx0, ry0, ru, 1);
+			dst = dst.push(rx0, ry0, ru, 1);
 
-			*dst = { p1.x, p1.y, 0.5f, 1 };
-			dst++;
-			*dst = { p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1 };
-			dst++;
+			dst = dst.push(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
 		}
 
-		*dst = { lx1, ly1, lu, 1 };
-		dst++;
-		*dst = { p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1 };
-		dst++;
+		dst = dst.push(lx1, ly1, lu, 1);
+		dst = dst.push(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
 		chooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 
-		*dst = { p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1 };
-		dst++;
-		*dst = { rx0, ry0, ru, 1 };
-		dst++;
+		dst = dst.push(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+		dst = dst.push(rx0, ry0, ru, 1);
 
 		if (p1.flags.bevel) {
-			*dst = { p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1 };
-			dst++;
-			*dst = { rx0, ry0, ru, 1 };
-			dst++;
+			dst = dst.push(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+			dst = dst.push(rx0, ry0, ru, 1);
 
-			*dst = { p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1 };
-			dst++;
-			*dst = { rx1, ry1, ru, 1 };
-			dst++;
+			dst = dst.push(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+			dst = dst.push(rx1, ry1, ru, 1);
 		}
 		else {
 			float lx0 = p1.x + p1.dmx * lw;
 			float ly0 = p1.y + p1.dmy * lw;
 
-			*dst = { p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1 };
-			dst++;
-			*dst = { p1.x, p1.y, 0.5f, 1 };
-			dst++;
+			dst = dst.push(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+			dst = dst.push(p1.x, p1.y, 0.5f, 1);
 
-			*dst = { lx0, ly0, lu, 1 };
-			dst++;
-			*dst = { lx0, ly0, lu, 1 };
-			dst++;
+			dst = dst.push(lx0, ly0, lu, 1);
+			dst = dst.push(lx0, ly0, lu, 1);
 
-			*dst = { p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1 };
-			dst++;
-			*dst = { p1.x, p1.y, 0.5f, 1 };
-			dst++;
+			dst = dst.push(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+			dst = dst.push(p1.x, p1.y, 0.5f, 1);
 		}
 
-		*dst = { p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1 };
-		dst++;
-		*dst = { rx1, ry1, ru, 1 };
-		dst++;
+		dst = dst.push(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+		dst = dst.push(rx1, ry1, ru, 1);
 	}
 
 	return dst;
@@ -837,14 +802,10 @@ float aa, float u0, float u1
 	float dlx = dy;
 	float dly = -dx;
 
-	*dst = { px + dlx * w - dx * aa, py + dly * w - dy * aa, u0, 0 };
-	dst++;
-	*dst = { px - dlx * w - dx * aa, py - dly * w - dy * aa, u1, 0 };
-	dst++;
-	*dst = { px + dlx * w, py + dly * w, u0, 1 };
-	dst++;
-	*dst = { px - dlx * w, py - dly * w, u1, 1 };
-	dst++;
+	dst = dst.push(px + dlx * w - dx * aa, py + dly * w - dy * aa, u0, 0);
+	dst = dst.push(px - dlx * w - dx * aa, py - dly * w - dy * aa, u1, 0);
+	dst = dst.push(px + dlx * w, py + dly * w, u0, 1);
+	dst = dst.push(px - dlx * w, py - dly * w, u1, 1);
 
 	return dst;
 }
@@ -859,14 +820,10 @@ float aa, float u0, float u1
 	float dlx = dy;
 	float dly = -dx;
 
-	*dst = { px + dlx * w, py + dly * w, u0, 1 };
-	dst++;
-	*dst = { px - dlx * w, py - dly * w, u1, 1 };
-	dst++;
-	*dst = { px + dlx * w + dx * aa, py + dly * w + dy * aa, u0, 0 };
-	dst++;
-	*dst = { px - dlx * w + dx * aa, py - dly * w + dy * aa, u1, 0 };
-	dst++;
+	dst = dst.push(px + dlx * w, py + dly * w, u0, 1);
+	dst = dst.push(px - dlx * w, py - dly * w, u1, 1);
+	dst = dst.push(px + dlx * w + dx * aa, py + dly * w + dy * aa, u0, 0);
+	dst = dst.push(px - dlx * w + dx * aa, py - dly * w + dy * aa, u1, 0);
 
 	return dst;
 }
@@ -885,16 +842,12 @@ float aa, float u0, float u1
 		float a = i / (float)(ncap - 1) * PI;
 		float ax = math::cos(a) * w;
 		float ay = math::sin(a) * w;
-		*dst = { px - dlx * ax - dx * ay, py - dly * ax - dy * ay, u0, 1 };
-		dst++;
-		*dst = { px, py, 0.5f, 1 };
-		dst++;
+		dst = dst.push(px - dlx * ax - dx * ay, py - dly * ax - dy * ay, u0, 1);
+		dst = dst.push(px, py, 0.5f, 1);
 	}
 
-	*dst = { px + dlx * w, py + dly * w, u0, 1 };
-	dst++;
-	*dst = { px - dlx * w, py - dly * w, u1, 1 };
-	dst++;
+	dst = dst.push(px + dlx * w, py + dly * w, u0, 1);
+	dst = dst.push(px - dlx * w, py - dly * w, u1, 1);
 
 	return dst;
 }
@@ -909,19 +862,15 @@ float aa, float u0, float u1
 	float dlx = dy;
 	float dly = -dx;
 
-	*dst = { px + dlx * w, py + dly * w, u0, 1 };
-	dst++;
-	*dst = { px - dlx * w, py - dly * w, u1, 1 };
-	dst++;
+	dst = dst.push(px + dlx * w, py + dly * w, u0, 1);
+	dst = dst.push(px - dlx * w, py - dly * w, u1, 1);
 
 	for (int i = 0; i < ncap; i++) {
 		float a = i / (float)(ncap - 1) * PI;
 		float ax = math::cos(a) * w;
 		float ay = math::sin(a) * w;
-		*dst = { px, py, 0.5f, 1 };
-		dst++;
-		*dst = { px - dlx * ax + dx * ay, py - dly * ax + dy * ay, u0, 1 };
-		dst++;
+		dst = dst.push(px, py, 0.5f, 1);
+		dst = dst.push(px - dlx * ax + dx * ay, py - dly * ax + dy * ay, u0, 1);
 	}
 
 	return dst;
@@ -1097,20 +1046,16 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 				}
 			}
 			else {
-				*dst = { p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), u0, 1 };
-				dst++;
-				*dst = { p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), u1, 1 };
-				dst++;
+				dst = dst.push(p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), u0, 1);
+				dst = dst.push(p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), u1, 1);
 			}
 			p0 = p1;
 			p1++;
 		}
 
 		if (loop) {
-			*dst = { verts[0].x, verts[0].y, u0, 1 };
-			dst++;
-			*dst = { verts[1].x, verts[1].y, u1, 1 };
-			dst++;
+			dst = dst.push(verts[0].x, verts[0].y, u0, 1);
+			dst = dst.push(verts[1].x, verts[1].y, u1, 1);
 		}
 		else {
 			dx = p1.x - p0.x;
@@ -1290,23 +1235,19 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 					if (p1.flags.left) {
 						float lx = p1.x + p1.dmx * woff;
 						float ly = p1.y + p1.dmy * woff;
-						*dst = { lx, ly, 0.5f, 1 };
-						dst++;
+						dst = dst.push(lx, ly, 0.5f, 1);
 					}
 					else {
 						float lx0 = p1.x + dlx0 * woff;
 						float ly0 = p1.y + dly0 * woff;
 						float lx1 = p1.x + dlx1 * woff;
 						float ly1 = p1.y + dly1 * woff;
-						*dst = { lx0, ly0, 0.5f, 1 };
-						dst++;
-						*dst = { lx1, ly1, 0.5f, 1 };
-						dst++;
+						dst = dst.push(lx0, ly0, 0.5f, 1);
+						dst = dst.push(lx1, ly1, 0.5f, 1);
 					}
 				}
 				else {
-					*dst = { p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5f, 1 };
-					dst++;
+					dst = dst.push(p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5f, 1);
 				}
 				p0 = p1;
 				p1++;
@@ -1314,8 +1255,7 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 		}
 		else {
 			for (int j = 0; j < path.count; j++) {
-				*dst = { pts[j].x, pts[j].y, 0.5f, 1 };
-				dst++;
+				dst = dst.push(pts[j].x, pts[j].y, 0.5f, 1);
 			}
 		}
 
@@ -1347,19 +1287,15 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 					dst = bevelJoin(dst, p0, p1, lw, rw, lu, ru, self.fringeWidth);
 				}
 				else {
-					*dst = { p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1 };
-					dst++;
-					*dst = { p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1 };
-					dst++;
+					dst = dst.push(p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1);
+					dst = dst.push(p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1);
 				}
 				p0 = p1;
 				p1++;
 			}
 
-			*dst = { verts[0].x, verts[0].y, lu, 1 };
-			dst++;
-			*dst = { verts[1].x, verts[1].y, ru, 1 };
-			dst++;
+			dst = dst.push(verts[0].x, verts[0].y, lu, 1);
+			dst = dst.push(verts[1].x, verts[1].y, ru, 1);
 
 			path.nstroke = (int)(dst - verts);
 			verts = dst;
