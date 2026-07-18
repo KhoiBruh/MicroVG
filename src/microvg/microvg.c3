@@ -623,7 +623,7 @@ fn void MicroVG.flattenPaths(&self) {
 
 		Point* p0 = &pts[path.count - 1];
 		Point* p1 = &pts[0];
-		if (path.count > 1 && ptEquals( { p0.pos.x, p0.pos.y }, { p1.pos.x, p1.pos.y }, self.distTol)) {
+		if (path.count > 1 && ptEquals(p0.pos, p1.pos, self.distTol)) {
 			path.count--;
 			p0 = &pts[path.count - 1];
 			path.closed = 1;
@@ -638,8 +638,7 @@ fn void MicroVG.flattenPaths(&self) {
 		}
 
 		for (int k = 0; k < path.count; k++) {
-			p0.dir.x = p1.pos.x - p0.pos.x;
-			p0.dir.y = p1.pos.y - p0.pos.y;
+			p0.dir = p1.pos - p0.pos;
 			p0.len = normalize(&p0.dir.x, &p0.dir.y);
 			cache.bounds = {
 				math::min(cache.bounds.x, p0.pos.x),
