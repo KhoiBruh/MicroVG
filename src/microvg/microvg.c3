@@ -359,10 +359,17 @@ fn void MicroVG.intersectScissor(&self, float x, float y, float w, float h) {
 	Vec2 ex = state.scissor.extent;
 	invform = state.form.inverse();
 	pform = invform * pform;
-	float tex = ex.x * math::abs(pform.linear.x) + ex.y * math::abs(pform.linear.z);
-	float tey = ex.x * math::abs(pform.linear.y) + ex.y * math::abs(pform.linear.w);
+	Vec2 transformedExtent = {
+		ex.x * math::abs(pform.linear.x) + ex.y * math::abs(pform.linear.z),
+		ex.x * math::abs(pform.linear.y) + ex.y * math::abs(pform.linear.w)
+	};
 
-	Vec4 r = isectRect(pform.trans.x - tex, pform.trans.y - tey, tex * 2, tey * 2, x, y, w, h);
+	Vec4 r = isectRect(
+		pform.trans - transformedExtent,
+		transformedExtent * 2,
+		{ x, y },
+		{ w, h }
+	);
 	self.scissor(r.x, r.y, r.z, r.w);
 }
 

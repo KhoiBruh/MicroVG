@@ -34,15 +34,20 @@ fn float distPtSeg(Vec2 p, Vec2 q0, Vec2 q1) {
 	return r.dot(r);
 }
 
-fn Vec4 isectRect(
-float ax, float ay, float aw, float ah,
-float bx, float by, float bw, float bh
-) {
-	float minx = math::max(ax, bx);
-	float miny = math::max(ay, by);
-	float maxx = math::min(ax + aw, bx + bw);
-	float maxy = math::min(ay + ah, by + bh);
-	return { minx, miny, math::max(0.0f, maxx - minx), math::max(0.0f, maxy - miny) };
+fn Vec4 isectRect(Vec2 a_pos, Vec2 a_extent, Vec2 b_pos, Vec2 b_extent) {
+	Vec2 min = {
+		math::max(a_pos.x, b_pos.x),
+		math::max(a_pos.y, b_pos.y)
+	};
+	Vec2 max = {
+		math::min(a_pos.x + a_extent.x, b_pos.x + b_extent.x),
+		math::min(a_pos.y + a_extent.y, b_pos.y + b_extent.y)
+	};
+	Vec2 extent = {
+		math::max(0.0f, max.x - min.x),
+		math::max(0.0f, max.y - min.y)
+	};
+	return { min.x, min.y, extent.x, extent.y };
 }
 
 fn float triArea2(Vec2 a, Vec2 b, Vec2 c) => (c - a).cross(b - a);
