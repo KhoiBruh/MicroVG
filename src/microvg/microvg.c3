@@ -896,26 +896,22 @@ fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLim
 		path.nbevel = 0;
 
 		for (int j = 0; j < path.count; j++) {
-			float dlx0 = p0.dir.y;
-			float dly0 = -p0.dir.x;
-			float dlx1 = p1.dir.y;
-			float dly1 = -p1.dir.x;
-			p1.miter.x = (dlx0 + dlx1) * 0.5f;
-			p1.miter.y = (dly0 + dly1) * 0.5f;
+			Vec2 normal0 = { p0.dir.y, -p0.dir.x };
+			Vec2 normal1 = { p1.dir.y, -p1.dir.x };
+			p1.miter = (normal0 + normal1) * 0.5f;
 
-			float dmr2 = p1.miter.x * p1.miter.x + p1.miter.y * p1.miter.y;
+			float dmr2 = p1.miter.dot(p1.miter);
 			if (dmr2 > 0.000001f) {
 				float scale = 1.0f / dmr2;
 				if (scale > 600.0f) {
 					scale = 600.0f;
 				}
-				p1.miter.x *= scale;
-				p1.miter.y *= scale;
+				p1.miter *= scale;
 			}
 
 			p1.flags = { .corner = p1.flags.corner };
 
-			float cross = p1.dir.x * p0.dir.y - p0.dir.x * p1.dir.y;
+			float cross = p1.dir.cross(p0.dir);
 			if (cross > 0.0f) {
 				nleft++;
 				p1.flags.left = true;
