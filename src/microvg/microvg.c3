@@ -675,42 +675,44 @@ fn Vertex* roundJoin(
 Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, int ncap, float fringe
 ) {
-	float dlx0 = p0.dy;
-	float dly0 = -p0.dx;
-	float dlx1 = p1.dy;
-	float dly1 = -p1.dx;
+	Vec2 v0 = { p0.x, p0.y };
+	Vec2 v1 = { p1.x, p1.y };
+	Vec2 d0 = { p0.dy, -p0.dx };
+	Vec2 d1 = { p1.dy, -p1.dx };
 
 	if (p1.flags.left) {
 		float lx0, ly0, lx1, ly1;
 		chooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
-		float a0 = math::atan2(-dly0, -dlx0);
-		float a1 = math::atan2(-dly1, -dlx1);
+		float a0 = math::atan2(-d0.y, -d0.x);
+		float a1 = math::atan2(-d1.y, -d1.x);
 		if (a1 > a0) a1 -= PI * 2;
 
 		dst = dst.push_xyuv(lx0, ly0, lu, 1);
-		dst = dst.push_xyuv(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+		dst = dst.push_uv(v1 - d0 * rw, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a0 - a1) / PI) * ncap), 2, ncap);
 		for (int i = 0; i < n; i++) {
-			float u = i / (float)(n - 1);
+			float u = i / (float) (n - 1);
 			float a = a0 + u * (a1 - a0);
-			float rx = p1.x + math::cos(a) * rw;
-			float ry = p1.y + math::sin(a) * rw;
-			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
-			dst = dst.push_xyuv(rx, ry, ru, 1);
+			Vec2 r = {
+				v1.x + math::cos(a) * rw,
+				v1.y + math::sin(a) * rw
+			};
+			dst = dst.push_uv(v1, 0.5f, 1);
+			dst = dst.push_uv(r, ru, 1);
 		}
 
 		dst = dst.push_xyuv(lx1, ly1, lu, 1);
-		dst = dst.push_xyuv(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+		dst = dst.push_uv(v1 - d1 * rw, ru, 1);
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
 		chooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
-		float a0 = math::atan2(dly0, dlx0);
-		float a1 = math::atan2(dly1, dlx1);
+		float a0 = math::atan2(d0.y, d0.x);
+		float a1 = math::atan2(d1.y, d1.x);
 		if (a1 < a0) a1 += PI * 2;
 
-		dst = dst.push_xyuv(p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1);
+		dst = dst.push_uv(v1 + d0 * rw, lu, 1);
 		dst = dst.push_xyuv(rx0, ry0, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a1 - a0) / PI) * ncap), 2, ncap);
@@ -720,10 +722,10 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 			float lx = p1.x + math::cos(a) * lw;
 			float ly = p1.y + math::sin(a) * lw;
 			dst = dst.push_xyuv(lx, ly, lu, 1);
-			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push_uv(v1, 0.5f, 1);
 		}
 
-		dst = dst.push_xyuv(p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1);
+		dst = dst.push_uv(v1 + d1 * rw, lu, 1);
 		dst = dst.push_xyuv(rx1, ry1, ru, 1);
 	}
 
