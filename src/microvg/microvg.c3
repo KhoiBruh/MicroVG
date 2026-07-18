@@ -238,7 +238,7 @@ Color icol, Color ocol
 	p.gradientType = GradientType.LINEAR;
 
 	Vec2 d = { ex - sx, ey - sy };
-	float len = d.length();
+	float len = d.normalize();
 	if (len < 1e-6f) {
 		p.form.identity();
 		p.innerColor = icol;
@@ -246,7 +246,6 @@ Color icol, Color ocol
 		p.feather = 1.0f;
 		return p;
 	}
-	d = d.normalize();
 
 	p.form.linear = { d.x, d.y, -d.y, d.x };
 	p.form.trans = { sx, sy };
@@ -633,7 +632,7 @@ fn void MicroVG.flattenPaths(&self) {
 
 		for (int k = 0; k < path.count; k++) {
 			p0.dir = p1.pos - p0.pos;
-			p0.len = normalize(&p0.dir.x, &p0.dir.y);
+			p0.len = p0.dir.normalize();
 			cache.bounds = {
 				math::min(cache.bounds.x, p0.pos.x),
 				math::min(cache.bounds.y, p0.pos.y),
@@ -996,7 +995,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 		if (loop == 0) {
 			Vec2 d = p1.pos - p0.pos;
-			d = d.normalize();
+			d.normalize();
 
 			switch (lineCap) {
 				case LineCap.BUTT:
@@ -1033,7 +1032,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		}
 		else {
 			Vec2 d = p1.pos - p0.pos;
-			d = d.normalize();
+			d.normalize();
 
 			switch (lineCap) {
 				case LineCap.BUTT:
@@ -1311,31 +1310,31 @@ fn void MicroVG.quadTo(&self, float cx, float cy, float x, float y) {
 }
 
 fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radius) {
-	float x0 = self.commandx;
-	float y0 = self.commandy;
-
 	if (self.ncommands == 0) return;
+	
+	Vec2 p0 = { self.commandx, self.commandy };
+	Vec2 p1 = { x1, y1 };
+	Vec2 p2 = { x2, y2 };
 
 	if (
-	ptEquals( { x0, y0 }, { x1, y1 }, self.distTol) ||
-	ptEquals( { x1, y1 }, { x2, y2 }, self.distTol) ||
-	distPtSeg( { x1, y1 }, { x0, y0 }, { x2, y2 }) < self.distTol * self.distTol ||
+	ptEquals(p0, p1, self.distTol) ||
+	ptEquals(p1, p2, self.distTol) ||
+	distPtSeg(p1, p0, p2) < self.distTol * self.distTol ||
 	radius < self.distTol
 	) {
 		self.lineTo(x1, y1);
 		return;
 	}
 
-	float dx0 = x0 - x1;
-	float dy0 = y0 - y1;
-	float dx1 = x2 - x1;
-	float dy1 = y2 - y1;
-	normalize(&dx0, &dy0);
-	normalize(&dx1, &dy1);
-	float a = math::acos(dx0 * dx1 + dy0 * dy1);
-	float d = radius / math::tan(a / 2.0f);
+	Vec2 d0 = p0 - p1;
+	Vec2 d1 = p2 - p1;
+	d0.normalize();
+	d1.normalize();
+	
+	float a = math::acos(d0.cross(d1));
+	float d = radius / math::tan(a * 0.5f);
 
-	if (d > 10000.0f) {
+	if (d > 10000) {
 		self.lineTo(x1, y1);
 		return;
 	}
@@ -1343,20 +1342,18 @@ fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radiu
 	float cx, cy, a0, a1;
 	Winding dir;
 
-	Vec2 v0 = { dx0, dy0 };
-	Vec2 v1 = { dx1, dy1 };
-	if (v1.cross(v0) > 0.0f) {
-		cx = x1 + dx0 * d + dy0 * radius;
-		cy = y1 + dy0 * d + -dx0 * radius;
-		a0 = math::atan2(dx0, -dy0);
-		a1 = math::atan2(-dx1, dy1);
+	if (d1.cross(d0) > 0) {
+		cx = x1 + d0.x * d + d0.y * radius;
+		cy = y1 + d0.y * d + -d0.x * radius;
+		a0 = math::atan2(d0.x, -d0.y);
+		a1 = math::atan2(-d1.x, d1.y);
 		dir = Winding.CW;
 	}
 	else {
-		cx = x1 + dx0 * d + -dy0 * radius;
-		cy = y1 + dy0 * d + dx0 * radius;
-		a0 = math::atan2(-dx0, dy0);
-		a1 = math::atan2(dx1, -dy1);
+		cx = x1 + d0.x * d + -d0.y * radius;
+		cy = y1 + d0.y * d + d0.x * radius;
+		a0 = math::atan2(-d0.x, d0.y);
+		a1 = math::atan2(d1.x, -d1.y);
 		dir = Winding.CCW;
 	}
 

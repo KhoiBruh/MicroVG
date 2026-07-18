@@ -12,16 +12,6 @@ macro float toDeg(float rad) => rad / PI * 180.0f;
 
 macro float float.sign(self) => self < 0 ? -1 : 1;
 
-fn float normalize(float* x, float* y) {
-	float d = math::sqrt(x[0] * x[0] + y[0] * y[0]);
-	if (d > 1e-6f) {
-		float id = 1.0f / d;
-		x[0] *= id;
-		y[0] *= id;
-	}
-	return d;
-}
-
 fn bool ptEquals(Vec2 a, Vec2 b, float tol) {
 	Vec2 d = b - a;
 	return d.dot(d) < tol * tol;
