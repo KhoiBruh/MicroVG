@@ -849,24 +849,19 @@ float w, int ncap, float aa, Vec2 uv
 }
 
 fn Vertex* roundCapEnd(
-Vertex* dst, Point* p,
-float dx, float dy, float w, int ncap,
-float aa, float u0, float u1
+Vertex* dst, Vec2 pos, Vec2 dir,
+float w, int ncap, float aa, Vec2 uv
 ) {
-	float px = p.x;
-	float py = p.y;
-	float dlx = dy;
-	float dly = -dx;
+	Vec2 normal = { dir.y, -dir.x };
 
-	dst = dst.push_xyuv(px + dlx * w, py + dly * w, u0, 1);
-	dst = dst.push_xyuv(px - dlx * w, py - dly * w, u1, 1);
+	dst = dst.push(pos + normal * w, { uv.x, 1 });
+	dst = dst.push(pos - normal * w, { uv.y, 1 });
 
 	for (int i = 0; i < ncap; i++) {
 		float a = i / (float)(ncap - 1) * PI;
-		float ax = math::cos(a) * w;
-		float ay = math::sin(a) * w;
-		dst = dst.push_xyuv(px, py, 0.5f, 1);
-		dst = dst.push_xyuv(px - dlx * ax + dx * ay, py - dly * ax + dy * ay, u0, 1);
+		Vec2 arc = { math::cos(a) * w, math::sin(a) * w };
+		dst = dst.push(pos, { 0.5f, 1 });
+		dst = dst.push(pos - normal * arc.x + dir * arc.y, { uv.x, 1 });
 	}
 
 	return dst;
@@ -1066,7 +1061,7 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 					dst = buttCapEnd(dst, { p1.x, p1.y }, { dx, dy }, w, w - aa, aa, { u0, u1 });
 
 				case LineCap.ROUND:
-					dst = roundCapEnd(dst, p1, dx, dy, w, ncap, aa, u0, u1);
+					dst = roundCapEnd(dst, { p1.x, p1.y }, { dx, dy }, w, ncap, aa, { u0, u1 });
 			}
 		}
 
