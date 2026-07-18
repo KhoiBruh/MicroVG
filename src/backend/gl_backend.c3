@@ -913,10 +913,10 @@ fn void renderFill(void* up, Paint* paint, CompositeOpState compositeOp, Scissor
 	else if (!convex) {
 		call.triangleOffset = voff;
 		Vertex* quad = gl.vertsBuf.at(call.triangleOffset);
-		quad[0] = { bounds[2], bounds[3], 0.5f, 1.0f };
-		quad[1] = { bounds[2], bounds[1], 0.5f, 1.0f };
-		quad[2] = { bounds[0], bounds[3], 0.5f, 1.0f };
-		quad[3] = { bounds[0], bounds[1], 0.5f, 1.0f };
+		quad[0] = { { bounds[2], bounds[3] }, { 0.5f, 1.0f } };
+		quad[1] = { { bounds[2], bounds[1] }, { 0.5f, 1.0f } };
+		quad[2] = { { bounds[0], bounds[3] }, { 0.5f, 1.0f } };
+		quad[3] = { { bounds[0], bounds[1] }, { 0.5f, 1.0f } };
 
 		call.uniformOffset = uniByteOff;
 		GlFragUniforms* frag = (GlFragUniforms*)(gl.uniformBuf.data + call.uniformOffset);

@@ -29,8 +29,15 @@ struct MicroVG {
 	int textTriCount;
 }
 
-fn Vertex* Vertex.push(&self, float x, float y, float u, float v) @inline {
-	*self = { x, y, u, v };
+fn Vertex* Vertex.push(&self, Vec2 pos, Vec2 uv) @inline {
+	self.pos = pos;
+	self.uv = uv;
+	return self + 1;
+}
+
+fn Vertex* Vertex.push_xyuv(&self, float x, float y, float u, float v) @inline {
+	self.pos = { x, y };
+	self.uv = { u, v };
 	return self + 1;
 }
 
@@ -674,8 +681,8 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 		float a1 = math::atan2(-dly1, -dlx1);
 		if (a1 > a0) a1 -= PI * 2;
 
-		dst = dst.push(lx0, ly0, lu, 1);
-		dst = dst.push(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+		dst = dst.push_xyuv(lx0, ly0, lu, 1);
+		dst = dst.push_xyuv(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a0 - a1) / PI) * ncap), 2, ncap);
 		for (int i = 0; i < n; i++) {
@@ -683,12 +690,12 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 			float a = a0 + u * (a1 - a0);
 			float rx = p1.x + math::cos(a) * rw;
 			float ry = p1.y + math::sin(a) * rw;
-			dst = dst.push(p1.x, p1.y, 0.5f, 1);
-			dst = dst.push(rx, ry, ru, 1);
+			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push_xyuv(rx, ry, ru, 1);
 		}
 
-		dst = dst.push(lx1, ly1, lu, 1);
-		dst = dst.push(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+		dst = dst.push_xyuv(lx1, ly1, lu, 1);
+		dst = dst.push_xyuv(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
@@ -697,8 +704,8 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 		float a1 = math::atan2(dly1, dlx1);
 		if (a1 < a0) a1 += PI * 2;
 
-		dst = dst.push(p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1);
-		dst = dst.push(rx0, ry0, ru, 1);
+		dst = dst.push_xyuv(p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1);
+		dst = dst.push_xyuv(rx0, ry0, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a1 - a0) / PI) * ncap), 2, ncap);
 		for (int i = 0; i < n; i++) {
@@ -706,12 +713,12 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 			float a = a0 + u * (a1 - a0);
 			float lx = p1.x + math::cos(a) * lw;
 			float ly = p1.y + math::sin(a) * lw;
-			dst = dst.push(lx, ly, lu, 1);
-			dst = dst.push(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push_xyuv(lx, ly, lu, 1);
+			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
 		}
 
-		dst = dst.push(p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1);
-		dst = dst.push(rx1, ry1, ru, 1);
+		dst = dst.push_xyuv(p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1);
+		dst = dst.push_xyuv(rx1, ry1, ru, 1);
 	}
 
 	return dst;
@@ -730,63 +737,63 @@ float lw, float rw, float lu, float ru, float fringe
 		float lx0, ly0, lx1, ly1;
 		chooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 
-		dst = dst.push(lx0, ly0, lu, 1);
-		dst = dst.push(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+		dst = dst.push_xyuv(lx0, ly0, lu, 1);
+		dst = dst.push_xyuv(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
 		if (p1.flags.bevel) {
-			dst = dst.push(lx0, ly0, lu, 1);
-			dst = dst.push(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+			dst = dst.push_xyuv(lx0, ly0, lu, 1);
+			dst = dst.push_xyuv(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
-			dst = dst.push(lx1, ly1, lu, 1);
-			dst = dst.push(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+			dst = dst.push_xyuv(lx1, ly1, lu, 1);
+			dst = dst.push_xyuv(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
 		}
 		else {
 			float rx0 = p1.x - p1.dmx * rw;
 			float ry0 = p1.y - p1.dmy * rw;
 
-			dst = dst.push(p1.x, p1.y, 0.5f, 1);
-			dst = dst.push(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push_xyuv(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
-			dst = dst.push(rx0, ry0, ru, 1);
-			dst = dst.push(rx0, ry0, ru, 1);
+			dst = dst.push_xyuv(rx0, ry0, ru, 1);
+			dst = dst.push_xyuv(rx0, ry0, ru, 1);
 
-			dst = dst.push(p1.x, p1.y, 0.5f, 1);
-			dst = dst.push(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push_xyuv(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
 		}
 
-		dst = dst.push(lx1, ly1, lu, 1);
-		dst = dst.push(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+		dst = dst.push_xyuv(lx1, ly1, lu, 1);
+		dst = dst.push_xyuv(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
 		chooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 
-		dst = dst.push(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
-		dst = dst.push(rx0, ry0, ru, 1);
+		dst = dst.push_xyuv(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+		dst = dst.push_xyuv(rx0, ry0, ru, 1);
 
 		if (p1.flags.bevel) {
-			dst = dst.push(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
-			dst = dst.push(rx0, ry0, ru, 1);
+			dst = dst.push_xyuv(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+			dst = dst.push_xyuv(rx0, ry0, ru, 1);
 
-			dst = dst.push(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
-			dst = dst.push(rx1, ry1, ru, 1);
+			dst = dst.push_xyuv(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+			dst = dst.push_xyuv(rx1, ry1, ru, 1);
 		}
 		else {
 			float lx0 = p1.x + p1.dmx * lw;
 			float ly0 = p1.y + p1.dmy * lw;
 
-			dst = dst.push(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
-			dst = dst.push(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push_xyuv(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
 
-			dst = dst.push(lx0, ly0, lu, 1);
-			dst = dst.push(lx0, ly0, lu, 1);
+			dst = dst.push_xyuv(lx0, ly0, lu, 1);
+			dst = dst.push_xyuv(lx0, ly0, lu, 1);
 
-			dst = dst.push(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
-			dst = dst.push(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push_xyuv(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
 		}
 
-		dst = dst.push(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
-		dst = dst.push(rx1, ry1, ru, 1);
+		dst = dst.push_xyuv(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+		dst = dst.push_xyuv(rx1, ry1, ru, 1);
 	}
 
 	return dst;
@@ -802,10 +809,10 @@ float aa, float u0, float u1
 	float dlx = dy;
 	float dly = -dx;
 
-	dst = dst.push(px + dlx * w - dx * aa, py + dly * w - dy * aa, u0, 0);
-	dst = dst.push(px - dlx * w - dx * aa, py - dly * w - dy * aa, u1, 0);
-	dst = dst.push(px + dlx * w, py + dly * w, u0, 1);
-	dst = dst.push(px - dlx * w, py - dly * w, u1, 1);
+	dst = dst.push_xyuv(px + dlx * w - dx * aa, py + dly * w - dy * aa, u0, 0);
+	dst = dst.push_xyuv(px - dlx * w - dx * aa, py - dly * w - dy * aa, u1, 0);
+	dst = dst.push_xyuv(px + dlx * w, py + dly * w, u0, 1);
+	dst = dst.push_xyuv(px - dlx * w, py - dly * w, u1, 1);
 
 	return dst;
 }
@@ -820,10 +827,10 @@ float aa, float u0, float u1
 	float dlx = dy;
 	float dly = -dx;
 
-	dst = dst.push(px + dlx * w, py + dly * w, u0, 1);
-	dst = dst.push(px - dlx * w, py - dly * w, u1, 1);
-	dst = dst.push(px + dlx * w + dx * aa, py + dly * w + dy * aa, u0, 0);
-	dst = dst.push(px - dlx * w + dx * aa, py - dly * w + dy * aa, u1, 0);
+	dst = dst.push_xyuv(px + dlx * w, py + dly * w, u0, 1);
+	dst = dst.push_xyuv(px - dlx * w, py - dly * w, u1, 1);
+	dst = dst.push_xyuv(px + dlx * w + dx * aa, py + dly * w + dy * aa, u0, 0);
+	dst = dst.push_xyuv(px - dlx * w + dx * aa, py - dly * w + dy * aa, u1, 0);
 
 	return dst;
 }
@@ -842,12 +849,12 @@ float aa, float u0, float u1
 		float a = i / (float)(ncap - 1) * PI;
 		float ax = math::cos(a) * w;
 		float ay = math::sin(a) * w;
-		dst = dst.push(px - dlx * ax - dx * ay, py - dly * ax - dy * ay, u0, 1);
-		dst = dst.push(px, py, 0.5f, 1);
+		dst = dst.push_xyuv(px - dlx * ax - dx * ay, py - dly * ax - dy * ay, u0, 1);
+		dst = dst.push_xyuv(px, py, 0.5f, 1);
 	}
 
-	dst = dst.push(px + dlx * w, py + dly * w, u0, 1);
-	dst = dst.push(px - dlx * w, py - dly * w, u1, 1);
+	dst = dst.push_xyuv(px + dlx * w, py + dly * w, u0, 1);
+	dst = dst.push_xyuv(px - dlx * w, py - dly * w, u1, 1);
 
 	return dst;
 }
@@ -862,15 +869,15 @@ float aa, float u0, float u1
 	float dlx = dy;
 	float dly = -dx;
 
-	dst = dst.push(px + dlx * w, py + dly * w, u0, 1);
-	dst = dst.push(px - dlx * w, py - dly * w, u1, 1);
+	dst = dst.push_xyuv(px + dlx * w, py + dly * w, u0, 1);
+	dst = dst.push_xyuv(px - dlx * w, py - dly * w, u1, 1);
 
 	for (int i = 0; i < ncap; i++) {
 		float a = i / (float)(ncap - 1) * PI;
 		float ax = math::cos(a) * w;
 		float ay = math::sin(a) * w;
-		dst = dst.push(px, py, 0.5f, 1);
-		dst = dst.push(px - dlx * ax + dx * ay, py - dly * ax + dy * ay, u0, 1);
+		dst = dst.push_xyuv(px, py, 0.5f, 1);
+		dst = dst.push_xyuv(px - dlx * ax + dx * ay, py - dly * ax + dy * ay, u0, 1);
 	}
 
 	return dst;
@@ -1046,16 +1053,16 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 				}
 			}
 			else {
-				dst = dst.push(p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), u0, 1);
-				dst = dst.push(p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), u1, 1);
+				dst = dst.push_xyuv(p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), u0, 1);
+				dst = dst.push_xyuv(p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), u1, 1);
 			}
 			p0 = p1;
 			p1++;
 		}
 
 		if (loop) {
-			dst = dst.push(verts[0].x, verts[0].y, u0, 1);
-			dst = dst.push(verts[1].x, verts[1].y, u1, 1);
+			dst = dst.push_xyuv(verts[0].pos.x, verts[0].pos.y, u0, 1);
+			dst = dst.push_xyuv(verts[1].pos.x, verts[1].pos.y, u1, 1);
 		}
 		else {
 			dx = p1.x - p0.x;
@@ -1113,9 +1120,9 @@ fn int earClipTriangulate(Vertex* verts, int nverts, int* out_indices) @local {
 			int c = indices[i];
 			int nx = indices[(i + 1) % n];
 
-			Vec2 prev = { verts[p].x, verts[p].y };
-			Vec2 curr = { verts[c].x, verts[c].y };
-			Vec2 next = { verts[nx].x, verts[nx].y };
+			Vec2 prev = verts[p].pos;
+			Vec2 curr = verts[c].pos;
+			Vec2 next = verts[nx].pos;
 
 			float cross = (curr.x - prev.x) * (next.y - curr.y) - (curr.y - prev.y) * (next.x - curr.x);
 			if (cross >= 0) continue;
@@ -1123,7 +1130,7 @@ fn int earClipTriangulate(Vertex* verts, int nverts, int* out_indices) @local {
 			bool is_ear = true;
 			for (int j = 0; j < n; j++) {
 				if (indices[j] == p || indices[j] == c || indices[j] == nx) continue;
-				Vec2 pt = { verts[indices[j]].x, verts[indices[j]].y };
+				Vec2 pt = verts[indices[j]].pos;
 				if (earPointInTriangle(pt, prev, curr, next)) {
 					is_ear = false;
 					break;
@@ -1235,19 +1242,19 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 					if (p1.flags.left) {
 						float lx = p1.x + p1.dmx * woff;
 						float ly = p1.y + p1.dmy * woff;
-						dst = dst.push(lx, ly, 0.5f, 1);
+						dst = dst.push_xyuv(lx, ly, 0.5f, 1);
 					}
 					else {
 						float lx0 = p1.x + dlx0 * woff;
 						float ly0 = p1.y + dly0 * woff;
 						float lx1 = p1.x + dlx1 * woff;
 						float ly1 = p1.y + dly1 * woff;
-						dst = dst.push(lx0, ly0, 0.5f, 1);
-						dst = dst.push(lx1, ly1, 0.5f, 1);
+						dst = dst.push_xyuv(lx0, ly0, 0.5f, 1);
+						dst = dst.push_xyuv(lx1, ly1, 0.5f, 1);
 					}
 				}
 				else {
-					dst = dst.push(p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5f, 1);
+					dst = dst.push_xyuv(p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5f, 1);
 				}
 				p0 = p1;
 				p1++;
@@ -1255,7 +1262,7 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 		}
 		else {
 			for (int j = 0; j < path.count; j++) {
-				dst = dst.push(pts[j].x, pts[j].y, 0.5f, 1);
+				dst = dst.push_xyuv(pts[j].x, pts[j].y, 0.5f, 1);
 			}
 		}
 
@@ -1287,15 +1294,15 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 					dst = bevelJoin(dst, p0, p1, lw, rw, lu, ru, self.fringeWidth);
 				}
 				else {
-					dst = dst.push(p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1);
-					dst = dst.push(p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1);
+					dst = dst.push_xyuv(p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1);
+					dst = dst.push_xyuv(p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1);
 				}
 				p0 = p1;
 				p1++;
 			}
 
-			dst = dst.push(verts[0].x, verts[0].y, lu, 1);
-			dst = dst.push(verts[1].x, verts[1].y, ru, 1);
+			dst = dst.push_xyuv(verts[0].pos.x, verts[0].pos.y, lu, 1);
+			dst = dst.push_xyuv(verts[1].pos.x, verts[1].pos.y, ru, 1);
 
 			path.nstroke = (int)(dst - verts);
 			verts = dst;

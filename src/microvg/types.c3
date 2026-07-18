@@ -27,7 +27,8 @@ enum TextureType : char {
 }
 
 struct Vertex {
-	float x, y, u, v;
+	Vec2 pos;
+	Vec2 uv;
 }
 
 alias RenderCreate = fn int(void*);
