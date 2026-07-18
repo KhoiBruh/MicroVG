@@ -35,12 +35,6 @@ fn Vertex* Vertex.push(&self, Vec2 pos, Vec2 uv) @inline {
 	return self + 1;
 }
 
-fn Vertex* Vertex.push_xyuv(&self, float x, float y, float u, float v) @inline {
-	self.pos = { x, y };
-	self.uv = { u, v };
-	return self + 1;
-}
-
 fn Vertex* Vertex.push_uv(&self, Vec2 pos, float u, float v) @inline {
 	self.pos = pos;
 	self.uv = { u, v };
@@ -669,7 +663,6 @@ fn Vertex* roundJoin(
 Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, int ncap, float fringe
 ) {
-	Vec2 v1 = p1.pos;
 	Vec2 d0 = { p0.dir.y, -p0.dir.x };
 	Vec2 d1 = { p1.dir.y, -p1.dir.x };
 
@@ -679,23 +672,23 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 		float a1 = math::atan2(-d1.y, -d1.x);
 		if (a1 > a0) a1 -= PI * 2;
 
-		dst = dst.push(bevel.xy, { lu, 1 });
-		dst = dst.push_uv(v1 - d0 * rw, ru, 1);
+		dst = dst.push_uv(bevel.xy, lu, 1);
+		dst = dst.push_uv(p1.pos - d0 * rw, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a0 - a1) / PI) * ncap), 2, ncap);
 		for (int i = 0; i < n; i++) {
 			float u = i / (float) (n - 1);
 			float a = a0 + u * (a1 - a0);
 			Vec2 r = {
-				v1.x + math::cos(a) * rw,
-				v1.y + math::sin(a) * rw
+				p1.pos.x + math::cos(a) * rw,
+				p1.pos.y + math::sin(a) * rw
 			};
-			dst = dst.push(v1, { 0.5f, 1 });
-			dst = dst.push(r, { ru, 1 });
+			dst = dst.push_uv(p1.pos, 0.5f, 1);
+			dst = dst.push_uv(r, ru, 1);
 		}
 
-		dst = dst.push(bevel.zw, { lu, 1 });
-		dst = dst.push_uv(v1 - d1 * rw, ru, 1);
+		dst = dst.push_uv(bevel.zw, lu, 1);
+		dst = dst.push_uv(p1.pos - d1 * rw, ru, 1);
 	}
 	else {
 		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, -rw);
@@ -703,20 +696,20 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 		float a1 = math::atan2(d1.y, d1.x);
 		if (a1 < a0) a1 += PI * 2;
 
-		dst = dst.push_uv(v1 + d0 * rw, lu, 1);
-		dst = dst.push(bevel.xy, { ru, 1 });
+		dst = dst.push_uv(p1.pos + d0 * rw, lu, 1);
+		dst = dst.push_uv(bevel.xy, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a1 - a0) / PI) * ncap), 2, ncap);
 		for (int i = 0; i < n; i++) {
 			float u = i / (float)(n - 1);
 			float a = a0 + u * (a1 - a0);
-			Vec2 l = v1 + { math::cos(a) * lw, math::sin(a) * lw };
-			dst = dst.push(l, { lu, 1 });
-			dst = dst.push_uv(v1, 0.5f, 1);
+			Vec2 l = p1.pos + { math::cos(a) * lw, math::sin(a) * lw };
+			dst = dst.push_uv(l, lu, 1);
+			dst = dst.push_uv(p1.pos, 0.5f, 1);
 		}
 
-		dst = dst.push_uv(v1 + d1 * rw, lu, 1);
-		dst = dst.push(bevel.zw, { ru, 1 });
+		dst = dst.push_uv(p1.pos + d1 * rw, lu, 1);
+		dst = dst.push_uv(bevel.zw, ru, 1);
 	}
 
 	return dst;
@@ -733,70 +726,70 @@ float lw, float rw, float lu, float ru, float fringe
 	if (p1.flags.left) {
 		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, lw);
 
-		dst = dst.push(bevel.xy, { lu, 1 });
-		dst = dst.push(pos - normal0 * rw, { ru, 1 });
+		dst = dst.push_uv(bevel.xy, lu, 1);
+		dst = dst.push_uv(pos - normal0 * rw, ru, 1);
 
 		if (p1.flags.bevel) {
-			dst = dst.push(bevel.xy, { lu, 1 });
-			dst = dst.push(pos - normal0 * rw, { ru, 1 });
+			dst = dst.push_uv(bevel.xy, lu, 1);
+			dst = dst.push_uv(pos - normal0 * rw, ru, 1);
 
-			dst = dst.push(bevel.zw, { lu, 1 });
-			dst = dst.push(pos - normal1 * rw, { ru, 1 });
+			dst = dst.push_uv(bevel.zw, lu, 1);
+			dst = dst.push_uv(pos - normal1 * rw, ru, 1);
 		}
 		else {
 			Vec2 right = pos - p1.miter * rw;
 
-			dst = dst.push(pos, { 0.5f, 1 });
-			dst = dst.push(pos - normal0 * rw, { ru, 1 });
+			dst = dst.push_uv(pos, 0.5f, 1);
+			dst = dst.push_uv(pos - normal0 * rw, ru, 1);
 
-			dst = dst.push(right, { ru, 1 });
-			dst = dst.push(right, { ru, 1 });
+			dst = dst.push_uv(right, ru, 1);
+			dst = dst.push_uv(right, ru, 1);
 
-			dst = dst.push(pos, { 0.5f, 1 });
-			dst = dst.push(pos - normal1 * rw, { ru, 1 });
+			dst = dst.push_uv(pos, 0.5f, 1);
+			dst = dst.push_uv(pos - normal1 * rw, ru, 1);
 		}
 
-		dst = dst.push(bevel.zw, { lu, 1 });
-		dst = dst.push(pos - normal1 * rw, { ru, 1 });
+		dst = dst.push_uv(bevel.zw, lu, 1);
+		dst = dst.push_uv(pos - normal1 * rw, ru, 1);
 	}
 	else {
 		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, -rw);
 
-		dst = dst.push(pos + normal0 * lw, { lu, 1 });
-		dst = dst.push(bevel.xy, { ru, 1 });
+		dst = dst.push_uv(pos + normal0 * lw, lu, 1);
+		dst = dst.push_uv(bevel.xy, ru, 1);
 
 		if (p1.flags.bevel) {
-			dst = dst.push(pos + normal0 * lw, { lu, 1 });
-			dst = dst.push(bevel.xy, { ru, 1 });
+			dst = dst.push_uv(pos + normal0 * lw, lu, 1);
+			dst = dst.push_uv(bevel.xy, ru, 1);
 
-			dst = dst.push(pos + normal1 * lw, { lu, 1 });
-			dst = dst.push(bevel.zw, { ru, 1 });
+			dst = dst.push_uv(pos + normal1 * lw, lu, 1);
+			dst = dst.push_uv(bevel.zw, ru, 1);
 		}
 		else {
 			Vec2 left = pos + p1.miter * lw;
 
-			dst = dst.push(pos + normal0 * lw, { lu, 1 });
-			dst = dst.push(pos, { 0.5f, 1 });
+			dst = dst.push_uv(pos + normal0 * lw, lu, 1);
+			dst = dst.push_uv(pos, 0.5f, 1);
 
-			dst = dst.push(left, { lu, 1 });
-			dst = dst.push(left, { lu, 1 });
+			dst = dst.push_uv(left, lu, 1);
+			dst = dst.push_uv(left, lu, 1);
 
-			dst = dst.push(pos + normal1 * lw, { lu, 1 });
-			dst = dst.push(pos, { 0.5f, 1 });
+			dst = dst.push_uv(pos + normal1 * lw, lu, 1);
+			dst = dst.push_uv(pos, 0.5f, 1);
 		}
 
-		dst = dst.push(pos + normal1 * lw, { lu, 1 });
-		dst = dst.push(bevel.zw, { ru, 1 });
+		dst = dst.push_uv(pos + normal1 * lw, lu, 1);
+		dst = dst.push_uv(bevel.zw, ru, 1);
 	}
 
 	return dst;
 }
 
 fn Vertex* buttCapStart(
-Vertex* dst, Vec2 pos, Vec2 dir,
+Vertex* dst, Point* p, Vec2 dir,
 float w, float d, float aa, Vec2 uv
 ) {
-	Vec2 cap = pos - dir * d;
+	Vec2 cap = p.pos - dir * d;
 	Vec2 normal = { dir.y, -dir.x };
 
 	dst = dst.push_uv(cap + normal * w - dir * aa, uv.x, 0);
@@ -808,10 +801,10 @@ float w, float d, float aa, Vec2 uv
 }
 
 fn Vertex* buttCapEnd(
-Vertex* dst, Vec2 pos, Vec2 dir,
+Vertex* dst, Point* p, Vec2 dir,
 float w, float d, float aa, Vec2 uv
 ) {
-	Vec2 cap = pos + dir * d;
+	Vec2 cap = p.pos + dir * d;
 	Vec2 normal = { dir.y, -dir.x };
 
 	dst = dst.push_uv(cap + normal * w, uv.x, 1);
@@ -823,9 +816,10 @@ float w, float d, float aa, Vec2 uv
 }
 
 fn Vertex* roundCapStart(
-Vertex* dst, Vec2 pos, Vec2 dir,
+Vertex* dst, Point* p, Vec2 dir,
 float w, int ncap, float aa, Vec2 uv
 ) {
+	Vec2 pos = p.pos;
 	Vec2 normal = { dir.y, -dir.x };
 
 	for (int i = 0; i < ncap; i++) {
@@ -843,9 +837,10 @@ float w, int ncap, float aa, Vec2 uv
 }
 
 fn Vertex* roundCapEnd(
-Vertex* dst, Vec2 pos, Vec2 dir,
+Vertex* dst, Point* p, Vec2 dir,
 float w, int ncap, float aa, Vec2 uv
 ) {
+	Vec2 pos = p.pos;
 	Vec2 normal = { dir.y, -dir.x };
 
 	dst = dst.push_uv(pos + normal * w, uv.x, 1);
@@ -1001,19 +996,18 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		}
 
 		if (loop == 0) {
-			dx = p1.pos.x - p0.pos.x;
-			dy = p1.pos.y - p0.pos.y;
-			normalize(&dx, &dy);
+			Vec2 d = p1.pos - p0.pos;
+			d = d.normalize();
 
 			switch (lineCap) {
 				case LineCap.BUTT:
-					dst = buttCapStart(dst, { p0.pos.x, p0.pos.y }, { dx, dy }, w, -aa * 0.5f, aa, { u0, u1 });
+					dst = buttCapStart(dst, p0, d, w, -aa * 0.5f, aa, { u0, u1 });
 
 				case LineCap.SQUARE:
-					dst = buttCapStart(dst, { p0.pos.x, p0.pos.y }, { dx, dy }, w, w - aa, aa, { u0, u1 });
+					dst = buttCapStart(dst, p0, d, w, w - aa, aa, { u0, u1 });
 
 				case LineCap.ROUND:
-					dst = roundCapStart(dst, { p0.pos.x, p0.pos.y }, { dx, dy }, w, ncap, aa, { u0, u1 });
+					dst = roundCapStart(dst, p0, d, w, ncap, aa, { u0, u1 });
 			}
 		}
 
@@ -1027,31 +1021,30 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 				}
 			}
 			else {
-				dst = dst.push_xyuv(p1.pos.x + (p1.miter.x * w), p1.pos.y + (p1.miter.y * w), u0, 1);
-				dst = dst.push_xyuv(p1.pos.x - (p1.miter.x * w), p1.pos.y - (p1.miter.y * w), u1, 1);
+				dst = dst.push_uv(p1.pos + (p1.miter * w), u0, 1);
+				dst = dst.push_uv(p1.pos - (p1.miter * w), u1, 1);
 			}
 			p0 = p1;
 			p1++;
 		}
 
 		if (loop) {
-			dst = dst.push_xyuv(verts[0].pos.x, verts[0].pos.y, u0, 1);
-			dst = dst.push_xyuv(verts[1].pos.x, verts[1].pos.y, u1, 1);
+			dst = dst.push_uv(verts[0].pos, u0, 1);
+			dst = dst.push_uv(verts[1].pos, u1, 1);
 		}
 		else {
-			dx = p1.pos.x - p0.pos.x;
-			dy = p1.pos.y - p0.pos.y;
-			normalize(&dx, &dy);
+			Vec2 d = p1.pos - p0.pos;
+			d = d.normalize();
 
 			switch (lineCap) {
 				case LineCap.BUTT:
-					dst = buttCapEnd(dst, { p1.pos.x, p1.pos.y }, { dx, dy }, w, -aa * 0.5f, aa, { u0, u1 });
+					dst = buttCapEnd(dst, p1, d, w, -aa * 0.5f, aa, { u0, u1 });
 
 				case LineCap.SQUARE:
-					dst = buttCapEnd(dst, { p1.pos.x, p1.pos.y }, { dx, dy }, w, w - aa, aa, { u0, u1 });
+					dst = buttCapEnd(dst, p1, d, w, w - aa, aa, { u0, u1 });
 
 				case LineCap.ROUND:
-					dst = roundCapEnd(dst, { p1.pos.x, p1.pos.y }, { dx, dy }, w, ncap, aa, { u0, u1 });
+					dst = roundCapEnd(dst, p1, d, w, ncap, aa, { u0, u1 });
 			}
 		}
 
@@ -1209,26 +1202,22 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 			p1 = &pts[0];
 			for (int j = 0; j < path.count; j++) {
 				if (p1.flags.bevel) {
-					float dlx0 = p0.dir.y;
-					float dly0 = -p0.dir.x;
-					float dlx1 = p1.dir.y;
-					float dly1 = -p1.dir.x;
+					Vec2 d0 = { p0.dir.y, -p0.dir.x };
+					Vec2 d1 = { p1.dir.y, -p1.dir.x };
+
 					if (p1.flags.left) {
-						float lx = p1.pos.x + p1.miter.x * woff;
-						float ly = p1.pos.y + p1.miter.y * woff;
-						dst = dst.push_xyuv(lx, ly, 0.5f, 1);
+						Vec2 l = p1.pos + p1.miter * woff;
+						dst = dst.push_uv(l, 0.5f, 1);
 					}
 					else {
-						float lx0 = p1.pos.x + dlx0 * woff;
-						float ly0 = p1.pos.y + dly0 * woff;
-						float lx1 = p1.pos.x + dlx1 * woff;
-						float ly1 = p1.pos.y + dly1 * woff;
-						dst = dst.push_xyuv(lx0, ly0, 0.5f, 1);
-						dst = dst.push_xyuv(lx1, ly1, 0.5f, 1);
+						Vec2 l0 = p1.pos + d0 * woff;
+						Vec2 l1 = p1.pos + d1 * woff;
+						dst = dst.push_uv(l0, 0.5f, 1);
+						dst = dst.push_uv(l1, 0.5f, 1);
 					}
 				}
 				else {
-					dst = dst.push_xyuv(p1.pos.x + (p1.miter.x * woff), p1.pos.y + (p1.miter.y * woff), 0.5f, 1);
+					dst = dst.push_uv(p1.pos + (p1.miter * woff), 0.5f, 1);
 				}
 				p0 = p1;
 				p1++;
@@ -1236,7 +1225,7 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 		}
 		else {
 			for (int j = 0; j < path.count; j++) {
-				dst = dst.push_xyuv(pts[j].pos.x, pts[j].pos.y, 0.5f, 1);
+				dst = dst.push_uv(pts[j].pos, 0.5f, 1);
 			}
 		}
 
@@ -1268,15 +1257,15 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 					dst = bevelJoin(dst, p0, p1, lw, rw, lu, ru, self.fringeWidth);
 				}
 				else {
-					dst = dst.push_xyuv(p1.pos.x + (p1.miter.x * lw), p1.pos.y + (p1.miter.y * lw), lu, 1);
-					dst = dst.push_xyuv(p1.pos.x - (p1.miter.x * rw), p1.pos.y - (p1.miter.y * rw), ru, 1);
+					dst = dst.push_uv(p1.pos + (p1.miter * lw), lu, 1);
+					dst = dst.push_uv(p1.pos - (p1.miter * rw), ru, 1);
 				}
 				p0 = p1;
 				p1++;
 			}
 
-			dst = dst.push_xyuv(verts[0].pos.x, verts[0].pos.y, lu, 1);
-			dst = dst.push_xyuv(verts[1].pos.x, verts[1].pos.y, ru, 1);
+			dst = dst.push_uv(verts[0].pos, lu, 1);
+			dst = dst.push_uv(verts[1].pos, ru, 1);
 
 			path.nstroke = (int)(dst - verts);
 			verts = dst;
