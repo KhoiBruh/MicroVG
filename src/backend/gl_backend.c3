@@ -356,7 +356,7 @@ fn int GlContext.convertPaint(&self, GlFragUniforms* frag, Paint* paint, Scissor
 	}
 	else {
 		frag.type = NsvgShader.FILLGRAD;
-		frag.texType = (int)paint.gradientType;
+		frag.texType = paint.gradientType.ordinal;
 		frag.radius = paint.radius;
 		frag.feather = paint.feather;
 		invxform = paint.form.inverse();
