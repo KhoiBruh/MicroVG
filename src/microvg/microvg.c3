@@ -663,52 +663,53 @@ fn Vertex* roundJoin(
 Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, int ncap, float fringe
 ) {
-	Vec2 d0 = { p0.dir.y, -p0.dir.x };
-	Vec2 d1 = { p1.dir.y, -p1.dir.x };
+	Vec2 p = p1.pos;
+	Vec2 d0 = p0.dir.cw();
+	Vec2 d1 = p1.dir.cw();
 
 	if (p1.flags.left) {
 		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, lw);
-		float a0 = math::atan2(-d0.y, -d0.x);
-		float a1 = math::atan2(-d1.y, -d1.x);
+		float a0 = -d0.atan2();
+		float a1 = -d1.atan2();
 		if (a1 > a0) a1 -= PI * 2;
 
 		dst = dst.push_uv(bevel.xy, lu, 1);
-		dst = dst.push_uv(p1.pos - d0 * rw, ru, 1);
+		dst = dst.push_uv(p - d0 * rw, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a0 - a1) / PI) * ncap), 2, ncap);
 		for (int i = 0; i < n; i++) {
 			float u = i / (float) (n - 1);
 			float a = a0 + u * (a1 - a0);
 			Vec2 r = {
-				p1.pos.x + math::cos(a) * rw,
-				p1.pos.y + math::sin(a) * rw
+				p.x + math::cos(a) * rw,
+				p.y + math::sin(a) * rw
 			};
-			dst = dst.push_uv(p1.pos, 0.5f, 1);
+			dst = dst.push_uv(p, 0.5f, 1);
 			dst = dst.push_uv(r, ru, 1);
 		}
 
 		dst = dst.push_uv(bevel.zw, lu, 1);
-		dst = dst.push_uv(p1.pos - d1 * rw, ru, 1);
+		dst = dst.push_uv(p - d1 * rw, ru, 1);
 	}
 	else {
 		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, -rw);
-		float a0 = math::atan2(d0.y, d0.x);
-		float a1 = math::atan2(d1.y, d1.x);
+		float a0 = d0.atan2();
+		float a1 = d1.atan2();
 		if (a1 < a0) a1 += PI * 2;
 
-		dst = dst.push_uv(p1.pos + d0 * rw, lu, 1);
+		dst = dst.push_uv(p + d0 * rw, lu, 1);
 		dst = dst.push_uv(bevel.xy, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a1 - a0) / PI) * ncap), 2, ncap);
 		for (int i = 0; i < n; i++) {
 			float u = i / (float)(n - 1);
 			float a = a0 + u * (a1 - a0);
-			Vec2 l = p1.pos + { math::cos(a) * lw, math::sin(a) * lw };
+			Vec2 l = p + { math::cos(a) * lw, math::sin(a) * lw };
 			dst = dst.push_uv(l, lu, 1);
-			dst = dst.push_uv(p1.pos, 0.5f, 1);
+			dst = dst.push_uv(p, 0.5f, 1);
 		}
 
-		dst = dst.push_uv(p1.pos + d1 * rw, lu, 1);
+		dst = dst.push_uv(p + d1 * rw, lu, 1);
 		dst = dst.push_uv(bevel.zw, ru, 1);
 	}
 
