@@ -652,41 +652,34 @@ fn void MicroVG.flattenPaths(&self) {
 	}
 }
 
-fn void chooseBevel(
-bool bevel, Point* p0, Point* p1, float w,
-float* x0, float* y0, float* x1, float* y1
-) {
-	if (bevel) {
-		x0[0] = p1.pos.x + p0.dir.y * w;
-		y0[0] = p1.pos.y - p0.dir.x * w;
-		x1[0] = p1.pos.x + p1.dir.y * w;
-		y1[0] = p1.pos.y - p1.dir.x * w;
+fn Vec4 chooseBevel(bool bevel, Point* p0, Point* p1, float w) {
+	if (!bevel) {
+		Vec2 p = p1.pos + p1.miter * w;
+		return { p.x, p.y, p.x, p.y };
 	}
-	else {
-		x0[0] = p1.pos.x + p1.miter.x * w;
-		y0[0] = p1.pos.y + p1.miter.y * w;
-		x1[0] = p1.pos.x + p1.miter.x * w;
-		y1[0] = p1.pos.y + p1.miter.y * w;
-	}
+
+	Vec2 normal0 = { p0.dir.y, -p0.dir.x };
+	Vec2 normal1 = { p1.dir.y, -p1.dir.x };
+	Vec2 bevel0 = p1.pos + normal0 * w;
+	Vec2 bevel1 = p1.pos + normal1 * w;
+	return { bevel0.x, bevel0.y, bevel1.x, bevel1.y };
 }
 
 fn Vertex* roundJoin(
 Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, int ncap, float fringe
 ) {
-	Vec2 v0 = { p0.pos.x, p0.pos.y };
-	Vec2 v1 = { p1.pos.x, p1.pos.y };
+	Vec2 v1 = p1.pos;
 	Vec2 d0 = { p0.dir.y, -p0.dir.x };
 	Vec2 d1 = { p1.dir.y, -p1.dir.x };
 
 	if (p1.flags.left) {
-		float lx0, ly0, lx1, ly1;
-		chooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
+		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, lw);
 		float a0 = math::atan2(-d0.y, -d0.x);
 		float a1 = math::atan2(-d1.y, -d1.x);
 		if (a1 > a0) a1 -= PI * 2;
 
-		dst = dst.push_xyuv(lx0, ly0, lu, 1);
+		dst = dst.push(bevel.xy, { lu, 1 });
 		dst = dst.push_uv(v1 - d0 * rw, ru, 1);
 
 		int n = math::clamp((int)math::ceil(((a0 - a1) / PI) * ncap), 2, ncap);
@@ -697,35 +690,33 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 				v1.x + math::cos(a) * rw,
 				v1.y + math::sin(a) * rw
 			};
-			dst = dst.push_uv(v1, 0.5f, 1);
-			dst = dst.push_uv(r, ru, 1);
+			dst = dst.push(v1, { 0.5f, 1 });
+			dst = dst.push(r, { ru, 1 });
 		}
 
-		dst = dst.push_xyuv(lx1, ly1, lu, 1);
+		dst = dst.push(bevel.zw, { lu, 1 });
 		dst = dst.push_uv(v1 - d1 * rw, ru, 1);
 	}
 	else {
-		float rx0, ry0, rx1, ry1;
-		chooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
+		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, -rw);
 		float a0 = math::atan2(d0.y, d0.x);
 		float a1 = math::atan2(d1.y, d1.x);
 		if (a1 < a0) a1 += PI * 2;
 
 		dst = dst.push_uv(v1 + d0 * rw, lu, 1);
-		dst = dst.push_xyuv(rx0, ry0, ru, 1);
+		dst = dst.push(bevel.xy, { ru, 1 });
 
 		int n = math::clamp((int)math::ceil(((a1 - a0) / PI) * ncap), 2, ncap);
 		for (int i = 0; i < n; i++) {
 			float u = i / (float)(n - 1);
 			float a = a0 + u * (a1 - a0);
-			float lx = p1.pos.x + math::cos(a) * lw;
-			float ly = p1.pos.y + math::sin(a) * lw;
-			dst = dst.push_xyuv(lx, ly, lu, 1);
+			Vec2 l = v1 + { math::cos(a) * lw, math::sin(a) * lw };
+			dst = dst.push(l, { lu, 1 });
 			dst = dst.push_uv(v1, 0.5f, 1);
 		}
 
 		dst = dst.push_uv(v1 + d1 * rw, lu, 1);
-		dst = dst.push_xyuv(rx1, ry1, ru, 1);
+		dst = dst.push(bevel.zw, { ru, 1 });
 	}
 
 	return dst;
@@ -735,72 +726,67 @@ fn Vertex* bevelJoin(
 Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, float fringe
 ) {
-	float dlx0 = p0.dir.y;
-	float dly0 = -p0.dir.x;
-	float dlx1 = p1.dir.y;
-	float dly1 = -p1.dir.x;
+	Vec2 pos = p1.pos;
+	Vec2 normal0 = { p0.dir.y, -p0.dir.x };
+	Vec2 normal1 = { p1.dir.y, -p1.dir.x };
 
 	if (p1.flags.left) {
-		float lx0, ly0, lx1, ly1;
-		chooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
+		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, lw);
 
-		dst = dst.push_xyuv(lx0, ly0, lu, 1);
-		dst = dst.push_xyuv(p1.pos.x - dlx0 * rw, p1.pos.y - dly0 * rw, ru, 1);
+		dst = dst.push(bevel.xy, { lu, 1 });
+		dst = dst.push(pos - normal0 * rw, { ru, 1 });
 
 		if (p1.flags.bevel) {
-			dst = dst.push_xyuv(lx0, ly0, lu, 1);
-			dst = dst.push_xyuv(p1.pos.x - dlx0 * rw, p1.pos.y - dly0 * rw, ru, 1);
+			dst = dst.push(bevel.xy, { lu, 1 });
+			dst = dst.push(pos - normal0 * rw, { ru, 1 });
 
-			dst = dst.push_xyuv(lx1, ly1, lu, 1);
-			dst = dst.push_xyuv(p1.pos.x - dlx1 * rw, p1.pos.y - dly1 * rw, ru, 1);
+			dst = dst.push(bevel.zw, { lu, 1 });
+			dst = dst.push(pos - normal1 * rw, { ru, 1 });
 		}
 		else {
-			float rx0 = p1.pos.x - p1.miter.x * rw;
-			float ry0 = p1.pos.y - p1.miter.y * rw;
+			Vec2 right = pos - p1.miter * rw;
 
-			dst = dst.push_xyuv(p1.pos.x, p1.pos.y, 0.5f, 1);
-			dst = dst.push_xyuv(p1.pos.x - dlx0 * rw, p1.pos.y - dly0 * rw, ru, 1);
+			dst = dst.push(pos, { 0.5f, 1 });
+			dst = dst.push(pos - normal0 * rw, { ru, 1 });
 
-			dst = dst.push_xyuv(rx0, ry0, ru, 1);
-			dst = dst.push_xyuv(rx0, ry0, ru, 1);
+			dst = dst.push(right, { ru, 1 });
+			dst = dst.push(right, { ru, 1 });
 
-			dst = dst.push_xyuv(p1.pos.x, p1.pos.y, 0.5f, 1);
-			dst = dst.push_xyuv(p1.pos.x - dlx1 * rw, p1.pos.y - dly1 * rw, ru, 1);
+			dst = dst.push(pos, { 0.5f, 1 });
+			dst = dst.push(pos - normal1 * rw, { ru, 1 });
 		}
 
-		dst = dst.push_xyuv(lx1, ly1, lu, 1);
-		dst = dst.push_xyuv(p1.pos.x - dlx1 * rw, p1.pos.y - dly1 * rw, ru, 1);
+		dst = dst.push(bevel.zw, { lu, 1 });
+		dst = dst.push(pos - normal1 * rw, { ru, 1 });
 	}
 	else {
-		float rx0, ry0, rx1, ry1;
-		chooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
+		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, -rw);
 
-		dst = dst.push_xyuv(p1.pos.x + dlx0 * lw, p1.pos.y + dly0 * lw, lu, 1);
-		dst = dst.push_xyuv(rx0, ry0, ru, 1);
+		dst = dst.push(pos + normal0 * lw, { lu, 1 });
+		dst = dst.push(bevel.xy, { ru, 1 });
 
 		if (p1.flags.bevel) {
-			dst = dst.push_xyuv(p1.pos.x + dlx0 * lw, p1.pos.y + dly0 * lw, lu, 1);
-			dst = dst.push_xyuv(rx0, ry0, ru, 1);
+			dst = dst.push(pos + normal0 * lw, { lu, 1 });
+			dst = dst.push(bevel.xy, { ru, 1 });
 
-			dst = dst.push_xyuv(p1.pos.x + dlx1 * lw, p1.pos.y + dly1 * lw, lu, 1);
-			dst = dst.push_xyuv(rx1, ry1, ru, 1);
+			dst = dst.push(pos + normal1 * lw, { lu, 1 });
+			dst = dst.push(bevel.zw, { ru, 1 });
 		}
 		else {
-			float lx0 = p1.pos.x + p1.miter.x * lw;
-			float ly0 = p1.pos.y + p1.miter.y * lw;
+			Vec2 left = pos + p1.miter * lw;
 
-			dst = dst.push_xyuv(p1.pos.x + dlx0 * lw, p1.pos.y + dly0 * lw, lu, 1);
-			dst = dst.push_xyuv(p1.pos.x, p1.pos.y, 0.5f, 1);
+			dst = dst.push(pos + normal0 * lw, { lu, 1 });
+			dst = dst.push(pos, { 0.5f, 1 });
 
-			dst = dst.push_xyuv(lx0, ly0, lu, 1);
-			dst = dst.push_xyuv(lx0, ly0, lu, 1);
+			dst = dst.push(left, { lu, 1 });
+			dst = dst.push(left, { lu, 1 });
 
-			dst = dst.push_xyuv(p1.pos.x + dlx1 * lw, p1.pos.y + dly1 * lw, lu, 1);
-			dst = dst.push_xyuv(p1.pos.x, p1.pos.y, 0.5f, 1);
+			dst = dst.push(pos + normal1 * lw, { lu, 1 });
+			dst = dst.push(pos, { 0.5f, 1 });
 		}
 
-		dst = dst.push_xyuv(p1.pos.x + dlx1 * lw, p1.pos.y + dly1 * lw, lu, 1);
-		dst = dst.push_xyuv(rx1, ry1, ru, 1);
+		dst = dst.push(pos + normal1 * lw, { lu, 1 });
+		dst = dst.push(bevel.zw, { ru, 1 });
 	}
 
 	return dst;
