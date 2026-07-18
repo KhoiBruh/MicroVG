@@ -652,8 +652,8 @@ fn Vec4 chooseBevel(bool bevel, Point* p0, Point* p1, float w) {
 		return { p.x, p.y, p.x, p.y };
 	}
 
-	Vec2 normal0 = { p0.dir.y, -p0.dir.x };
-	Vec2 normal1 = { p1.dir.y, -p1.dir.x };
+	Vec2 normal0 = p0.dir.cw();
+	Vec2 normal1 = p1.dir.cw();
 	Vec2 bevel0 = p1.pos + normal0 * w;
 	Vec2 bevel1 = p1.pos + normal1 * w;
 	return { bevel0.x, bevel0.y, bevel1.x, bevel1.y };
@@ -720,66 +720,66 @@ fn Vertex* bevelJoin(
 Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, float fringe
 ) {
-	Vec2 pos = p1.pos;
-	Vec2 normal0 = { p0.dir.y, -p0.dir.x };
-	Vec2 normal1 = { p1.dir.y, -p1.dir.x };
+	Vec2 p = p1.pos;
+	Vec2 d0 = p0.dir.cw();
+	Vec2 d1 = p1.dir.cw();
 
 	if (p1.flags.left) {
 		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, lw);
 
 		dst = dst.push_uv(bevel.xy, lu, 1);
-		dst = dst.push_uv(pos - normal0 * rw, ru, 1);
+		dst = dst.push_uv(p - d0 * rw, ru, 1);
 
 		if (p1.flags.bevel) {
 			dst = dst.push_uv(bevel.xy, lu, 1);
-			dst = dst.push_uv(pos - normal0 * rw, ru, 1);
+			dst = dst.push_uv(p - d0 * rw, ru, 1);
 
 			dst = dst.push_uv(bevel.zw, lu, 1);
-			dst = dst.push_uv(pos - normal1 * rw, ru, 1);
+			dst = dst.push_uv(p - d1 * rw, ru, 1);
 		}
 		else {
-			Vec2 right = pos - p1.miter * rw;
+			Vec2 right = p - p1.miter * rw;
 
-			dst = dst.push_uv(pos, 0.5f, 1);
-			dst = dst.push_uv(pos - normal0 * rw, ru, 1);
+			dst = dst.push_uv(p, 0.5f, 1);
+			dst = dst.push_uv(p - d0 * rw, ru, 1);
 
 			dst = dst.push_uv(right, ru, 1);
 			dst = dst.push_uv(right, ru, 1);
 
-			dst = dst.push_uv(pos, 0.5f, 1);
-			dst = dst.push_uv(pos - normal1 * rw, ru, 1);
+			dst = dst.push_uv(p, 0.5f, 1);
+			dst = dst.push_uv(p - d1 * rw, ru, 1);
 		}
 
 		dst = dst.push_uv(bevel.zw, lu, 1);
-		dst = dst.push_uv(pos - normal1 * rw, ru, 1);
+		dst = dst.push_uv(p - d1 * rw, ru, 1);
 	}
 	else {
 		Vec4 bevel = chooseBevel(p1.flags.innerBevel, p0, p1, -rw);
 
-		dst = dst.push_uv(pos + normal0 * lw, lu, 1);
+		dst = dst.push_uv(p + d0 * lw, lu, 1);
 		dst = dst.push_uv(bevel.xy, ru, 1);
 
 		if (p1.flags.bevel) {
-			dst = dst.push_uv(pos + normal0 * lw, lu, 1);
+			dst = dst.push_uv(p + d0 * lw, lu, 1);
 			dst = dst.push_uv(bevel.xy, ru, 1);
 
-			dst = dst.push_uv(pos + normal1 * lw, lu, 1);
+			dst = dst.push_uv(p + d1 * lw, lu, 1);
 			dst = dst.push_uv(bevel.zw, ru, 1);
 		}
 		else {
-			Vec2 left = pos + p1.miter * lw;
+			Vec2 left = p + p1.miter * lw;
 
-			dst = dst.push_uv(pos + normal0 * lw, lu, 1);
-			dst = dst.push_uv(pos, 0.5f, 1);
+			dst = dst.push_uv(p + d0 * lw, lu, 1);
+			dst = dst.push_uv(p, 0.5f, 1);
 
 			dst = dst.push_uv(left, lu, 1);
 			dst = dst.push_uv(left, lu, 1);
 
-			dst = dst.push_uv(pos + normal1 * lw, lu, 1);
-			dst = dst.push_uv(pos, 0.5f, 1);
+			dst = dst.push_uv(p + d1 * lw, lu, 1);
+			dst = dst.push_uv(p, 0.5f, 1);
 		}
 
-		dst = dst.push_uv(pos + normal1 * lw, lu, 1);
+		dst = dst.push_uv(p + d1 * lw, lu, 1);
 		dst = dst.push_uv(bevel.zw, ru, 1);
 	}
 
@@ -791,7 +791,7 @@ Vertex* dst, Point* p, Vec2 dir,
 float w, float d, float aa, Vec2 uv
 ) {
 	Vec2 cap = p.pos - dir * d;
-	Vec2 normal = { dir.y, -dir.x };
+	Vec2 normal = dir.cw();
 
 	dst = dst.push_uv(cap + normal * w - dir * aa, uv.x, 0);
 	dst = dst.push_uv(cap - normal * w - dir * aa, uv.y, 0);
@@ -806,7 +806,7 @@ Vertex* dst, Point* p, Vec2 dir,
 float w, float d, float aa, Vec2 uv
 ) {
 	Vec2 cap = p.pos + dir * d;
-	Vec2 normal = { dir.y, -dir.x };
+	Vec2 normal = dir.cw();
 
 	dst = dst.push_uv(cap + normal * w, uv.x, 1);
 	dst = dst.push_uv(cap - normal * w, uv.y, 1);
@@ -821,7 +821,7 @@ Vertex* dst, Point* p, Vec2 dir,
 float w, int ncap, float aa, Vec2 uv
 ) {
 	Vec2 pos = p.pos;
-	Vec2 normal = { dir.y, -dir.x };
+	Vec2 normal = dir.cw();
 
 	for (int i = 0; i < ncap; i++) {
 		float a = i / (float)(ncap - 1) * PI;
@@ -842,7 +842,7 @@ Vertex* dst, Point* p, Vec2 dir,
 float w, int ncap, float aa, Vec2 uv
 ) {
 	Vec2 pos = p.pos;
-	Vec2 normal = { dir.y, -dir.x };
+	Vec2 normal = dir.cw();
 
 	dst = dst.push_uv(pos + normal * w, uv.x, 1);
 	dst = dst.push_uv(pos - normal * w, uv.y, 1);
@@ -878,8 +878,8 @@ fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLim
 		path.nbevel = 0;
 
 		for (int j = 0; j < path.count; j++) {
-			Vec2 normal0 = { p0.dir.y, -p0.dir.x };
-			Vec2 normal1 = { p1.dir.y, -p1.dir.x };
+			Vec2 normal0 = p0.dir.cw();
+			Vec2 normal1 = p1.dir.cw();
 			p1.miter = (normal0 + normal1) * 0.5f;
 
 			float dmr2 = p1.miter.dot(p1.miter);
@@ -966,10 +966,8 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
 		Point* pts = &cache.points[path.first];
-		Point* p0;
-		Point* p1;
+		Point* p0, p1;
 		int s, e, loop;
-		float dx, dy;
 
 		path.fill = null;
 		path.nfill = 0;
@@ -1203,8 +1201,8 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 			p1 = &pts[0];
 			for (int j = 0; j < path.count; j++) {
 				if (p1.flags.bevel) {
-					Vec2 d0 = { p0.dir.y, -p0.dir.x };
-					Vec2 d1 = { p1.dir.y, -p1.dir.x };
+					Vec2 d0 = p0.dir.cw();
+					Vec2 d1 = p1.dir.cw();
 
 					if (p1.flags.left) {
 						Vec2 l = p1.pos + p1.miter * woff;
