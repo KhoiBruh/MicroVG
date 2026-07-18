@@ -1055,9 +1055,9 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 }
 
 fn bool earPointInTriangle(Vec2 pt, Vec2 a, Vec2 b, Vec2 c) @local {
-	float d1 = (b.x - a.x) * (pt.y - a.y) - (b.y - a.y) * (pt.x - a.x);
-	float d2 = (c.x - b.x) * (pt.y - b.y) - (c.y - b.y) * (pt.x - b.x);
-	float d3 = (a.x - c.x) * (pt.y - c.y) - (a.y - c.y) * (pt.x - c.x);
+	float d1 = (b - a).cross(pt - a);
+	float d2 = (c - b).cross(pt - b);
+	float d3 = (a - c).cross(pt - c);
 
 	bool has_neg = (d1 <= -1e-6f) || (d2 <= -1e-6f) || (d3 <= -1e-6f);
 	bool has_pos = (d1 >= 1e-6f) || (d2 >= 1e-6f) || (d3 >= 1e-6f);
@@ -1089,7 +1089,7 @@ fn int earClipTriangulate(Vertex* verts, int nverts, int* out_indices) @local {
 			Vec2 curr = verts[c].pos;
 			Vec2 next = verts[nx].pos;
 
-			float cross = (curr.x - prev.x) * (next.y - curr.y) - (curr.y - prev.y) * (next.x - curr.x);
+			float cross = (curr - prev).cross(next - curr);
 			if (cross >= 0) continue;
 
 			bool is_ear = true;
