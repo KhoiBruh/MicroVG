@@ -815,19 +815,16 @@ float w, float d, float aa, Vec2 uv
 }
 
 fn Vertex* buttCapEnd(
-Vertex* dst, Point* p,
-float dx, float dy, float w, float d,
-float aa, float u0, float u1
+Vertex* dst, Vec2 pos, Vec2 dir,
+float w, float d, float aa, Vec2 uv
 ) {
-	float px = p.x + dx * d;
-	float py = p.y + dy * d;
-	float dlx = dy;
-	float dly = -dx;
+	Vec2 cap = pos + dir * d;
+	Vec2 normal = { dir.y, -dir.x };
 
-	dst = dst.push_xyuv(px + dlx * w, py + dly * w, u0, 1);
-	dst = dst.push_xyuv(px - dlx * w, py - dly * w, u1, 1);
-	dst = dst.push_xyuv(px + dlx * w + dx * aa, py + dly * w + dy * aa, u0, 0);
-	dst = dst.push_xyuv(px - dlx * w + dx * aa, py - dly * w + dy * aa, u1, 0);
+	dst = dst.push(cap + normal * w, { uv.x, 1 });
+	dst = dst.push(cap - normal * w, { uv.y, 1 });
+	dst = dst.push(cap + normal * w + dir * aa, { uv.x, 0 });
+	dst = dst.push(cap - normal * w + dir * aa, { uv.y, 0 });
 
 	return dst;
 }
@@ -1068,10 +1065,10 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 
 			switch (lineCap) {
 				case LineCap.BUTT:
-					dst = buttCapEnd(dst, p1, dx, dy, w, -aa * 0.5f, aa, u0, u1);
+					dst = buttCapEnd(dst, { p1.x, p1.y }, { dx, dy }, w, -aa * 0.5f, aa, { u0, u1 });
 
 				case LineCap.SQUARE:
-					dst = buttCapEnd(dst, p1, dx, dy, w, w - aa, aa, u0, u1);
+					dst = buttCapEnd(dst, { p1.x, p1.y }, { dx, dy }, w, w - aa, aa, { u0, u1 });
 
 				case LineCap.ROUND:
 					dst = roundCapEnd(dst, p1, dx, dy, w, ncap, aa, u0, u1);
