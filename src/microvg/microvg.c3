@@ -481,7 +481,7 @@ fn void MicroVG.addPoint(&self, Vec2 pt, PathPointFlags flags) {
 
 	if (path.count > 0 && self.cache.npoints > 0) {
 		Point* lastPt = self.lastPoint();
-		if (ptEquals( { lastPt.pos.x, lastPt.pos.y }, pt, self.distTol)) {
+		if (ptEquals(lastPt.pos, pt, self.distTol)) {
 			lastPt.flags = lastPt.flags | flags;
 			return;
 		}
@@ -596,7 +596,7 @@ fn void MicroVG.flattenPaths(&self) {
 			case PathCommand.BEZIER:
 				Point* last = self.lastPoint();
 				if (last != null) self.tesselateBezier(
-				{ last.pos.x, last.pos.y },
+				last.pos,
 				cmd.p0, cmd.p1, cmd.p2,
 				PT_CORNER
 				);
