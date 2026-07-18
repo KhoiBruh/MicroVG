@@ -487,7 +487,7 @@ fn void MicroVG.addPoint(&self, Vec2 pt, PathPointFlags flags) {
 
 	if (path.count > 0 && self.cache.npoints > 0) {
 		Point* lastPt = self.lastPoint();
-		if (ptEquals( { lastPt.x, lastPt.y }, pt, self.distTol)) {
+		if (ptEquals( { lastPt.pos.x, lastPt.pos.y }, pt, self.distTol)) {
 			lastPt.flags = lastPt.flags | flags;
 			return;
 		}
@@ -503,8 +503,8 @@ fn void MicroVG.addPoint(&self, Vec2 pt, PathPointFlags flags) {
 
 	Point* newPt = &self.cache.points[self.cache.npoints];
 	mem::clear(newPt, Point::size);
-	newPt.x = pt.x;
-	newPt.y = pt.y;
+	newPt.pos.x = pt.x;
+	newPt.pos.y = pt.y;
 	newPt.flags = flags;
 
 	self.cache.npoints++;
@@ -602,7 +602,7 @@ fn void MicroVG.flattenPaths(&self) {
 			case PathCommand.BEZIER:
 				Point* last = self.lastPoint();
 				if (last != null) self.tesselateBezier(
-				{ last.x, last.y },
+				{ last.pos.x, last.pos.y },
 				cmd.p0, cmd.p1, cmd.p2,
 				PT_CORNER
 				);
@@ -623,7 +623,7 @@ fn void MicroVG.flattenPaths(&self) {
 
 		Point* p0 = &pts[path.count - 1];
 		Point* p1 = &pts[0];
-		if (path.count > 1 && ptEquals( { p0.x, p0.y }, { p1.x, p1.y }, self.distTol)) {
+		if (path.count > 1 && ptEquals( { p0.pos.x, p0.pos.y }, { p1.pos.x, p1.pos.y }, self.distTol)) {
 			path.count--;
 			p0 = &pts[path.count - 1];
 			path.closed = 1;
@@ -638,14 +638,14 @@ fn void MicroVG.flattenPaths(&self) {
 		}
 
 		for (int k = 0; k < path.count; k++) {
-			p0.dx = p1.x - p0.x;
-			p0.dy = p1.y - p0.y;
-			p0.len = normalize(&p0.dx, &p0.dy);
+			p0.dir.x = p1.pos.x - p0.pos.x;
+			p0.dir.y = p1.pos.y - p0.pos.y;
+			p0.len = normalize(&p0.dir.x, &p0.dir.y);
 			cache.bounds = {
-				math::min(cache.bounds.x, p0.x),
-				math::min(cache.bounds.y, p0.y),
-				math::max(cache.bounds.z, p0.x),
-				math::max(cache.bounds.w, p0.y)
+				math::min(cache.bounds.x, p0.pos.x),
+				math::min(cache.bounds.y, p0.pos.y),
+				math::max(cache.bounds.z, p0.pos.x),
+				math::max(cache.bounds.w, p0.pos.y)
 			};
 			p0 = p1;
 			p1++;
@@ -658,16 +658,16 @@ bool bevel, Point* p0, Point* p1, float w,
 float* x0, float* y0, float* x1, float* y1
 ) {
 	if (bevel) {
-		x0[0] = p1.x + p0.dy * w;
-		y0[0] = p1.y - p0.dx * w;
-		x1[0] = p1.x + p1.dy * w;
-		y1[0] = p1.y - p1.dx * w;
+		x0[0] = p1.pos.x + p0.dir.y * w;
+		y0[0] = p1.pos.y - p0.dir.x * w;
+		x1[0] = p1.pos.x + p1.dir.y * w;
+		y1[0] = p1.pos.y - p1.dir.x * w;
 	}
 	else {
-		x0[0] = p1.x + p1.dmx * w;
-		y0[0] = p1.y + p1.dmy * w;
-		x1[0] = p1.x + p1.dmx * w;
-		y1[0] = p1.y + p1.dmy * w;
+		x0[0] = p1.pos.x + p1.miter.x * w;
+		y0[0] = p1.pos.y + p1.miter.y * w;
+		x1[0] = p1.pos.x + p1.miter.x * w;
+		y1[0] = p1.pos.y + p1.miter.y * w;
 	}
 }
 
@@ -675,10 +675,10 @@ fn Vertex* roundJoin(
 Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, int ncap, float fringe
 ) {
-	Vec2 v0 = { p0.x, p0.y };
-	Vec2 v1 = { p1.x, p1.y };
-	Vec2 d0 = { p0.dy, -p0.dx };
-	Vec2 d1 = { p1.dy, -p1.dx };
+	Vec2 v0 = { p0.pos.x, p0.pos.y };
+	Vec2 v1 = { p1.pos.x, p1.pos.y };
+	Vec2 d0 = { p0.dir.y, -p0.dir.x };
+	Vec2 d1 = { p1.dir.y, -p1.dir.x };
 
 	if (p1.flags.left) {
 		float lx0, ly0, lx1, ly1;
@@ -719,8 +719,8 @@ float lw, float rw, float lu, float ru, int ncap, float fringe
 		for (int i = 0; i < n; i++) {
 			float u = i / (float)(n - 1);
 			float a = a0 + u * (a1 - a0);
-			float lx = p1.x + math::cos(a) * lw;
-			float ly = p1.y + math::sin(a) * lw;
+			float lx = p1.pos.x + math::cos(a) * lw;
+			float ly = p1.pos.y + math::sin(a) * lw;
 			dst = dst.push_xyuv(lx, ly, lu, 1);
 			dst = dst.push_uv(v1, 0.5f, 1);
 		}
@@ -736,71 +736,71 @@ fn Vertex* bevelJoin(
 Vertex* dst, Point* p0, Point* p1,
 float lw, float rw, float lu, float ru, float fringe
 ) {
-	float dlx0 = p0.dy;
-	float dly0 = -p0.dx;
-	float dlx1 = p1.dy;
-	float dly1 = -p1.dx;
+	float dlx0 = p0.dir.y;
+	float dly0 = -p0.dir.x;
+	float dlx1 = p1.dir.y;
+	float dly1 = -p1.dir.x;
 
 	if (p1.flags.left) {
 		float lx0, ly0, lx1, ly1;
 		chooseBevel(p1.flags.innerBevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 
 		dst = dst.push_xyuv(lx0, ly0, lu, 1);
-		dst = dst.push_xyuv(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+		dst = dst.push_xyuv(p1.pos.x - dlx0 * rw, p1.pos.y - dly0 * rw, ru, 1);
 
 		if (p1.flags.bevel) {
 			dst = dst.push_xyuv(lx0, ly0, lu, 1);
-			dst = dst.push_xyuv(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+			dst = dst.push_xyuv(p1.pos.x - dlx0 * rw, p1.pos.y - dly0 * rw, ru, 1);
 
 			dst = dst.push_xyuv(lx1, ly1, lu, 1);
-			dst = dst.push_xyuv(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+			dst = dst.push_xyuv(p1.pos.x - dlx1 * rw, p1.pos.y - dly1 * rw, ru, 1);
 		}
 		else {
-			float rx0 = p1.x - p1.dmx * rw;
-			float ry0 = p1.y - p1.dmy * rw;
+			float rx0 = p1.pos.x - p1.miter.x * rw;
+			float ry0 = p1.pos.y - p1.miter.y * rw;
 
-			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
-			dst = dst.push_xyuv(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
+			dst = dst.push_xyuv(p1.pos.x, p1.pos.y, 0.5f, 1);
+			dst = dst.push_xyuv(p1.pos.x - dlx0 * rw, p1.pos.y - dly0 * rw, ru, 1);
 
 			dst = dst.push_xyuv(rx0, ry0, ru, 1);
 			dst = dst.push_xyuv(rx0, ry0, ru, 1);
 
-			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
-			dst = dst.push_xyuv(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+			dst = dst.push_xyuv(p1.pos.x, p1.pos.y, 0.5f, 1);
+			dst = dst.push_xyuv(p1.pos.x - dlx1 * rw, p1.pos.y - dly1 * rw, ru, 1);
 		}
 
 		dst = dst.push_xyuv(lx1, ly1, lu, 1);
-		dst = dst.push_xyuv(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
+		dst = dst.push_xyuv(p1.pos.x - dlx1 * rw, p1.pos.y - dly1 * rw, ru, 1);
 	}
 	else {
 		float rx0, ry0, rx1, ry1;
 		chooseBevel(p1.flags.innerBevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 
-		dst = dst.push_xyuv(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+		dst = dst.push_xyuv(p1.pos.x + dlx0 * lw, p1.pos.y + dly0 * lw, lu, 1);
 		dst = dst.push_xyuv(rx0, ry0, ru, 1);
 
 		if (p1.flags.bevel) {
-			dst = dst.push_xyuv(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+			dst = dst.push_xyuv(p1.pos.x + dlx0 * lw, p1.pos.y + dly0 * lw, lu, 1);
 			dst = dst.push_xyuv(rx0, ry0, ru, 1);
 
-			dst = dst.push_xyuv(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+			dst = dst.push_xyuv(p1.pos.x + dlx1 * lw, p1.pos.y + dly1 * lw, lu, 1);
 			dst = dst.push_xyuv(rx1, ry1, ru, 1);
 		}
 		else {
-			float lx0 = p1.x + p1.dmx * lw;
-			float ly0 = p1.y + p1.dmy * lw;
+			float lx0 = p1.pos.x + p1.miter.x * lw;
+			float ly0 = p1.pos.y + p1.miter.y * lw;
 
-			dst = dst.push_xyuv(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
-			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push_xyuv(p1.pos.x + dlx0 * lw, p1.pos.y + dly0 * lw, lu, 1);
+			dst = dst.push_xyuv(p1.pos.x, p1.pos.y, 0.5f, 1);
 
 			dst = dst.push_xyuv(lx0, ly0, lu, 1);
 			dst = dst.push_xyuv(lx0, ly0, lu, 1);
 
-			dst = dst.push_xyuv(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
-			dst = dst.push_xyuv(p1.x, p1.y, 0.5f, 1);
+			dst = dst.push_xyuv(p1.pos.x + dlx1 * lw, p1.pos.y + dly1 * lw, lu, 1);
+			dst = dst.push_xyuv(p1.pos.x, p1.pos.y, 0.5f, 1);
 		}
 
-		dst = dst.push_xyuv(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+		dst = dst.push_xyuv(p1.pos.x + dlx1 * lw, p1.pos.y + dly1 * lw, lu, 1);
 		dst = dst.push_xyuv(rx1, ry1, ru, 1);
 	}
 
@@ -897,26 +897,26 @@ fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLim
 		path.nbevel = 0;
 
 		for (int j = 0; j < path.count; j++) {
-			float dlx0 = p0.dy;
-			float dly0 = -p0.dx;
-			float dlx1 = p1.dy;
-			float dly1 = -p1.dx;
-			p1.dmx = (dlx0 + dlx1) * 0.5f;
-			p1.dmy = (dly0 + dly1) * 0.5f;
+			float dlx0 = p0.dir.y;
+			float dly0 = -p0.dir.x;
+			float dlx1 = p1.dir.y;
+			float dly1 = -p1.dir.x;
+			p1.miter.x = (dlx0 + dlx1) * 0.5f;
+			p1.miter.y = (dly0 + dly1) * 0.5f;
 
-			float dmr2 = p1.dmx * p1.dmx + p1.dmy * p1.dmy;
+			float dmr2 = p1.miter.x * p1.miter.x + p1.miter.y * p1.miter.y;
 			if (dmr2 > 0.000001f) {
 				float scale = 1.0f / dmr2;
 				if (scale > 600.0f) {
 					scale = 600.0f;
 				}
-				p1.dmx *= scale;
-				p1.dmy *= scale;
+				p1.miter.x *= scale;
+				p1.miter.y *= scale;
 			}
 
 			p1.flags = { .corner = p1.flags.corner };
 
-			float cross = p1.dx * p0.dy - p0.dx * p1.dy;
+			float cross = p1.dir.x * p0.dir.y - p0.dir.x * p1.dir.y;
 			if (cross > 0.0f) {
 				nleft++;
 				p1.flags.left = true;
@@ -1020,19 +1020,19 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 		}
 
 		if (loop == 0) {
-			dx = p1.x - p0.x;
-			dy = p1.y - p0.y;
+			dx = p1.pos.x - p0.pos.x;
+			dy = p1.pos.y - p0.pos.y;
 			normalize(&dx, &dy);
 
 			switch (lineCap) {
 				case LineCap.BUTT:
-					dst = buttCapStart(dst, { p0.x, p0.y }, { dx, dy }, w, -aa * 0.5f, aa, { u0, u1 });
+					dst = buttCapStart(dst, { p0.pos.x, p0.pos.y }, { dx, dy }, w, -aa * 0.5f, aa, { u0, u1 });
 
 				case LineCap.SQUARE:
-					dst = buttCapStart(dst, { p0.x, p0.y }, { dx, dy }, w, w - aa, aa, { u0, u1 });
+					dst = buttCapStart(dst, { p0.pos.x, p0.pos.y }, { dx, dy }, w, w - aa, aa, { u0, u1 });
 
 				case LineCap.ROUND:
-					dst = roundCapStart(dst, { p0.x, p0.y }, { dx, dy }, w, ncap, aa, { u0, u1 });
+					dst = roundCapStart(dst, { p0.pos.x, p0.pos.y }, { dx, dy }, w, ncap, aa, { u0, u1 });
 			}
 		}
 
@@ -1046,8 +1046,8 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 				}
 			}
 			else {
-				dst = dst.push_xyuv(p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), u0, 1);
-				dst = dst.push_xyuv(p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), u1, 1);
+				dst = dst.push_xyuv(p1.pos.x + (p1.miter.x * w), p1.pos.y + (p1.miter.y * w), u0, 1);
+				dst = dst.push_xyuv(p1.pos.x - (p1.miter.x * w), p1.pos.y - (p1.miter.y * w), u1, 1);
 			}
 			p0 = p1;
 			p1++;
@@ -1058,19 +1058,19 @@ fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJ
 			dst = dst.push_xyuv(verts[1].pos.x, verts[1].pos.y, u1, 1);
 		}
 		else {
-			dx = p1.x - p0.x;
-			dy = p1.y - p0.y;
+			dx = p1.pos.x - p0.pos.x;
+			dy = p1.pos.y - p0.pos.y;
 			normalize(&dx, &dy);
 
 			switch (lineCap) {
 				case LineCap.BUTT:
-					dst = buttCapEnd(dst, { p1.x, p1.y }, { dx, dy }, w, -aa * 0.5f, aa, { u0, u1 });
+					dst = buttCapEnd(dst, { p1.pos.x, p1.pos.y }, { dx, dy }, w, -aa * 0.5f, aa, { u0, u1 });
 
 				case LineCap.SQUARE:
-					dst = buttCapEnd(dst, { p1.x, p1.y }, { dx, dy }, w, w - aa, aa, { u0, u1 });
+					dst = buttCapEnd(dst, { p1.pos.x, p1.pos.y }, { dx, dy }, w, w - aa, aa, { u0, u1 });
 
 				case LineCap.ROUND:
-					dst = roundCapEnd(dst, { p1.x, p1.y }, { dx, dy }, w, ncap, aa, { u0, u1 });
+					dst = roundCapEnd(dst, { p1.pos.x, p1.pos.y }, { dx, dy }, w, ncap, aa, { u0, u1 });
 			}
 		}
 
@@ -1228,26 +1228,26 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 			p1 = &pts[0];
 			for (int j = 0; j < path.count; j++) {
 				if (p1.flags.bevel) {
-					float dlx0 = p0.dy;
-					float dly0 = -p0.dx;
-					float dlx1 = p1.dy;
-					float dly1 = -p1.dx;
+					float dlx0 = p0.dir.y;
+					float dly0 = -p0.dir.x;
+					float dlx1 = p1.dir.y;
+					float dly1 = -p1.dir.x;
 					if (p1.flags.left) {
-						float lx = p1.x + p1.dmx * woff;
-						float ly = p1.y + p1.dmy * woff;
+						float lx = p1.pos.x + p1.miter.x * woff;
+						float ly = p1.pos.y + p1.miter.y * woff;
 						dst = dst.push_xyuv(lx, ly, 0.5f, 1);
 					}
 					else {
-						float lx0 = p1.x + dlx0 * woff;
-						float ly0 = p1.y + dly0 * woff;
-						float lx1 = p1.x + dlx1 * woff;
-						float ly1 = p1.y + dly1 * woff;
+						float lx0 = p1.pos.x + dlx0 * woff;
+						float ly0 = p1.pos.y + dly0 * woff;
+						float lx1 = p1.pos.x + dlx1 * woff;
+						float ly1 = p1.pos.y + dly1 * woff;
 						dst = dst.push_xyuv(lx0, ly0, 0.5f, 1);
 						dst = dst.push_xyuv(lx1, ly1, 0.5f, 1);
 					}
 				}
 				else {
-					dst = dst.push_xyuv(p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5f, 1);
+					dst = dst.push_xyuv(p1.pos.x + (p1.miter.x * woff), p1.pos.y + (p1.miter.y * woff), 0.5f, 1);
 				}
 				p0 = p1;
 				p1++;
@@ -1255,7 +1255,7 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 		}
 		else {
 			for (int j = 0; j < path.count; j++) {
-				dst = dst.push_xyuv(pts[j].x, pts[j].y, 0.5f, 1);
+				dst = dst.push_xyuv(pts[j].pos.x, pts[j].pos.y, 0.5f, 1);
 			}
 		}
 
@@ -1287,8 +1287,8 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 					dst = bevelJoin(dst, p0, p1, lw, rw, lu, ru, self.fringeWidth);
 				}
 				else {
-					dst = dst.push_xyuv(p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1);
-					dst = dst.push_xyuv(p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1);
+					dst = dst.push_xyuv(p1.pos.x + (p1.miter.x * lw), p1.pos.y + (p1.miter.y * lw), lu, 1);
+					dst = dst.push_xyuv(p1.pos.x - (p1.miter.x * rw), p1.pos.y - (p1.miter.y * rw), ru, 1);
 				}
 				p0 = p1;
 				p1++;

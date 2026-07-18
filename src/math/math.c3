@@ -63,7 +63,7 @@ fn float polyArea(Point* pts, int npts) {
 		Point* a = &pts[0];
 		Point* b = &pts[i - 1];
 		Point* c = &pts[i];
-		area += triArea2( { a.x, a.y }, { b.x, b.y }, { c.x, c.y });
+		area += triArea2( { a.pos.x, a.pos.y }, { b.pos.x, b.pos.y }, { c.pos.x, c.pos.y });
 	}
 
 	return area * 0.5f;

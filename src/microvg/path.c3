@@ -59,10 +59,10 @@ struct MvgPath {
 }
 
 struct Point {
-	float x, y;
-	float dx, dy;
+	Vec2 pos;
+	Vec2 dir;
 	float len;
-	float dmx, dmy;
+	Vec2 miter;
 	PathPointFlags flags;
 }
 
