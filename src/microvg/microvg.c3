@@ -1337,7 +1337,7 @@ fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radiu
 	d0.normalize();
 	d1.normalize();
 	
-	float a = math::acos(d0.cross(d1));
+	float a = math::acos(d0.dot(d1));
 	float d = radius / math::tan(a * 0.5f);
 
 	if (d > 10000) {

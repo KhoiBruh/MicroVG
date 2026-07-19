@@ -379,4 +379,22 @@ fn void drawCurveTests(microvg::MicroVG* vg) {
     vg.strokeWidth(5.0f);
     vg.lineCap(LineCap.ROUND);
     vg.stroke();
+
+    // arcTo: the orange path must leave each gray guide tangentially.
+    vg.beginPath();
+    vg.moveTo(890.0f, TEST_Y + 30.0f);
+    vg.lineTo(970.0f, TEST_Y + 30.0f);
+    vg.lineTo(970.0f, TEST_Y + 130.0f);
+    vg.strokeColor(microvg::rgba(150, 160, 180, 180));
+    vg.strokeWidth(1.5f);
+    vg.stroke();
+
+    vg.beginPath();
+    vg.moveTo(890.0f, TEST_Y + 30.0f);
+    vg.arcTo(970.0f, TEST_Y + 30.0f, 970.0f, TEST_Y + 130.0f, 80.0f);
+    vg.lineTo(970.0f, TEST_Y + 130.0f);
+    vg.strokeColor(microvg::rgba(255, 170, 40, 255));
+    vg.strokeWidth(5.0f);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
 }
