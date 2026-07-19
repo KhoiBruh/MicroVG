@@ -1318,10 +1318,8 @@ fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radiu
 		return;
 	}
 
-	Vec2 d0 = p0 - p1;
-	Vec2 d1 = p2 - p1;
-	d0.normalize();
-	d1.normalize();
+	Vec2 d0 = (p0 - p1).normalize();
+	Vec2 d1 = (p2 - p1).normalize();
 	
 	float a = math::acos(d0.dot(d1));
 	float d = radius / math::tan(a * 0.5f);
@@ -1331,25 +1329,24 @@ fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radiu
 		return;
 	}
 
-	float cx, cy, a0, a1;
+	Vec2 center;
+	float a0, a1;
 	Winding dir;
 
 	if (d1.cross(d0) > 0) {
-		cx = x1 + d0.x * d + d0.y * radius;
-		cy = y1 + d0.y * d + -d0.x * radius;
-		a0 = math::atan2(d0.x, -d0.y);
-		a1 = math::atan2(-d1.x, d1.y);
+		center = p1 + d0 * d + d0.cw() * radius;
+		a0 = d0.ccw().atan2();
+		a1 = d1.cw().atan2();
 		dir = Winding.CW;
 	}
 	else {
-		cx = x1 + d0.x * d + -d0.y * radius;
-		cy = y1 + d0.y * d + d0.x * radius;
-		a0 = math::atan2(-d0.x, d0.y);
-		a1 = math::atan2(d1.x, -d1.y);
+		center = p1 + d0 * d + d0.ccw() * radius;
+		a0 = d0.cw().atan2();
+		a1 = d1.ccw().atan2();
 		dir = Winding.CCW;
 	}
 
-	self.arc(cx, cy, radius, a0, a1, dir);
+	self.arc(center.x, center.y, radius, a0, a1, dir);
 }
 
 fn void MicroVG.closePath(&self) {
