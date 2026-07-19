@@ -15,7 +15,7 @@ struct MicroVG {
 	PathCmd* commands;
 	int ccommands;
 	int ncommands;
-	float commandx, commandy;
+	Vec2 cPos;
 	State[MAX_STATES] states;
 	int nstates;
 	PathCache* cache;
@@ -416,12 +416,10 @@ fn void MicroVG.appendCommands(&self, PathCmd* cmds, int ncmds) {
 	PathCmd last = cmds[ncmds - 1];
 	if (last.cmd != PathCommand.CLOSE && last.cmd != PathCommand.WINDING) {
 		if (last.cmd == PathCommand.BEZIER) {
-			self.commandx = last.p2.x;
-			self.commandy = last.p2.y;
+			self.cPos = last.p2;
 		}
 		else {
-			self.commandx = last.p0.x;
-			self.commandy = last.p0.y;
+			self.cPos = last.p0;
 		}
 	}
 
@@ -1305,12 +1303,13 @@ fn void MicroVG.bezierTo(&self, float c1x, float c1y, float c2x, float c2y, floa
 }
 
 fn void MicroVG.quadTo(&self, float cx, float cy, float x, float y) {
-	float x0 = self.commandx;
-	float y0 = self.commandy;
+	Vec2 v0 = self.cPos;
+	Vec2 v1 = { x, y };
+	Vec2 c = { cx, cy };
 	PathCmd cmd = {
 		.cmd = PathCommand.BEZIER,
-		.p0 = { x0 + 2.0f / 3.0f * (cx - x0), y0 + 2.0f / 3.0f * (cy - y0) },
-		.p1 = { x + 2.0f / 3.0f * (cx - x), y + 2.0f / 3.0f * (cy - y) },
+		.p0 = v0 + 2.0f / 3.0f * (c - v0),
+		.p1 = v1 + 2.0f / 3.0f * (c - v1),
 		.p2 = { x, y }
 	};
 	self.appendCommands(&cmd, 1);
@@ -1319,7 +1318,7 @@ fn void MicroVG.quadTo(&self, float cx, float cy, float x, float y) {
 fn void MicroVG.arcTo(&self, float x1, float y1, float x2, float y2, float radius) {
 	if (self.ncommands == 0) return;
 	
-	Vec2 p0 = { self.commandx, self.commandy };
+	Vec2 p0 = self.cPos;
 	Vec2 p1 = { x1, y1 };
 	Vec2 p2 = { x2, y2 };
 

@@ -32,7 +32,7 @@ fn void main(String[] args) {
     glfw34::windowHint(glfw34::CONTEXT_VERSION_MINOR, 3);
     glfw34::windowHint(glfw34::OPENGL_PROFILE, glfw34::OPENGL_CORE_PROFILE);
 
-    window = glfw34::createWindow(1000, 600, "MicroVG Demo", null, null);
+    window = glfw34::createWindow(1000, 840, "MicroVG Demo", null, null);
     if (window == null) {
         io::printn("Failed to create window");
         glfw34::terminate();
@@ -193,13 +193,6 @@ fn void drawScene(microvg::MicroVG* vg, float w, float h, float t) {
     vg.strokeWidth(3.0f);
     vg.stroke();
 
-    vg.beginPath();
-    vg.arcTo(160.0f, 440.0f, 50.0f, microvg::toRad(0.0f), microvg::toRad(30.0f));
-    vg.strokeColor(microvg::rgba(255, 128, 0, 255));
-    vg.strokeWidth(4.0f);
-    vg.lineCap(LineCap.ROUND);
-    vg.stroke();
-
     vg.save();
     vg.beginPath();
     vg.moveTo(300.0f, 400.0f);
@@ -313,4 +306,77 @@ fn void drawScene(microvg::MicroVG* vg, float w, float h, float t) {
     vg.strokeWidth(2.0f);
     vg.stroke();
     vg.restore();
+
+    drawCurveTests(vg);
+}
+
+fn void drawCurveControl(microvg::MicroVG* vg, float[] points) {
+    vg.beginPath();
+    vg.moveTo(points[0], points[1]);
+    for (int i = 2; i < points.len; i += 2) {
+        vg.lineTo(points[i], points[i + 1]);
+    }
+    vg.strokeColor(microvg::rgba(150, 160, 180, 180));
+    vg.strokeWidth(1.5f);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
+
+    for (int i = 0; i < points.len; i += 2) {
+        vg.beginPath();
+        vg.circle(points[i], points[i + 1], 4.0f);
+        vg.fillColor(microvg::rgba(255, 210, 80, 255));
+        vg.fill();
+    }
+}
+
+fn void drawCurveTests(microvg::MicroVG* vg) {
+    const float TEST_Y = 620.0f;
+
+    // Cubic Bezier: start, two controls, end.
+    float[] cubicControls = { 70.0f, TEST_Y + 110.0f, 130.0f, TEST_Y - 10.0f, 250.0f, TEST_Y + 190.0f, 310.0f, TEST_Y + 70.0f };
+    drawCurveControl(vg, cubicControls);
+    vg.beginPath();
+    vg.moveTo(cubicControls[0], cubicControls[1]);
+    vg.bezierTo(cubicControls[2], cubicControls[3], cubicControls[4], cubicControls[5], cubicControls[6], cubicControls[7]);
+    vg.strokeColor(microvg::rgba(80, 220, 255, 255));
+    vg.strokeWidth(5.0f);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
+
+    // Quadratic Bezier: start, one control, end.
+    float[] quadControls = { 380.0f, TEST_Y + 120.0f, 500.0f, TEST_Y - 20.0f, 620.0f, TEST_Y + 120.0f };
+    drawCurveControl(vg, quadControls);
+    vg.beginPath();
+    vg.moveTo(quadControls[0], quadControls[1]);
+    vg.quadTo(quadControls[2], quadControls[3], quadControls[4], quadControls[5]);
+    vg.strokeColor(microvg::rgba(255, 120, 180, 255));
+    vg.strokeWidth(5.0f);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
+
+    // Clockwise 270-degree arc: center point and radius guide the expected circle.
+    const float CX = 800.0f;
+    const float CY = TEST_Y + 80.0f;
+    const float RADIUS = 70.0f;
+    vg.beginPath();
+    vg.circle(CX, CY, RADIUS);
+    vg.strokeColor(microvg::rgba(150, 160, 180, 120));
+    vg.strokeWidth(1.5f);
+    vg.stroke();
+    vg.beginPath();
+    vg.moveTo(CX, CY);
+    vg.lineTo(CX + RADIUS, CY);
+    vg.strokeColor(microvg::rgba(150, 160, 180, 180));
+    vg.strokeWidth(1.5f);
+    vg.stroke();
+    vg.beginPath();
+    vg.circle(CX, CY, 4.0f);
+    vg.fillColor(microvg::rgba(255, 210, 80, 255));
+    vg.fill();
+    vg.beginPath();
+    vg.arc(CX, CY, RADIUS, 0.0f, microvg::toRad(270.0f), Winding.CW);
+    vg.strokeColor(microvg::rgba(120, 255, 130, 255));
+    vg.strokeWidth(5.0f);
+    vg.lineCap(LineCap.ROUND);
+    vg.stroke();
 }
