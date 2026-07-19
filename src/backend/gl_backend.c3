@@ -307,10 +307,10 @@ fn int GlContext.convertPaint(&self, GlFragUniforms* frag, Paint* paint, Scissor
 
 	if (scissor.extent.x < -0.5f || scissor.extent.y < -0.5f) {
 		mem::clear(&frag.scissorMat[0], 12 * float::size);
-		frag.scissorExt.x = 1.0f;
-		frag.scissorExt.y = 1.0f;
-		frag.scissorScale.x = 1.0f;
-		frag.scissorScale.y = 1.0f;
+		frag.scissorExt.x = 1;
+		frag.scissorExt.y = 1;
+		frag.scissorScale.x = 1;
+		frag.scissorScale.y = 1;
 	}
 	else {
 		invxform = scissor.form.inverse();
@@ -332,13 +332,13 @@ fn int GlContext.convertPaint(&self, GlFragUniforms* frag, Paint* paint, Scissor
 			Mat2x3 m1;
 			Mat2x3 m2;
 
-			m1.identity().translate(0.0f, frag.extent.y * 0.5f);
+			m1.identity().translate(0, frag.extent.y * 0.5f);
 			paint.form = m1 * paint.form;
 
-			m2.identity().scale(1.0f, -1.0f);
+			m2.identity().scale(1, -1);
 			m2 = m1 * m2;
 
-			m1.identity().translate(0.0f, -frag.extent.y * 0.5f);
+			m1.identity().translate(0, -frag.extent.y * 0.5f);
 			m1 = m2 * m1;
 
 			invxform = m1.inverse();
@@ -729,7 +729,7 @@ fn int renderGetTextureSize(void* up, int image, int* w, int* h) @local {
 	return 1;
 }
 
-fn void renderViewport(void* up, float width, float height, float devicePixelRatio) @local {
+fn void renderViewport(void* up, float width, float height, float pxRatio) @local {
 	GlContext* gl = up;
 	gl.view.x = width;
 	gl.view.y = height;
@@ -816,7 +816,11 @@ fn void renderFlush(void* up) @local {
 	gl.strokeDataBuf.reset();
 }
 
-fn void renderFill(void* up, Paint* paint, CompositeOpState compositeOp, Scissor* scissor, float fringe, float* bounds, MvgPath* paths, int npaths) @local {
+fn void renderFill(void* up,
+Paint* paint, CompositeOpState compositeOp,
+Scissor* scissor, float fringe, float* bounds,
+MvgPath* paths, int npaths
+) @local {
 	GlContext* gl = up;
 	bool convex = (npaths == 1 && paths[0].convex);
 	bool earClip = !convex && npaths == 1 && paths[0].triFill != null;
@@ -859,7 +863,7 @@ fn void renderFill(void* up, Paint* paint, CompositeOpState compositeOp, Scissor
 		gl.vertsBuf.count -= (fillVertCount + strokeVertCount + triVertCount);
 		return;
 	}
-	mem::clear(gl.strokeDataBuf.at(sdOff), (sz)16 * (sz)(fillVertCount + strokeVertCount + triVertCount));
+	mem::clear(gl.strokeDataBuf.at(sdOff), 16L * (sz) (fillVertCount + strokeVertCount + triVertCount));
 
 	int uniByteOff = gl.allocFragUniforms(uniCount);
 	if (uniByteOff < 0) {
@@ -908,27 +912,27 @@ fn void renderFill(void* up, Paint* paint, CompositeOpState compositeOp, Scissor
 		call.triangleCount = paths[0].ntriFill;
 		call.uniformOffset = uniByteOff;
 		GlFragUniforms* frag = (GlFragUniforms*)(gl.uniformBuf.data + call.uniformOffset);
-		gl.convertPaint(frag, paint, scissor, fringe, fringe, -1.0f);
+		gl.convertPaint(frag, paint, scissor, fringe, fringe, -1);
 	}
 	else if (!convex) {
 		call.triangleOffset = voff;
 		Vertex* quad = gl.vertsBuf.at(call.triangleOffset);
-		quad[0] = { { bounds[2], bounds[3] }, { 0.5f, 1.0f } };
-		quad[1] = { { bounds[2], bounds[1] }, { 0.5f, 1.0f } };
-		quad[2] = { { bounds[0], bounds[3] }, { 0.5f, 1.0f } };
-		quad[3] = { { bounds[0], bounds[1] }, { 0.5f, 1.0f } };
+		quad[0] = { { bounds[2], bounds[3] }, { 0.5f, 1 } };
+		quad[1] = { { bounds[2], bounds[1] }, { 0.5f, 1 } };
+		quad[2] = { { bounds[0], bounds[3] }, { 0.5f, 1 } };
+		quad[3] = { { bounds[0], bounds[1] }, { 0.5f, 1 } };
 
 		call.uniformOffset = uniByteOff;
 		GlFragUniforms* frag = (GlFragUniforms*)(gl.uniformBuf.data + call.uniformOffset);
 		mem::clear(frag, GlFragUniforms::size);
-		frag.strokeThr = -1.0f;
+		frag.strokeThr = -1;
 		frag.type = (NsvgShader.SIMPLE);
-		gl.convertPaint((GlFragUniforms*)(gl.uniformBuf.data + call.uniformOffset + gl.fragSize), paint, scissor, fringe, fringe, -1.0f);
+		gl.convertPaint((GlFragUniforms*)(gl.uniformBuf.data + call.uniformOffset + gl.fragSize), paint, scissor, fringe, fringe, -1);
 	}
 	else {
 		call.uniformOffset = uniByteOff;
 		GlFragUniforms* frag = (GlFragUniforms*)(gl.uniformBuf.data + call.uniformOffset);
-		gl.convertPaint(frag, paint, scissor, fringe, fringe, -1.0f);
+		gl.convertPaint(frag, paint, scissor, fringe, fringe, -1);
 	}
 }
 
@@ -993,11 +997,11 @@ fn void renderStroke(void* up, Paint* paint, CompositeOpState compositeOp, Sciss
 	}
 
 	if (gl.flags & STENCIL_STROKES) {
-		gl.convertPaint((GlFragUniforms*)(gl.uniformBuf.data + uniByteOff), paint, scissor, strokeWidth, fringe, -1.0f);
-		gl.convertPaint((GlFragUniforms*)(gl.uniformBuf.data + uniByteOff + gl.fragSize), paint, scissor, strokeWidth, fringe, 1.0f - 0.5f / 255.0f);
+		gl.convertPaint((GlFragUniforms*)(gl.uniformBuf.data + uniByteOff), paint, scissor, strokeWidth, fringe, -1);
+		gl.convertPaint((GlFragUniforms*)(gl.uniformBuf.data + uniByteOff + gl.fragSize), paint, scissor, strokeWidth, fringe, 1 - 0.5f / 255);
 	}
 	else {
-		gl.convertPaint((GlFragUniforms*)(gl.uniformBuf.data + uniByteOff), paint, scissor, strokeWidth, fringe, -1.0f);
+		gl.convertPaint((GlFragUniforms*)(gl.uniformBuf.data + uniByteOff), paint, scissor, strokeWidth, fringe, -1);
 	}
 }
 
@@ -1019,7 +1023,7 @@ fn void renderTriangles(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 		gl.vertsBuf.count -= nverts;
 		return;
 	}
-	mem::clear(gl.strokeDataBuf.at(sdOff), (sz)16 * nverts);
+	mem::clear(gl.strokeDataBuf.at(sdOff), 16L * nverts);
 
 	int uniByteOff = gl.allocFragUniforms(1);
 	if (uniByteOff < 0) {
@@ -1040,7 +1044,7 @@ fn void renderTriangles(void* up, Paint* paint, CompositeOpState compositeOp, Sc
 	mem::copy(gl.vertsBuf.at(vertOff), verts, Vertex::size * nverts);
 
 	GlFragUniforms* frag = (GlFragUniforms*)(gl.uniformBuf.data + uniByteOff);
-	gl.convertPaint(frag, paint, scissor, 1.0f, fringe, -1.0f);
+	gl.convertPaint(frag, paint, scissor, 1, fringe, -1);
 	frag.type = NsvgShader.IMG;
 }
 

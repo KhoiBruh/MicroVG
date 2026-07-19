@@ -31,6 +31,18 @@ struct Vertex {
 	Vec2 uv;
 }
 
+fn Vertex* Vertex.push(&self, Vec2 pos, Vec2 uv) @inline {
+	self.pos = pos;
+	self.uv = uv;
+	return self + 1;
+}
+
+fn Vertex* Vertex.push_uv(&self, Vec2 pos, float u, float v) @inline {
+	self.pos = pos;
+	self.uv = { u, v };
+	return self + 1;
+}
+
 alias RenderCreate = fn int(void*);
 alias RenderCreateTexture = fn int(void*, TextureType, int, int, int, char*);
 alias RenderDeleteTexture = fn int(void*, int);

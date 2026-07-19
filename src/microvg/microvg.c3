@@ -29,22 +29,10 @@ struct MicroVG {
 	int textTriCount;
 }
 
-fn Vertex* Vertex.push(&self, Vec2 pos, Vec2 uv) @inline {
-	self.pos = pos;
-	self.uv = uv;
-	return self + 1;
-}
-
-fn Vertex* Vertex.push_uv(&self, Vec2 pos, float u, float v) @inline {
-	self.pos = pos;
-	self.uv = { u, v };
-	return self + 1;
-}
-
 fn void MicroVG.setPxRatio(&self, float ratio) {
 	self.tessTol = 0.25f / ratio;
 	self.distTol = 0.01f / ratio;
-	self.fringeWidth = 1.0f / ratio;
+	self.fringeWidth = 1 / ratio;
 	self.pxRatio = ratio;
 }
 
@@ -73,7 +61,7 @@ fn MicroVG* createInternal(Params* params) {
 	vg.save();
 	vg.reset();
 
-	vg.setPxRatio(1.0f);
+	vg.setPxRatio(1);
 
 	if (vg.params.renderCreate(vg.params.userPtr) == 0) {
 		vg.destroy();
@@ -131,15 +119,15 @@ fn void MicroVG.reset(&self) {
 	state.stroke.color(rgba(0, 0, 0, 255));
 	state.compositeOp = CompositeOp.SOURCE_OVER.state();
 	state.shapeAA = 1;
-	state.strokeWidth = 1.0f;
-	state.miterLimit = 10.0f;
+	state.strokeWidth = 1;
+	state.miterLimit = 10;
 	state.lineCap = LineCap.BUTT;
 	state.lineJoin = LineJoin.MITER;
-	state.alpha = 1.0f;
+	state.alpha = 1;
 	state.form.identity();
 
-	state.scissor.extent.x = -1.0f;
-	state.scissor.extent.y = -1.0f;
+	state.scissor.extent.x = -1;
+	state.scissor.extent.y = -1;
 }
 
 fn void MicroVG.shapeAA(&self, int enabled) {
@@ -243,16 +231,16 @@ Color icol, Color ocol
 		p.form.identity();
 		p.innerColor = icol;
 		p.outerColor = ocol;
-		p.feather = 1.0f;
+		p.feather = 1;
 		return p;
 	}
 
 	p.form.linear = { d.x, d.y, -d.y, d.x };
 	p.form.trans = { sx, sy };
-	p.extent = { len, 0.0f };
+	p.extent = { len, 0 };
 
-	p.radius = 0.0f;
-	p.feather = 0.0f;
+	p.radius = 0;
+	p.feather = 0;
 	p.image = 0;
 
 	p.innerColor = icol;
@@ -376,8 +364,8 @@ fn void MicroVG.intersectScissor(&self, float x, float y, float w, float h) {
 fn void MicroVG.resetScissor(&self) {
 	State* state = self.getState();
 	mem::clear(&state.scissor.form, Mat2x3::size);
-	state.scissor.extent.x = -1.0f;
-	state.scissor.extent.y = -1.0f;
+	state.scissor.extent.x = -1;
+	state.scissor.extent.y = -1;
 }
 
 fn void MicroVG.globalCompositeOp(&self, CompositeOp op) {
@@ -540,7 +528,7 @@ PathPointFlags type
 	Vec2 chord = p3 - p0;
 	float chord_len2 = chord.dot(chord);
 
-	float max_dev = 0.0f;
+	float max_dev = 0;
 	if (chord_len2 > 1e-12f) {
 		float chord_len = math::sqrt(chord_len2);
 		float dev1 = math::abs((p1 - p0).cross(chord)) / chord_len;
@@ -562,14 +550,14 @@ PathPointFlags type
 	float h3 = h2 * h;
 
 	Vec2 pa = p0;
-	Vec2 pb = (p1 - p0) * 3.0f;
-	Vec2 pc = (p2 - p1 * 2.0f + p0) * 3.0f;
-	Vec2 pd = p3 - p2 * 3.0f + p1 * 3.0f - p0;
+	Vec2 pb = (p1 - p0) * 3;
+	Vec2 pc = (p2 - p1 * 2 + p0) * 3;
+	Vec2 pd = p3 - p2 * 3 + p1 * 3 - p0;
 
 	Vec2 f = pa;
 	Vec2 df = pb * h + pc * h2 + pd * h3;
-	Vec2 d2f = pc * (2.0f * h2) + pd * (6.0f * h3);
-	Vec2 d3f = pd * (6.0f * h3);
+	Vec2 d2f = pc * (2 * h2) + pd * (6 * h3);
+	Vec2 d3f = pd * (6 * h3);
 
 	for (int i = 1; i < nsteps; i++) {
 		f = f + df;
@@ -631,8 +619,8 @@ fn void MicroVG.flattenPaths(&self) {
 
 		if (path.count > 2) {
 			float area = polyArea(pts, path.count);
-			if (path.winding == Winding.CCW && area < 0.0f) polyReverse(pts, path.count);
-			if (path.winding == Winding.CW && area > 0.0f) polyReverse(pts, path.count);
+			if (path.winding == Winding.CCW && area < 0) polyReverse(pts, path.count);
+			if (path.winding == Winding.CW && area > 0) polyReverse(pts, path.count);
 		}
 
 		for (int k = 0; k < path.count; k++) {
@@ -863,9 +851,9 @@ float w, int ncap, float aa, Vec2 uv
 
 fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLimit) {
 	PathCache* cache = self.cache;
-	float iw = 0.0f;
+	float iw = 0;
 
-	if (w > 0.0f) iw = 1.0f / w;
+	if (w > 0) iw = 1.0f / w;
 
 	for (int i = 0; i < cache.npaths; i++) {
 		MvgPath* path = &cache.paths[i];
@@ -889,25 +877,23 @@ fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLim
 			float dmr2 = p1.miter.dot(p1.miter);
 			if (dmr2 > 0.000001f) {
 				float scale = 1.0f / dmr2;
-				if (scale > 600.0f) {
-					scale = 600.0f;
-				}
+				if (scale > 600) scale = 600;
 				p1.miter *= scale;
 			}
 
 			p1.flags = { .corner = p1.flags.corner };
 
 			float cross = p1.dir.cross(p0.dir);
-			if (cross > 0.0f) {
+			if (cross > 0) {
 				nleft++;
 				p1.flags.left = true;
 			}
 
 			float limit = math::max(1.01f, math::min(p0.len, p1.len) * iw);
-			if ((dmr2 * limit * limit) < 1.0f) p1.flags.innerBevel = true;
+			if ((dmr2 * limit * limit) < 1) p1.flags.innerBevel = true;
 
 			if (p1.flags.corner) {
-				if ((dmr2 * miterLimit * miterLimit) < 1.0f || lineJoin == LineJoin.BEVEL || lineJoin == LineJoin.ROUND) {
+				if ((dmr2 * miterLimit * miterLimit) < 1 || lineJoin == LineJoin.BEVEL || lineJoin == LineJoin.ROUND) {
 					p1.flags.bevel = true;
 				}
 			}
@@ -925,13 +911,13 @@ fn void MicroVG.calculateJoins(&self, float w, LineJoin lineJoin, float miterLim
 fn int MicroVG.expandStroke(&self, float w, float fringe, LineCap lineCap, LineJoin lineJoin, float miterLimit) {
 	PathCache* cache = self.cache;
 	float aa = fringe;
-	float u0 = 0.0f;
-	float u1 = 1.0f;
+	float u0 = 0;
+	float u1 = 1;
 	int ncap = curveDivs(w, PI, self.tessTol);
 
 	w += aa * 0.5f;
 
-	if (aa == 0.0f) {
+	if (aa == 0) {
 		u0 = 0.5f;
 		u1 = 0.5f;
 	}
@@ -1076,7 +1062,7 @@ fn int earClipTriangulate(Vertex* verts, int nverts, int* out_indices) @local {
 		return 3;
 	}
 
-	int* indices = mem::malloc((sz)nverts * int::size);
+	int* indices = mem::malloc(nverts * int::size);
 	for (int i = 0; i < nverts; i++) indices[i] = i;
 
 	int n = nverts;
@@ -1143,7 +1129,7 @@ fn bool earClipFill(MvgPath* path, Vertex* fanVerts, int nfan) @local {
 	}
 
 	int max_indices = (nfan - 2) * 3;
-	int* tri_indices = mem::malloc((sz)max_indices * int::size);
+	int* tri_indices = mem::malloc(max_indices * int::size);
 	if (tri_indices == null) return false;
 
 	int ntri = earClipTriangulate(fanVerts, nfan, tri_indices);
@@ -1152,7 +1138,7 @@ fn bool earClipFill(MvgPath* path, Vertex* fanVerts, int nfan) @local {
 		return false;
 	}
 
-	Vertex* triVerts = mem::malloc((sz)ntri * Vertex::size);
+	Vertex* triVerts = mem::malloc(ntri * Vertex::size);
 	if (triVerts == null) {
 		mem::free(tri_indices);
 		return false;
@@ -1172,7 +1158,7 @@ fn bool earClipFill(MvgPath* path, Vertex* fanVerts, int nfan) @local {
 fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 	PathCache* cache = self.cache;
 	float aa = self.fringeWidth;
-	bool fringe = w > 0.0f;
+	bool fringe = w > 0;
 
 	self.calculateJoins(w, lineJoin, miterLimit);
 
@@ -1256,7 +1242,7 @@ fn int MicroVG.expandFill(&self, float w, LineJoin lineJoin, float miterLimit) {
 			p1 = &pts[0];
 
 			for (int j = 0; j < path.count; j++) {
-				if ((p1.flags.bevel || p1.flags.innerBevel)) {
+				if (p1.flags.bevel || p1.flags.innerBevel) {
 					dst = bevelJoin(dst, p0, p1, lw, rw, lu, ru, self.fringeWidth);
 				}
 				else {
@@ -1372,7 +1358,7 @@ fn void MicroVG.closePath(&self) {
 }
 
 fn void MicroVG.pathWinding(&self, Winding dir) {
-	PathCmd cmd = { .cmd = PathCommand.WINDING, .p0 = { dir.ordinal, 0.0f } };
+	PathCmd cmd = { .cmd = PathCommand.WINDING, .p0 = { dir.ordinal, 0 } };
 	self.appendCommands(&cmd, 1);
 }
 
@@ -1391,7 +1377,7 @@ fn void MicroVG.arc(&self, float cx, float cy, float r, float a0, float a1, Wind
 			da = PI * 2;
 		}
 		else {
-			while (da < 0.0f) da += PI * 2;
+			while (da < 0) da += PI * 2;
 		}
 	}
 	else {
@@ -1399,12 +1385,12 @@ fn void MicroVG.arc(&self, float cx, float cy, float r, float a0, float a1, Wind
 			da = -PI * 2;
 		}
 		else {
-			while (da > 0.0f) da -= PI * 2;
+			while (da > 0) da -= PI * 2;
 		}
 	}
 
 	ndivs = math::max(1, math::min((int)(math::abs(da) / (PI * 0.5f) + 0.5f), 5));
-	hda = (da / (float)ndivs) / 2.0f;
+	hda = (da / (float)ndivs) * 0.5f;
 	kappa = math::abs(4.0f / 3.0f * (1.0f - math::cos(hda)) / math::sin(hda));
 
 	if (dir == Winding.CCW) kappa = -kappa;
@@ -1534,7 +1520,7 @@ fn void MicroVG.fill(&self) {
 		self.expandFill(self.fringeWidth, LineJoin.MITER, 2.4f);
 	}
 	else {
-		self.expandFill(0.0f, LineJoin.MITER, 2.4f);
+		self.expandFill(0, LineJoin.MITER, 2.4f);
 	}
 
 	fillPaint.innerColor.a *= state.alpha;
@@ -1559,11 +1545,11 @@ fn void MicroVG.fill(&self) {
 fn void MicroVG.stroke(&self) {
 	State* state = self.getState();
 	float scale = state.form.averageScale();
-	float strokeWidth = math::clamp(state.strokeWidth * scale, 0.0f, 200.0f);
+	float strokeWidth = math::clamp(state.strokeWidth * scale, 0, 200);
 	Paint strokePaint = state.stroke;
 
 	if (strokeWidth < self.fringeWidth) {
-		float alpha = math::clamp(strokeWidth / self.fringeWidth, 0.0f, 1.0f);
+		float alpha = math::clamp(strokeWidth / self.fringeWidth, 0, 1);
 		strokePaint.innerColor.a *= alpha * alpha;
 		strokePaint.outerColor.a *= alpha * alpha;
 		strokeWidth = self.fringeWidth;
@@ -1578,7 +1564,7 @@ fn void MicroVG.stroke(&self) {
 		self.expandStroke(strokeWidth * 0.5f, self.fringeWidth, state.lineCap, state.lineJoin, state.miterLimit);
 	}
 	else {
-		self.expandStroke(strokeWidth * 0.5f, 0.0f, state.lineCap, state.lineJoin, state.miterLimit);
+		self.expandStroke(strokeWidth * 0.5f, 0, state.lineCap, state.lineJoin, state.miterLimit);
 	}
 
 	self.params.renderStroke(self.params.userPtr, &strokePaint, state.compositeOp, &state.scissor,

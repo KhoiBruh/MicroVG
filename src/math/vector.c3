@@ -12,7 +12,7 @@ fn Vec2 Vec2.ccw(self) @inline => { -self.y, self.x };
 
 fn float Vec2.normalize(&self) {
 	float len = self.length();
-	if (len > 0.0001f) {
+	if (len > 0.0001) {
 		float id = 1 / len;
 		self.x *= id;
 		self.y *= id;
