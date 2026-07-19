@@ -1361,9 +1361,8 @@ fn void MicroVG.pathWinding(&self, Winding dir) {
 
 fn void MicroVG.arc(&self, float cx, float cy, float r, float a0, float a1, Winding dir) {
 	float a, da, hda, kappa;
-	float dx, dy, x, y;
-	float tanx, tany, px, py;
-	float ptanx, ptany;
+	Vec2 center = { cx, cy };
+	Vec2 prevPos, prevTangent;
 	PathCmd[108] cmds;
 	int ndivs, ncmds;
 	PathCommand firstCmd = self.ncommands > 0 ? PathCommand.LINE : PathCommand.MOVE;
@@ -1395,29 +1394,24 @@ fn void MicroVG.arc(&self, float cx, float cy, float r, float a0, float a1, Wind
 	ncmds = 0;
 	for (int i = 0; i <= ndivs; i++) {
 		a = a0 + da * (i / (float)ndivs);
-		dx = math::cos(a);
-		dy = math::sin(a);
-		x = cx + dx * r;
-		y = cy + dy * r;
-		tanx = -dy * r * kappa;
-		tany = dx * r * kappa;
+		Vec2 direction = { math::cos(a), math::sin(a) };
+		Vec2 pos = center + direction * r;
+		Vec2 tangent = direction.ccw() * (r * kappa);
 
 		if (i == 0) {
 			cmds[ncmds].cmd = firstCmd;
-			cmds[ncmds].p0 = { x, y };
+			cmds[ncmds].p0 = pos;
 			ncmds++;
 		}
 		else {
 			cmds[ncmds].cmd = PathCommand.BEZIER;
-			cmds[ncmds].p0 = { px + ptanx, py + ptany };
-			cmds[ncmds].p1 = { x - tanx, y - tany };
-			cmds[ncmds].p2 = { x, y };
+			cmds[ncmds].p0 = prevPos + prevTangent;
+			cmds[ncmds].p1 = pos - tangent;
+			cmds[ncmds].p2 = pos;
 			ncmds++;
 		}
-		px = x;
-		py = y;
-		ptanx = tanx;
-		ptany = tany;
+		prevPos = pos;
+		prevTangent = tangent;
 	}
 
 	self.appendCommands(&cmds[0], ncmds);
